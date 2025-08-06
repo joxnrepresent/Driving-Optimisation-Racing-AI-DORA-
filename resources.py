@@ -1,13 +1,37 @@
 import pygame
 import math
 import pygame_gui
+from pygame import Vector2
 
-"""This module contains global variables and methods that perform basic commonly used functions"""
+"""This module contains various constants/sets that are used in various contexts, but maintain their value as well as
+methods that perform basic common tasks"""
 
+"""Game constants"""
+FRAME_TIME = 1/60
+SCREEN_DIMENSIONS = (1200, 750)
+SCREEN_FILL = "White"
 
-game_elements = pygame.sprite.Group()
-game_mode = 0
+"""Main game utilities"""
+MAIN_SCREEN = pygame.display.set_mode(SCREEN_DIMENSIONS)
 GUI_MANAGER = None
+CLOCK = pygame.time.Clock()
+PRESSED_KEYS = set()
+GAME_ELEMENTS = pygame.sprite.Group()
+GAME_MODE = 0
+
+"""Car properties (May vary in later versions)"""
+car_mass = 800
+max_steer = 1.8
+driving_force = 50
+braking_force = 120
+starting_orientation = 180
+steer_factor = max_steer/10
+throttle_factor = 0.08
+brake_factor = 0.01
+car_proportions = Vector2(27.18, 42.87)
+
+"""Methods"""
+
 def create_gui_manager():
     global GUI_MANAGER
     GUI_MANAGER = pygame_gui.UIManager((1500, 1000))

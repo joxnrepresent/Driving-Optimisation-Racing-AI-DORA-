@@ -56,3 +56,23 @@ class UIGaugeMeter(UIElement):
         self.value = resources.clamp_value(value, self.min_value, self.max_value)
         self.rebuild()
 
+class UIBezierCanvas(UIElement):
+    def __init__(self, relative_rect, manager):
+        super().__init__(relative_rect, manager, container=None, starting_height=0, layer_thickness=1)
+        self.control_points = []
+
+        self.image = pygame.Surface((self.relative_rect.width, self.relative_rect.height), pygame.SRCALPHA)
+        self.rebuild()
+
+    def process_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if self.rect.collidepoint(event.pos):
+                relative_pos = (event.pos[0] - self.rect.x, event.pos[1] - self.rect.y)
+                self.control_points.append(relative_pos)
+                print("Clicked")
+                self.rebuild()
+
+    def rebuild(self):
+        if len(self.control_points) >1:
+            for i in range(len(self.control_points)-1):
+                pygame.draw.line(self.image, "Red", self.control_points[i], self.control_points[i+1], 2)

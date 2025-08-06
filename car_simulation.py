@@ -1,7 +1,6 @@
 import pygame
 import pygame_gui
 import resources as r
-import constants as c
 from user_interface import UIGaugeMeter
 from car import Car
 
@@ -16,7 +15,7 @@ speedometer = None
 """This calls initialisation if it is the first time simulation is being run and calls the procedure that handles 
 car movement"""
 def run_car_simulation():
-    if r.game_mode == 0:
+    if r.GAME_MODE == 0:
         initialise_car_simulation()
     car_movement()
 
@@ -29,22 +28,22 @@ def initialise_car_simulation():
     throttle_and_braking = 0
     steer = 0
     car = Car((500, 500))
-    r.game_elements.add(car)
+    r.GAME_ELEMENTS.add(car)
     steering_slider = pygame_gui.elements.UIHorizontalSlider(
-        relative_rect=pygame.Rect((c.SCREEN_DIMENSIONS[0] / 2 - 250, 400), (500, 30)),
+        relative_rect=pygame.Rect((r.SCREEN_DIMENSIONS[0] / 2 - 250, 400), (500, 30)),
         start_value=0,
         value_range=(-100, 100),
         manager=r.GUI_MANAGER
     )
     throttle_and_braking_meter = pygame_gui.elements.UIProgressBar(
-        relative_rect=pygame.Rect((c.SCREEN_DIMENSIONS[0] / 4 - 250, 670), (500, 30)),
+        relative_rect=pygame.Rect((r.SCREEN_DIMENSIONS[0] / 4 - 250, 670), (500, 30)),
         manager=r.GUI_MANAGER
     )
     speedometer = UIGaugeMeter(
-        relative_rect=pygame.Rect((3 * c.SCREEN_DIMENSIONS[0] / 4 - 100, 600), (200, 100)),
+        relative_rect=pygame.Rect((3 * r.SCREEN_DIMENSIONS[0] / 4 - 100, 600), (200, 100)),
         manager=r.GUI_MANAGER
     )
-    r.game_mode = 1
+    r.GAME_MODE = 1
 
 
 """This calls methods to update the throttle and steering values and then updates the car position based on these
@@ -58,10 +57,10 @@ def car_movement():
 release throttle/brake."""
 def handle_throttle():
     global throttle_and_braking
-    if pygame.K_w in c.PRESSED_KEYS:
-        throttle_and_braking = r.clamp_value(throttle_and_braking + c.throttle_factor, 0, 1)
-    elif pygame.K_s in c.PRESSED_KEYS:
-        throttle_and_braking = r.clamp_value(throttle_and_braking - c.brake_factor, -1, 0)
+    if pygame.K_w in r.PRESSED_KEYS:
+        throttle_and_braking = r.clamp_value(throttle_and_braking + r.throttle_factor, 0, 1)
+    elif pygame.K_s in r.PRESSED_KEYS:
+        throttle_and_braking = r.clamp_value(throttle_and_braking - r.brake_factor, -1, 0)
     else:
         throttle_and_braking *= 0.9
         if -0.01 < throttle_and_braking < 0.01:
@@ -73,4 +72,4 @@ def handle_throttle():
 """This updates the steer value when the steering slider is moved"""
 def handle_steering():
     global steer
-    steer = c.max_steer * steering_slider.get_current_value()/100
+    steer = r.max_steer * steering_slider.get_current_value()/100
