@@ -1,71 +1,78 @@
 import pygame
 from pygame import Vector2
+import constants as c
+import resources as r
 
-from resources import DRAG_COEFFICIENT
-from resources import ROLLING_RESISTANCE_COEFFICIENT
-
-import resources
-class Car:
-    def __init__(self, mass, starting_position, starting_orientation, max_steer, driving_force, steer_factor, dt):
-        self.mass = mass
-        self.max_steer = max_steer
-        self.driving_force = driving_force
-        self.steer_factor = steer_factor
-
+"""This class is the Car sprite and extends the Sprite class. The throttle and steer values are used to control the 
+car's movement. The car's acceleration, velocity and position are calculated using vector math and arbitrary constants. 
+Movement is not modelling in terms of forces in this version. In later versions, forces will be used to model car 
+movement which would allow lesser bugs, more accurate steering and implementing drifting physics, however for present
+testing, this level of abstraction is sufficient"""
+class Car(pygame.sprite.Sprite):
+    def __init__(self, starting_position):
+        super().__init__()
         self.position = Vector2(starting_position)
         self.velocity = Vector2(0,0)
         self.acceleration = Vector2(0,0)
-        self.dt = dt
-        self.direction = starting_orientation
+        self.direction = c.starting_orientation
 
         self.throttle = 0
         self.steer = 0.0
-        self.brake = 0
 
-        self.original_car = resources.set_image("Car")
-        self.original_car = pygame.transform.scale(self.original_car, (80, 112))
-        self.original_car = pygame.transform.rotate(self.original_car, self.direction)
-        self.car = self.original_car.copy()
-        self.car_rect = self.car.get_rect(topleft=starting_position)
+        """The '_original_car' variable is necessary for rotating the sprite properly since the car sprite is rotated
+        to an angle with respect to the natural orientation of the sprite on the screen."""
+        self._original_car = r.set_image("Mclaren")
+        self._original_car = pygame.transform.scale(self._original_car, c.car_proportions * 2)
+        self._original_car = pygame.transform.rotate(self._original_car, self.direction)
+        self.image = self._original_car.copy()
+        self.rect = self.image.get_rect(topleft=starting_position)
 
-    def apply_steer(self, steer_percentage):
-        steer_limit = self.max_steer * abs(steer_percentage) - self.steer_factor
-        self.steer += self.steer_factor * resources.sign(steer_percentage)
-        self.steer = resources.clamp_value(self.steer, -steer_limit, steer_limit)
+    """This calls all the procedures that handle the movement of the car sprite and update its values"""
+    def move_car_sprite(self, steer_percentage, throttle_pedal_amount):
+        self._apply_steer(steer_percentage)
+        self._apply_throttle_and_braking(throttle_pedal_amount)
+        self._update_car_vector_values()
+        self._update_car_sprite_position()
+
+    """This method increments the steer value. The steer percentage is the value on the steer slider and determines
+    the limit to which the steer can be incremented up to. The steer_factor is the value by which steer is incremented
+    every game loop. This allows for gradual changes rather than abrupt updates. It also updates the direction the
+    car is facing."""
+    def _apply_steer(self, steer_percentage):
+        steer_limit = c.max_steer * abs(steer_percentage) - c.steer_factor
+        self.steer += c.steer_factor * r.sign(steer_percentage)
+        self.steer = r.clamp_value(self.steer, -steer_limit, steer_limit)
         self.direction += self.steer
-        self.direction = resources.wrap_value(self.direction, 0, 360)
+        self.direction = r.wrap_value(self.direction, 0, 360)
 
-    def apply_throttle_and_braking(self, throttle_pedal_amount):
-        self.throttle = self.driving_force * throttle_pedal_amount
+    """This sets the throttle value as a percentage of the maximum driving force. Ideally this value would be
+    continually incremented like the steer value, however controlling throttle using keys is easier for testing."""
+    def _apply_throttle_and_braking(self, throttle_pedal_amount):
+        if throttle_pedal_amount > 0:
+            self.throttle = c.driving_force * throttle_pedal_amount
+        else:
+            self.throttle = c.braking_force * throttle_pedal_amount
 
-    def update_car_vector_values(self):
+    """Updates the acceleration, velocity and position vectors based on the throttle and direction the car is facing.
+    When throttle is 0, velocity gradually decays to roughly emulate friction. The grip variable and lerp function is
+    used to smoothly update car position each frame with excessive sliding caused by this vector based approach. 
+    This method would be different when modelling forces."""
+    def _update_car_vector_values(self):
         direction_unit_vector = Vector2(0, 1).rotate(self.direction)
-
-        traction_force = self.throttle * direction_unit_vector
-        drag_force = DRAG_COEFFICIENT * self.velocity * 400 * self.velocity.magnitude()
-        rolling_resistance_force = ROLLING_RESISTANCE_COEFFICIENT * self.velocity *20
-
-        self.acceleration = (traction_force - (drag_force + rolling_resistance_force))
-
-        self.velocity += self.acceleration * self.dt
+        self.acceleration = self.throttle * direction_unit_vector
+        if self.throttle == 0:
+            self.velocity *= 0.996
+        else:
+            self.velocity += self.acceleration * c.FRAME_TIME
         if self.velocity.length_squared() != 0:
             self.velocity.clamp_magnitude_ip(300)
         grip = 0.5
         speed = self.velocity.magnitude()
         self.velocity = self.velocity.lerp(direction_unit_vector * speed, grip)
-        self.position += self.velocity * self.dt
+        self.position += self.velocity * c.FRAME_TIME
 
-    def update_car_sprite_position(self):
-        self.car = pygame.transform.rotate(self.original_car, -self.direction)  # use -orientation for clockwise
-        self.car_rect = self.car.get_rect(center=(int(self.position.x), int(self.position.y)))
-
-    def move_car_sprite(self, steer_percentage, throttle_pedal_amount):
-        self.apply_steer(steer_percentage)
-        self.apply_throttle_and_braking(throttle_pedal_amount)
-        self.update_car_vector_values()
-        self.update_car_sprite_position()
-
-
-
-
-
+    """This updates the rotation of the car sprite with respect to its direction and the original orientation, and 
+    then updates position (rect) of the car sprite"""
+    def _update_car_sprite_position(self):
+        self.image = pygame.transform.rotate(self._original_car, -self.direction)
+        self.rect = self.image.get_rect(center=(int(self.position.x), int(self.position.y)))

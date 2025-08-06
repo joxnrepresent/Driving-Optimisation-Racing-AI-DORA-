@@ -1,13 +1,22 @@
-import pygame.image
+import pygame
 import math
+import pygame_gui
 
-DRAG_COEFFICIENT = 0.4257
-ROLLING_RESISTANCE_COEFFICIENT = 12.8
+"""This module contains global variables and methods that perform basic commonly used functions"""
 
 
+game_elements = pygame.sprite.Group()
+game_mode = 0
+GUI_MANAGER = None
+def create_gui_manager():
+    global GUI_MANAGER
+    GUI_MANAGER = pygame_gui.UIManager((1500, 1000))
+
+"""Sets image of a surface using the file name (png only)"""
 def set_image(image):
     return pygame.image.load(f'Images/{image}.png').convert_alpha()
 
+"""Returns 1 if x is positive, 0 if x is 0 and -1 if x is negative"""
 def sign(x):
     if x > 0:
         return 1
@@ -16,32 +25,13 @@ def sign(x):
     else:
         return 0
 
+"""Keeps value within a range with an upper and lower limit"""
 def clamp_value(value, lower_limit, upper_limit):
     return max(lower_limit, min(value, upper_limit))
 
+"""Wraps a value by looping to the lower limit when the upper limit is crossed"""
 def wrap_value(value, lower_limit, upper_limit):
     return ((value - lower_limit) % (upper_limit-lower_limit)) + lower_limit
-
-def draw(screen, elements):
-    for element in elements:
-        if isinstance(element[0], pygame.Rect):
-            pygame.draw.rect(screen, element[1], element[0])
-        elif isinstance(element[0], pygame.Surface):
-            screen.blit(element[0], element[1])
-        elif element[0] == "semicircle":
-            draw_semicircle(screen, * element[1:])
-        elif element[0] == "line":
-            pygame.draw.line(screen, * element[1:])
-
-def draw_semicircle(screen, center, radius, fill_colour, start_angle = 0, border_width = 5, border_colour = "Black", resolution = 5 ):
-    points = [center]
-    for i in range(180*resolution + 1 ):
-        angle = start_angle + i/resolution
-        x = center[0] + radius * math.cos(math.radians(angle))
-        y = center[1] - radius * math.sin(math.radians(angle))
-        points.append((x, y))
-    pygame.draw.polygon(screen, fill_colour, points)
-    pygame.draw.polygon(screen, border_colour, points, border_width)
 
 
 

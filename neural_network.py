@@ -22,4 +22,3 @@ class Layer:
         self.b = []
 
 class Output_Layer(Layer):
-
