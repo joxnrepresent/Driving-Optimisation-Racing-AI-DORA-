@@ -64,7 +64,7 @@ def draw_semicircle(screen, center, radius, fill_colour, start_angle = 0, border
 #             percentage_increment = relative_position / (self.base.right - self.base.left)
 #             value = round(percentage_increment * self.range_of_values, 2) + self.min_value
 #             super().update_value(value)
-
+#
 # import numpy as np
 # import copy
 #
@@ -308,92 +308,431 @@ def draw_semicircle(screen, center, radius, fill_colour, start_angle = 0, border
 #                 self.log_std -= lr * mhat / (np.sqrt(vhat) + eps)
 #         else:
 #             raise ValueError("optimizer must be 'sgd' or 'adam'")
+#
+#
+#
+#     # ----------------------------
+#     # Parameter vectorization for EA
+#     # ----------------------------
+#     def get_params_vector(self):
+#         """
+#         Flatten all layer weights and biases into a single 1D numpy vector.
+#         Format: [layer0_weights.ravel(), layer0_biases, layer1_weights.ravel(), layer1_biases, ... , log_std(if learnable)]
+#         """
+#         parts = []
+#         shapes = []
+#         for l in self.layers:
+#             w = l.weights
+#             b = l.biases
+#             shapes.append(('w', w.shape))
+#             parts.append(w.ravel())
+#             shapes.append(('b', b.shape))
+#             parts.append(b.ravel())
+#         if self.learn_log_std:
+#             shapes.append(('logstd', self.log_std.shape))
+#             parts.append(self.log_std.ravel())
+#         vec = np.concatenate(parts).astype(float)
+#         return vec
+#
+#     def set_params_vector(self, vec):
+#         """
+#         Unpack vector into layer weights/biases and optional log_std.
+#         """
+#         idx = 0
+#         for l in self.layers:
+#             n_w = l.in_dim * l.out_dim
+#             w_flat = vec[idx: idx + n_w]; idx += n_w
+#             l.weights = w_flat.reshape((l.in_dim, l.out_dim)).copy()
+#
+#             n_b = l.out_dim
+#             b_flat = vec[idx: idx + n_b]; idx += n_b
+#             l.biases = b_flat.copy()
+#
+#         if self.learn_log_std:
+#             out_dim = self.layers[-1].out_dim
+#             n_ls = out_dim
+#             self.log_std = vec[idx: idx + n_ls].copy()
+#             idx += n_ls
+#
+#         if idx != len(vec):
+#             raise ValueError("Parameter vector size mismatch when setting params")
+#
+#     def perturb_params_vector(self, std, seed=None):
+#         """
+#         Return a new vector = current_params + normal_noise(0, std)
+#         Does not change the network itself.
+#         """
+#         vec = self.get_params_vector()
+#         if seed is not None:
+#             rng = np.random.RandomState(seed)
+#             noise = rng.randn(*vec.shape) * std
+#         else:
+#             noise = np.random.randn(*vec.shape) * std
+#         return vec + noise
+#
+#     def add_noise_to_params(self, std, seed=None):
+#         """
+#         Add Gaussian noise in place to current params.
+#         """
+#         new_vec = self.perturb_params_vector(std, seed)
+#         self.set_params_vector(new_vec)
+#
+#     # ----------------------------
+#     # Misc helpers
+#     # ----------------------------
+#     def copy(self):
+#         return copy.deepcopy(self)
+#
+#     def zero_grad_state(self):
+#         # resets Adam state (rarely needed)
+#         self._opt_state = {'m_w': [np.zeros_like(l.weights) for l in self.layers],
+#                            'v_w': [np.zeros_like(l.weights) for l in self.layers],
+#                            'm_b': [np.zeros_like(l.biases) for l in self.layers],
+#                            'v_b': [np.zeros_like(l.biases) for l in self.layers],
+#                            't': 0}
+#         if self.learn_log_std:
+#             self._opt_state.update({'m_logstd': np.zeros_like(self.log_std),
+#                                     'v_logstd': np.zeros_like(self.log_std)})
+#
+# # ----------------------------
+# # End of neural network module
+# # ----------------------------
 
 
+class UIBezierCanvas(UIElement):
+    def __init__(self, relative_rect, manager, container=None, enforce_g1=True):
+        super().__init__(
+            relative_rect=relative_rect,
+            manager=manager,
+            container=container,
+            starting_height=0,
+            layer_thickness=1,
+            object_id="#bezier_canvas"
+        )
 
-    # ----------------------------
-    # Parameter vectorization for EA
-    # ----------------------------
-    def get_params_vector(self):
+        # Data
+        self.anchors = []   # list[Vector2]  (anchor points in local coords)
+        self.segments = []  # list[dict] with keys: start, c1, c2, end, overridden_c1, overridden_c2
+
+        # Drawing surface sized to the element's relative_rect
+        self.image = pygame.Surface((self.relative_rect.width, self.relative_rect.height), pygame.SRCALPHA)
+
+        # Interaction state
+        self.dragging = None  # None or dict: {'type':'anchor'/'handle', ...}
+        self.anchor_hit_radius = 8
+        self.handle_hit_radius = 8
+        self.enforce_g1 = enforce_g1
+
+        # Appearance
+        self.bg_colour = pygame.Color(40, 40, 40)
+        self.border_colour = pygame.Color(200, 200, 200)
+        self.curve_colour = pygame.Color(220, 80, 40)
+        self.anchor_colour = pygame.Color(40, 200, 80)
+        self.handle_colour = pygame.Color(200, 120, 40)
+        self.helper_colour = pygame.Color(150, 150, 150)
+        self.anchor_radius = 5
+        self.handle_radius = 4
+        self.curve_width = 3
+
+        # initial image
+        self.rebuild()
+
+    # -------------------------
+    # Input handling
+    # -------------------------
+    def process_event(self, event):
+        # Convert global mouse pos to local canvas coords helper
+        def local_pos_from_event(evpos):
+            return Vector2(evpos) - Vector2(self.rect.topleft)
+
+        # Left click down -> either start drag or add anchor
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if not self.rect.collidepoint(event.pos):
+                return False
+
+            local = local_pos_from_event(event.pos)
+
+            # 1) Hit test anchors (closest)
+            for i, a in enumerate(self.anchors):
+                if (a - local).length() <= self.anchor_hit_radius:
+                    # start dragging anchor i
+                    offset = a - local
+                    self.dragging = {'type': 'anchor', 'index': i, 'offset': offset}
+                    return True
+
+            # 2) Hit test handles (c1/c2) per segment
+            for si, seg in enumerate(self.segments):
+                if (seg['c1'] - local).length() <= self.handle_hit_radius:
+                    offset = seg['c1'] - local
+                    seg['overridden_c1'] = True  # mark manual change
+                    self.dragging = {'type': 'handle', 'seg_index': si, 'which': 'c1', 'offset': offset}
+                    return True
+                if (seg['c2'] - local).length() <= self.handle_hit_radius:
+                    offset = seg['c2'] - local
+                    seg['overridden_c2'] = True
+                    self.dragging = {'type': 'handle', 'seg_index': si, 'which': 'c2', 'offset': offset}
+                    return True
+
+            # 3) No hit -> add a new anchor (append)
+            self.anchors.append(Vector2(local))
+            self._generate_segments_from_anchors(preserve_overrides=True)
+            self.rebuild()
+            return True
+
+        # Left button up -> stop drag
+        if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+            if self.dragging:
+                # when finishing dragging an anchor, recompute default handles
+                if self.dragging['type'] == 'anchor':
+                    # anchor moved; regenerate default handles where not overridden
+                    self._generate_segments_from_anchors(preserve_overrides=True)
+                # end drag
+                self.dragging = None
+                self.rebuild()
+                return True
+
+        # Mouse motion -> if dragging, move the item
+        if event.type == pygame.MOUSEMOTION:
+            if self.dragging:
+                local = Vector2(event.pos) - Vector2(self.rect.topleft)
+                d = self.dragging
+                if d['type'] == 'anchor':
+                    idx = d['index']
+                    new_pos = local + d['offset']
+                    # clamp to canvas bounds
+                    new_pos.x = max(0, min(self.relative_rect.width, new_pos.x))
+                    new_pos.y = max(0, min(self.relative_rect.height, new_pos.y))
+                    self.anchors[idx] = new_pos
+                    # update segment endpoints linked to this anchor
+                    self._update_segment_endpoints_from_anchors()
+                    # regenerate handles only for non-overridden segments
+                    self._generate_segments_from_anchors(preserve_overrides=True)
+                    self.rebuild()
+                    return True
+
+                elif d['type'] == 'handle':
+                    si = d['seg_index']
+                    which = d['which']
+                    seg = self.segments[si]
+                    new_pos = local + d['offset']
+                    # clamp
+                    new_pos.x = max(0, min(self.relative_rect.width, new_pos.x))
+                    new_pos.y = max(0, min(self.relative_rect.height, new_pos.y))
+                    seg[which] = new_pos
+                    seg[f'overridden_{which}'] = True
+
+                    # If G1 enforcement on, update neighbouring segment's matching handle direction
+                    if self.enforce_g1:
+                        self._enforce_g1_after_handle_move(seg_index=si, which=which)
+                    self.rebuild()
+                    return True
+
+        # Right click -> undo last anchor
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 3:
+            if self.rect.collidepoint(event.pos):
+                if self.anchors:
+                    self.anchors.pop()
+                    self._generate_segments_from_anchors(preserve_overrides=True)
+                    self.rebuild()
+                return True
+
+        # Keyboard: clear with 'c' or 'C'
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_c:
+                self.anchors.clear()
+                self.segments.clear()
+                self.rebuild()
+                return True
+
+        return False
+
+    # -------------------------
+    # Segment generation & updates
+    # -------------------------
+    def _generate_segments_from_anchors(self, preserve_overrides=True):
         """
-        Flatten all layer weights and biases into a single 1D numpy vector.
-        Format: [layer0_weights.ravel(), layer0_biases, layer1_weights.ravel(), layer1_biases, ... , log_std(if learnable)]
+        Build self.segments from anchors using Catmull-Rom -> cubic Bézier conversion.
+        If preserve_overrides is True, keep any previously overridden control points for matching indices.
         """
-        parts = []
-        shapes = []
-        for l in self.layers:
-            w = l.weights
-            b = l.biases
-            shapes.append(('w', w.shape))
-            parts.append(w.ravel())
-            shapes.append(('b', b.shape))
-            parts.append(b.ravel())
-        if self.learn_log_std:
-            shapes.append(('logstd', self.log_std.shape))
-            parts.append(self.log_std.ravel())
-        vec = np.concatenate(parts).astype(float)
-        return vec
+        old = self.segments
+        n = len(self.anchors)
+        new_segs = []
 
-    def set_params_vector(self, vec):
+        for i in range(n - 1):
+            p1 = self.anchors[i]        # start
+            p2 = self.anchors[i + 1]    # end
+            p0 = self.anchors[i - 1] if i - 1 >= 0 else p1  # clamp
+            p3 = self.anchors[i + 2] if i + 2 < n else p2  # clamp
+
+            # default handles (Catmull-Rom -> Bezier)
+            default_c1 = p1 + (p2 - p0) / 6.0
+            default_c2 = p2 - (p3 - p1) / 6.0
+
+            seg = {
+                'start': Vector2(p1),
+                'c1': Vector2(default_c1),
+                'c2': Vector2(default_c2),
+                'end': Vector2(p2),
+                'overridden_c1': False,
+                'overridden_c2': False
+            }
+
+            # preserve old overrides/positions for the same segment index
+            if preserve_overrides and i < len(old):
+                oldseg = old[i]
+                if oldseg.get('overridden_c1', False):
+                    seg['c1'] = Vector2(oldseg['c1'])
+                    seg['overridden_c1'] = True
+                if oldseg.get('overridden_c2', False):
+                    seg['c2'] = Vector2(oldseg['c2'])
+                    seg['overridden_c2'] = True
+
+            new_segs.append(seg)
+
+        self.segments = new_segs
+
+    def _update_segment_endpoints_from_anchors(self):
+        """When anchors move, update segment start/end positions to match anchors."""
+        for i, seg in enumerate(self.segments):
+            if i < len(self.anchors):
+                seg['start'] = Vector2(self.anchors[i])
+            if i + 1 < len(self.anchors):
+                seg['end'] = Vector2(self.anchors[i + 1])
+
+    def _enforce_g1_after_handle_move(self, seg_index, which):
         """
-        Unpack vector into layer weights/biases and optional log_std.
+        Keep tangent direction continuous at joins:
+        - if which == 'c2', update next segment's c1 to be collinear (opposite direction).
+        - if which == 'c1', update previous segment's c2 similarly.
+        We try to preserve the neighbor's handle length.
         """
-        idx = 0
-        for l in self.layers:
-            n_w = l.in_dim * l.out_dim
-            w_flat = vec[idx: idx + n_w]; idx += n_w
-            l.weights = w_flat.reshape((l.in_dim, l.out_dim)).copy()
+        seg = self.segments[seg_index]
+        if which == 'c2':
+            # Join at seg.end which is anchor between seg and next_seg
+            joint_anchor = seg['end']
+            v = seg['c2'] - joint_anchor
+            if v.length_squared() == 0:
+                return
+            # update next seg c1
+            next_index = seg_index + 1
+            if next_index < len(self.segments):
+                next_seg = self.segments[next_index]
+                old_vec = next_seg['c1'] - joint_anchor
+                old_len = old_vec.length()
+                if old_len == 0:
+                    old_len = v.length()
+                new_c1 = joint_anchor - v.normalize() * old_len
+                next_seg['c1'] = new_c1
+                next_seg['overridden_c1'] = True
 
-            n_b = l.out_dim
-            b_flat = vec[idx: idx + n_b]; idx += n_b
-            l.biases = b_flat.copy()
+        elif which == 'c1':
+            # Join at seg.start; affect previous segment's c2
+            joint_anchor = seg['start']
+            v = seg['c1'] - joint_anchor
+            if v.length_squared() == 0:
+                return
+            prev_index = seg_index - 1
+            if prev_index >= 0:
+                prev_seg = self.segments[prev_index]
+                old_vec = prev_seg['c2'] - joint_anchor
+                old_len = old_vec.length()
+                if old_len == 0:
+                    old_len = v.length()
+                new_c2 = joint_anchor - v.normalize() * old_len
+                prev_seg['c2'] = new_c2
+                prev_seg['overridden_c2'] = True
 
-        if self.learn_log_std:
-            out_dim = self.layers[-1].out_dim
-            n_ls = out_dim
-            self.log_std = vec[idx: idx + n_ls].copy()
-            idx += n_ls
+    # -------------------------
+    # Drawing / rebuild
+    # -------------------------
+    def rebuild(self):
+        """Redraw the committed image (cached)."""
+        # clear
+        self.image.fill((0, 0, 0, 0))
+        # background
+        pygame.draw.rect(self.image, self.bg_colour, pygame.Rect(0, 0, self.relative_rect.width, self.relative_rect.height))
 
-        if idx != len(vec):
-            raise ValueError("Parameter vector size mismatch when setting params")
+        # draw segments
+        for seg in self.segments:
+            self._draw_cubic_bezier_on_surf(self.image, seg['start'], seg['c1'], seg['c2'], seg['end'], self.curve_colour, self.curve_width)
 
-    def perturb_params_vector(self, std, seed=None):
-        """
-        Return a new vector = current_params + normal_noise(0, std)
-        Does not change the network itself.
-        """
-        vec = self.get_params_vector()
-        if seed is not None:
-            rng = np.random.RandomState(seed)
-            noise = rng.randn(*vec.shape) * std
-        else:
-            noise = np.random.randn(*vec.shape) * std
-        return vec + noise
+        # draw helper lines & handles
+        for seg in self.segments:
+            # helper lines from start->c1 and end->c2
+            pygame.draw.line(self.image, self.helper_colour, seg['start'], seg['c1'], 1)
+            pygame.draw.line(self.image, self.helper_colour, seg['end'], seg['c2'], 1)
+            # handles
+            pygame.draw.circle(self.image, self.handle_colour, (int(seg['c1'].x), int(seg['c1'].y)), self.handle_radius)
+            pygame.draw.circle(self.image, self.handle_colour, (int(seg['c2'].x), int(seg['c2'].y)), self.handle_radius)
 
-    def add_noise_to_params(self, std, seed=None):
-        """
-        Add Gaussian noise in place to current params.
-        """
-        new_vec = self.perturb_params_vector(std, seed)
-        self.set_params_vector(new_vec)
+        # draw anchors on top
+        for a in self.anchors:
+            pygame.draw.circle(self.image, self.anchor_colour, (int(a.x), int(a.y)), self.anchor_radius)
 
-    # ----------------------------
-    # Misc helpers
-    # ----------------------------
-    def copy(self):
-        return copy.deepcopy(self)
+    def _draw_cubic_bezier_on_surf(self, surf, p0, c1, c2, p3, colour, width):
+        """Evaluate cubic with De Casteljau (lerp) and draw connected short lines."""
+        pts = []
+        steps = 48
+        for i in range(steps + 1):
+            t = i / steps
+            a = p0.lerp(c1, t)
+            b = c1.lerp(c2, t)
+            c = c2.lerp(p3, t)
+            d = a.lerp(b, t)
+            e = b.lerp(c, t)
+            pt = d.lerp(e, t)
+            pts.append((int(pt.x), int(pt.y)))
+        if len(pts) >= 2:
+            pygame.draw.lines(surf, colour, False, pts, width)
 
-    def zero_grad_state(self):
-        # resets Adam state (rarely needed)
-        self._opt_state = {'m_w': [np.zeros_like(l.weights) for l in self.layers],
-                           'v_w': [np.zeros_like(l.weights) for l in self.layers],
-                           'm_b': [np.zeros_like(l.biases) for l in self.layers],
-                           'v_b': [np.zeros_like(l.biases) for l in self.layers],
-                           't': 0}
-        if self.learn_log_std:
-            self._opt_state.update({'m_logstd': np.zeros_like(self.log_std),
-                                    'v_logstd': np.zeros_like(self.log_std)})
+    # -------------------------
+    # Main draw called each frame
+    # -------------------------
+    def draw(self, surface):
+        # blit cached image
+        surface.blit(self.image, self.rect.topleft)
+        # border
+        pygame.draw.rect(surface, self.border_colour, self.rect, width=1)
 
-# ----------------------------
-# End of neural network module
-# ----------------------------
+        # live preview: if mouse inside and there is at least 1 anchor, preview next segment to mouse
+        mx, my = pygame.mouse.get_pos()
+        if self.rect.collidepoint((mx, my)) and self.anchors:
+            local_mouse = Vector2((mx - self.rect.x, my - self.rect.y))
+            last_anchor = self.anchors[-1]
+
+            keys = pygame.key.get_pressed()
+            space = keys[pygame.K_SPACE]
+
+            if space:
+                # straight preview
+                start = Vector2(self.rect.x + last_anchor.x, self.rect.y + last_anchor.y)
+                end = Vector2(self.rect.x + local_mouse.x, self.rect.y + local_mouse.y)
+                pygame.draw.line(surface, self.curve_colour, start, end, self.curve_width)
+            else:
+                # compute preview cubic from last anchor -> mouse (use catmull style with clamped neighbours)
+                p1 = last_anchor
+                p2 = local_mouse
+                p0 = self.anchors[-2] if len(self.anchors) >= 2 else p1
+                p3 = p2
+                c1 = p1 + (p2 - p0) / 6.0
+                c2 = p2 - (p3 - p1) / 6.0
+                # evaluate and draw
+                preview_pts = []
+                steps = 30
+                for i in range(steps + 1):
+                    t = i / steps
+                    a = p1.lerp(c1, t)
+                    b = c1.lerp(c2, t)
+                    c = c2.lerp(p2, t)
+                    d = a.lerp(b, t)
+                    e = b.lerp(c, t)
+                    pt = d.lerp(e, t)
+                    preview_pts.append((int(self.rect.x + pt.x), int(self.rect.y + pt.y)))
+                if len(preview_pts) >= 2:
+                    pygame.draw.lines(surface, self.curve_colour, False, preview_pts, self.curve_width)
+
+        # small on-canvas instructions
+        font = pygame.font.SysFont(None, 16)
+        info = "LClick: add • Drag anchors/handles • RClick: undo • C: clear • Hold SPACE: straight"
+        text_surf = font.render(info, True, (200, 200, 200))
+        surface.blit(text_surf, (self.rect.x + 6, self.rect.y + 6))

@@ -1,6 +1,4 @@
 import numpy as np
-
-
 class Layer:
     def __init__(self, input_size, output_size, activation):
         self.biases = np.zeros(output_size)
@@ -118,7 +116,6 @@ class NeuralNetwork:
                                                                           self.adam_moments['b'][i][1],
                                                                           weight_grads[i],
                                                                           self.adam_moments['t'])
-
             layer.weights -= weight_update
             layer.biases -= bias_update
 
@@ -136,5 +133,3 @@ class NeuralNetwork:
         v_hat = v / (1 - beta2 ** t)
         update_value = alpha * m_hat / (np.sqrt(v_hat) + eps)
         return (m, v), update_value
-
-

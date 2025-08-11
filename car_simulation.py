@@ -11,14 +11,12 @@ magnitude of the velocity"""
 
 #---------------------------------------------------------------------------------------------------------------------#
 
-# -----------------------------------#
-"""This class is the Car sprite and extends the Sprite class. The movement of the car is controlled by user input. 
-The throttle and steer values are used to control the car's movement. The car's acceleration, velocity and position 
-are calculated using vector math and arbitrary constants. Movement is not modelling in terms of forces in this version. 
-In later versions, forces will be used to model car movement which would allow lesser bugs, more accurate steering and 
-implementing drifting physics, however for present testing, this level of abstraction is sufficient"""
-# -----------------------------------#
 class Car(pygame.sprite.Sprite):
+    """This class is the Car sprite and extends the Sprite class. The movement of the car is controlled by user input.
+    The throttle and steer values are used to control the car's movement. The car's acceleration, velocity and position
+    are calculated using vector math and arbitrary constants. Movement is not modelling in terms of forces in this version.
+    In later versions, forces will be used to model car movement which would allow lesser bugs, more accurate steering and
+    implementing drifting physics, however for present testing, this level of abstraction is sufficient"""
     def __init__(self, starting_position):
         super().__init__()
         self.position = Vector2(starting_position)
