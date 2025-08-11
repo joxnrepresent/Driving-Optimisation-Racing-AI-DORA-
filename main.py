@@ -1,16 +1,20 @@
 import pygame
 import pygame_gui
 import resources as r
-from car import Car
-from user_interface import UIGaugeMeter
+from gui_custom_elements import UIGaugeMeter
 from car_simulation import run_car_simulation
 from track_drawing_interface import run_track_drawing_interface
 
-"""Global variables"""
+"""Main module for running the program. This handles initialisation, input, updates, and rendering"""
+#---------------------------------------------------------------------------------------------------------------------#
+
+# pygame and GUI initialisation
+# -----------------------------------#
 pygame.init()
 r.create_gui_manager()
 
-"""This is the game loop which runs indefinitely till program is closed"""
+# Game loop which runs indefinitely till program is closed
+# -----------------------------------#
 def game_loop():
     while True:
         check_events()
@@ -18,8 +22,10 @@ def game_loop():
         run_track_drawing_interface()
         update_frame()
 
-"""This handles user input in keystrokes and interaction with GUI. Keystrokes are recording using a 
-'PRESSED_KEYS' set. The GUI manager processes events with respect to the GUI elements on screen"""
+# Handles user input in keystrokes and interaction with GUI.
+# Keystrokes are appended/ removed from 'PRESSED_KEYS' set.
+# The GUI manager processes events with respect to the GUI elements on screen
+# -----------------------------------#
 def check_events():
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -30,8 +36,8 @@ def check_events():
             r.PRESSED_KEYS.remove(event.key)
         r.GUI_MANAGER.process_events(event)
 
-"""This updates all the GUI and game elements and draws them onto the screen, then ticks
- the clock to prepare to process the next frame"""
+# Handles drawing to the screen and frame timing
+# -----------------------------------#
 def update_frame():
     r.GUI_MANAGER.update(1/r.FRAME_TIME)
     r.GAME_ELEMENTS.update()

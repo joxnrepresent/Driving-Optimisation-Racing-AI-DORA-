@@ -4,7 +4,7 @@ from pygame import Vector2, draw, Rect
 import pygame_gui
 import resources as r
 from resources import SCREEN_DIMENSIONS
-from user_interface import UIBezierCanvas
+from gui_custom_elements import UIBezierCanvas
 def run_track_drawing_interface():
     if r.GAME_MODE == 0:
         initialise_track_drawing_interface()
