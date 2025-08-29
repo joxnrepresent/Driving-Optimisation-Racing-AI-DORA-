@@ -3,9 +3,11 @@ import pygame_gui
 import resources as r
 from gui_custom_elements import UIGaugeMeter
 from car_simulation import run_car_simulation
-from track_drawing_interface import run_track_drawing_interface
+from track_drawing_interface import run_track_maker
 
-"""Main module for running the program. This handles initialisation, input, updates, and rendering"""
+"""
+Main module for running the program. This handles initialisation, input, updates, and rendering
+"""
 #---------------------------------------------------------------------------------------------------------------------#
 
 # pygame and GUI initialisation
@@ -18,8 +20,11 @@ r.create_gui_manager()
 def game_loop():
     while True:
         check_events()
-        # run_car_simulation()
-        run_track_drawing_interface()
+        if r.GAME_MODE == "track maker":
+            run_track_maker()
+        elif r.GAME_MODE == "car simulation":
+            run_car_simulation()
+
         update_frame()
 
 # Handles user input in keystrokes and interaction with GUI.
@@ -28,22 +33,33 @@ def game_loop():
 # -----------------------------------#
 def check_events():
     for event in pygame.event.get():
+        r.GUI_MANAGER.process_events(event)
         if event.type == pygame.QUIT:
             exit()
         if event.type == pygame.KEYDOWN:
             r.PRESSED_KEYS.add(event.key)
         if event.type == pygame.KEYUP:
             r.PRESSED_KEYS.remove(event.key)
-        r.GUI_MANAGER.process_events(event)
+        if event.type == pygame.USEREVENT and  event.user_type == pygame_gui.UI_BUTTON_PRESSED:
+            r.PRESSED_BUTTONS.add(event.ui_element)
+
+
+
+def render():
+    r.MAIN_SCREEN.fill(r.SCREEN_FILL)
+    if r.DEBUG:
+        for element in r.DEBUG_ELEMENTS:
+            if len(element) == 4:
+                pygame.draw.polygon(r.MAIN_SCREEN, "red", element)
+    r.GAME_SPRITES.draw(r.MAIN_SCREEN)
+    r.GUI_MANAGER.draw_ui(r.MAIN_SCREEN)
 
 # Handles drawing to the screen and frame timing
 # -----------------------------------#
 def update_frame():
     r.GUI_MANAGER.update(1/r.FRAME_TIME)
-    r.GAME_ELEMENTS.update()
-    r.MAIN_SCREEN.fill(r.SCREEN_FILL)
-    r.GAME_ELEMENTS.draw(r.MAIN_SCREEN)
-    r.GUI_MANAGER.draw_ui(r.MAIN_SCREEN)
+    r.GAME_SPRITES.update()
+    render()
     pygame.display.flip()
     r.CLOCK.tick(1/r.FRAME_TIME)
 

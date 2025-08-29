@@ -1,3 +1,5 @@
+from statistics import variance
+
 import numpy as np
 class Layer:
     def __init__(self, input_size, output_size, activation):
@@ -66,7 +68,7 @@ class Layer:
 class NeuralNetwork:
     def __init__(self, layer_sizes, activations, init_log_std=-1.0, seed=None):
         if seed is not None:
-            np.random.default_rng(seed)
+            np.random.seed(seed)
 
         self.layers = []
         assert len(activations) == len(layer_sizes)-1
@@ -75,7 +77,7 @@ class NeuralNetwork:
 
         self.log_std = np.full(layer_sizes[-1], init_log_std)
 
-        #Adaptive Moment (Ad_am) Optimiser
+        #Adaptive Moment (Adam) Optimiser
         """
         1st moment - mean
         2nd moment - variance
@@ -93,6 +95,10 @@ class NeuralNetwork:
             a = layer.layer_forward_pass(a)
             activation_outputs.append(a)
         return a, activation_outputs
+
+    def computing_log_probabilities(self, actions, mu):
+        sigma = np.exp(self.log_std)
+        return -0.5 * np.sum(((actions-mu) ** 2) / sigma ** 2 + 2 * self.log_std + np.log(2 * np.pi), axis=1)
 
     def compute_gradients(self, d_a):
         weight_grads = []
@@ -114,7 +120,7 @@ class NeuralNetwork:
 
             self.adam_moments['b'][i], bias_update = self.adam_estimation(self.adam_moments['b'][i][0],
                                                                           self.adam_moments['b'][i][1],
-                                                                          weight_grads[i],
+                                                                          bias_grads[i],
                                                                           self.adam_moments['t'])
             layer.weights -= weight_update
             layer.biases -= bias_update

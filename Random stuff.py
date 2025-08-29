@@ -178,225 +178,272 @@ def draw_semicircle(screen, center, radius, fill_colour, start_angle = 0, border
 #
 #
 # # ----------------------------
-# # NeuralNetwork class
-# # ----------------------------
-# class NeuralNetwork:
-#     def __init__(self, layer_sizes, activations=None, learn_log_std=False, init_log_std=-1.0, seed=None):
-#         """
-#         layer_sizes: list like [input_dim, hidden1, ..., output_dim]
-#         activations: list of activation names for layers (len = len(layer_sizes)-1) or None:
-#                      if None -> hidden: 'relu', output: 'tanh' (common for continuous [-1,1])
-#         learn_log_std: if True, network has a learnable log_std vector for output dims (useful for VPG)
-#         init_log_std: initial value for log_std (scalar or array-like)
-#         """
-#         if seed is not None:
-#             np.random.seed(seed)
-#         L = len(layer_sizes)-1
-#         if activations is None:
-#             activations = ['relu']*(L-1) + ['tanh']
-#         assert len(activations) == L
-#
-#         self.layers = []
-#         for i in range(L):
-#             self.layers.append(Layer(layer_sizes[i], layer_sizes[i+1], activation=activations[i]))
-#
-#         self.learn_log_std = bool(learn_log_std)
-#         if self.learn_log_std:
-#             output_dim = layer_sizes[-1]
-#             if np.isscalar(init_log_std):
-#                 self.log_std = np.full(output_dim, init_log_std, dtype=float)
-#             else:
-#                 self.log_std = np.array(init_log_std, dtype=float).copy()
-#         else:
-#             self.log_std = None
-#
-#         # optimizer state for Adam
-#         self._opt_state = {'m_w': [np.zeros_like(l.weights) for l in self.layers],
-#                            'v_w': [np.zeros_like(l.weights) for l in self.layers],
-#                            'm_b': [np.zeros_like(l.biases) for l in self.layers],
-#                            'v_b': [np.zeros_like(l.biases) for l in self.layers],
-#                            't': 0}
-#         if self.learn_log_std:
-#             self._opt_state.update({'m_logstd': np.zeros_like(self.log_std),
-#                                     'v_logstd': np.zeros_like(self.log_std)})
-#
-#     # ----------------------------
-#     # Forward and prediction
-#     # ----------------------------
-#     def forward(self, x, return_all=False):
-#         """
-#         x: (batch, input_dim)
-#         return_all: if True returns list of activations (including input) for inspection
-#         returns: output (batch, output_dim) or (output, activations_list)
-#         """
-#         a = x
-#         activations = [a]
-#         for layer in self.layers:
-#             a = layer.forward(a)
-#             activations.append(a)
-#         if return_all:
-#             return a, activations
-#         return a
-#
-#     def predict(self, x):
-#         return self.forward(x, return_all=False)
-#
-#     # ----------------------------
-#     # Backprop (compute gradients)
-#     # ----------------------------
-#     def compute_gradients(self, dLoss_dOutput):
-#         """
-#         dLoss_dOutput: (batch, output_dim) gradient of loss w.r.t network output (the last activation).
-#         This method will run a backward pass using cached forward activations. It returns a `grads` dict:
-#           grads = {'dW': [..], 'dB': [..], 'dLogStd': gradient_or_None}
-#         Note: this function DOES NOT update weights; it only returns gradients.
-#         """
-#         grads_w = [None] * len(self.layers)
-#         grads_b = [None] * len(self.layers)
-#         dA = dLoss_dOutput
-#         # iterate backward
-#         for i in reversed(range(len(self.layers))):
-#             layer = self.layers[i]
-#             dA, dW, db = layer.backward(dA)
-#             grads_w[i] = dW
-#             grads_b[i] = db
-#
-#         grads = {'dW': grads_w, 'dB': grads_b}
-#         # we don't produce dLogStd here — user must compute and pass if learn_log_std is used
-#         return grads
-#
-#     # ----------------------------
-#     # Apply gradients (SGD or Adam)
-#     # ----------------------------
-#     def apply_gradients(self, grads, lr=1e-3, optimizer='sgd', beta1=0.9, beta2=0.999, eps=1e-8, grad_logstd=None):
-#         """
-#         grads: dict returned by compute_gradients
-#         lr: learning rate
-#         optimizer: 'sgd' or 'adam'
-#         grad_logstd: if learn_log_std is True, pass gradient vector for log_std (shape = output_dim)
-#         """
-#         if optimizer.lower() == 'sgd':
-#             for i, layer in enumerate(self.layers):
-#                 layer.weights -= lr * grads['dW'][i]
-#                 layer.biases -= lr * grads['dB'][i]
-#             if self.learn_log_std and (grad_logstd is not None):
-#                 self.log_std -= lr * grad_logstd
-#         elif optimizer.lower() == 'adam':
-#             st = self._opt_state
-#             st['t'] += 1
-#             t = st['t']
-#             for i, layer in enumerate(self.layers):
-#                 g_w = grads['dW'][i
-#                 g_b = grads['dB'][i]
-#                 st['m_w'][i] = beta1 * st['m_w'][i] + (1 - beta1) * g_w
-#                 st['v_w'][i] = beta2 * st['v_w'][i] + (1 - beta2) * (g_w * g_w)
-#                 mhat_w = st['m_w'][i] / (1 - beta1**t)
-#                 vhat_w = st['v_w'][i] / (1 - beta2**t)
-#                 layer.weights -= lr * mhat_w / (np.sqrt(vhat_w) + eps)
-#
-#                 st['m_b'][i] = beta1 * st['m_b'][i] + (1 - beta1) * g_b
-#                 st['v_b'][i] = beta2 * st['v_b'][i] + (1 - beta2) * (g_b * g_b)
-#                 mhat_b = st['m_b'][i] / (1 - beta1**t)
-#                 vhat_b = st['v_b'][i] / (1 - beta2**t)
-#                 layer.biases -= lr * mhat_b / (np.sqrt(vhat_b) + eps)
-#
-#             if self.learn_log_std and (grad_logstd is not None):
-#                 st['m_logstd'] = beta1 * st['m_logstd'] + (1 - beta1) * grad_logstd
-#                 st['v_logstd'] = beta2 * st['v_logstd'] + (1 - beta2) * (grad_logstd * grad_logstd)
-#                 mhat = st['m_logstd'] / (1 - beta1**t)
-#                 vhat = st['v_logstd'] / (1 - beta2**t)
-#                 self.log_std -= lr * mhat / (np.sqrt(vhat) + eps)
-#         else:
-#             raise ValueError("optimizer must be 'sgd' or 'adam'")
-#
-#
-#
-#     # ----------------------------
-#     # Parameter vectorization for EA
-#     # ----------------------------
-#     def get_params_vector(self):
-#         """
-#         Flatten all layer weights and biases into a single 1D numpy vector.
-#         Format: [layer0_weights.ravel(), layer0_biases, layer1_weights.ravel(), layer1_biases, ... , log_std(if learnable)]
-#         """
-#         parts = []
-#         shapes = []
-#         for l in self.layers:
-#             w = l.weights
-#             b = l.biases
-#             shapes.append(('w', w.shape))
-#             parts.append(w.ravel())
-#             shapes.append(('b', b.shape))
-#             parts.append(b.ravel())
-#         if self.learn_log_std:
-#             shapes.append(('logstd', self.log_std.shape))
-#             parts.append(self.log_std.ravel())
-#         vec = np.concatenate(parts).astype(float)
-#         return vec
-#
-#     def set_params_vector(self, vec):
-#         """
-#         Unpack vector into layer weights/biases and optional log_std.
-#         """
-#         idx = 0
-#         for l in self.layers:
-#             n_w = l.in_dim * l.out_dim
-#             w_flat = vec[idx: idx + n_w]; idx += n_w
-#             l.weights = w_flat.reshape((l.in_dim, l.out_dim)).copy()
-#
-#             n_b = l.out_dim
-#             b_flat = vec[idx: idx + n_b]; idx += n_b
-#             l.biases = b_flat.copy()
-#
-#         if self.learn_log_std:
-#             out_dim = self.layers[-1].out_dim
-#             n_ls = out_dim
-#             self.log_std = vec[idx: idx + n_ls].copy()
-#             idx += n_ls
-#
-#         if idx != len(vec):
-#             raise ValueError("Parameter vector size mismatch when setting params")
-#
-#     def perturb_params_vector(self, std, seed=None):
-#         """
-#         Return a new vector = current_params + normal_noise(0, std)
-#         Does not change the network itself.
-#         """
-#         vec = self.get_params_vector()
-#         if seed is not None:
-#             rng = np.random.RandomState(seed)
-#             noise = rng.randn(*vec.shape) * std
-#         else:
-#             noise = np.random.randn(*vec.shape) * std
-#         return vec + noise
-#
-#     def add_noise_to_params(self, std, seed=None):
-#         """
-#         Add Gaussian noise in place to current params.
-#         """
-#         new_vec = self.perturb_params_vector(std, seed)
-#         self.set_params_vector(new_vec)
-#
-#     # ----------------------------
-#     # Misc helpers
-#     # ----------------------------
-#     def copy(self):
-#         return copy.deepcopy(self)
-#
-#     def zero_grad_state(self):
-#         # resets Adam state (rarely needed)
-#         self._opt_state = {'m_w': [np.zeros_like(l.weights) for l in self.layers],
-#                            'v_w': [np.zeros_like(l.weights) for l in self.layers],
-#                            'm_b': [np.zeros_like(l.biases) for l in self.layers],
-#                            'v_b': [np.zeros_like(l.biases) for l in self.layers],
-#                            't': 0}
-#         if self.learn_log_std:
-#             self._opt_state.update({'m_logstd': np.zeros_like(self.log_std),
-#                                     'v_logstd': np.zeros_like(self.log_std)})
-#
-# # ----------------------------
-# # End of neural network module
-# # ----------------------------
+# ----------------------------
+# Policy network (Gaussian mean output)
+# ----------------------------
+class GaussianPolicyNet:
+    """
+    A simple MLP policy that outputs a mean vector mu(s) for a diagonal Gaussian policy.
+    log_std is a separate learnable vector of shape (action_dim,).
+
+    Methods:
+      - forward(states): returns mu (B, A)
+      - act(states, stochastic=True): sample action(s)
+      - gaussian_log_prob(actions, mu): per-sample log-prob
+      - gaussian_entropy(): scalar entropy (sum over action dims)
+      - policy_loss_and_grads(states, actions, advantages, entropy_coef): compute L and grads
+      - apply_gradients(grads, lr, ...): Adam update using grads from policy_loss_and_grads
+      - get/set/perturb param vector (for EA)
+    """
+    def __init__(self, layer_sizes, activations, init_log_std=-1.0, seed=None):
+        """
+        layer_sizes: list like [obs_dim, h1, h2, ..., action_dim]
+        activations: list of activation names for each layer except input (len = len(layer_sizes)-1)
+        init_log_std: scalar initial log std
+        seed: optional integer seed (local RNG)
+        """
+        assert len(activations) == len(layer_sizes) - 1
+        self.rng = np.random.default_rng(seed)
+
+        # build layers (all Dense)
+        self.layers = []
+        for i in range(len(layer_sizes) - 1):
+            self.layers.append(Layer(layer_sizes[i], layer_sizes[i+1], activation=activations[i], rng=self.rng))
+
+        # log_std (learnable), shape (action_dim,)
+        self.log_std = np.full(layer_sizes[-1], float(init_log_std), dtype=float)
+
+        # Adam optimizer state
+        self.adam_state = {
+            'mw': [np.zeros_like(l.weights) for l in self.layers],
+            'vw': [np.zeros_like(l.weights) for l in self.layers],
+            'mb': [np.zeros_like(l.biases)  for l in self.layers],
+            'vb': [np.zeros_like(l.biases)  for l in self.layers],
+            'mls': np.zeros_like(self.log_std),
+            'vls': np.zeros_like(self.log_std),
+            't': 0
+        }
+
+    # ----------------------------
+    # Forward / sampling / logprob helpers
+    # ----------------------------
+    def forward(self, states):
+        """
+        states: (B, obs_dim)
+        returns mu: (B, action_dim)
+        """
+        a = states
+        for layer in self.layers:
+            a = layer.forward(a)
+        return a
+
+    def gaussian_log_prob(self, actions, mu):
+        """
+        actions, mu: (B, A)
+        self.log_std: (A,)
+        returns: logp per sample (B,)
+        Formula:
+          log N(a | mu, diag(sigma^2)) = -1/2 * sum( (a-mu)^2 / sigma^2 + 2*log_sigma + log(2π) )
+        """
+        log_std = self.log_std            # (A,)
+        std = np.exp(log_std)             # (A,)
+        var = std**2                      # (A,)
+
+        diff = actions - mu               # (B, A)
+        # broadcast var and log_std across batch
+        logp = -0.5 * np.sum((diff**2) / var + 2.0 * log_std + np.log(2.0 * np.pi), axis=1)  # (B,)
+        return logp
+
+    def gaussian_entropy(self):
+        """
+        Entropy of diagonal Gaussian (sum over action dims).
+        H = 0.5 * sum(1 + log(2πσ^2)) = 0.5 * sum(1 + log(2π) + 2*log_std)
+        returns scalar
+        """
+        return 0.5 * np.sum(1.0 + np.log(2.0 * np.pi) + 2.0 * self.log_std)
+
+    def act(self, states, stochastic=True):
+        """
+        states: (B, obs_dim) or (obs_dim,) for single state
+        returns:
+          actions: (B, A)
+          logp: (B,) per-sample log-prob of chosen actions
+          mu: (B, A)
+        """
+        # ensure 2D batch
+        single = False
+        if states.ndim == 1:
+            states = states[None, :]
+            single = True
+
+        mu = self.forward(states)     # (B, A)
+        if stochastic:
+            eps = self.rng.standard_normal(mu.shape)
+            std = np.exp(self.log_std)           # (A,)
+            actions = mu + eps * std            # broadcasting -> (B, A)
+        else:
+            actions = mu
+
+        logp = self.gaussian_log_prob(actions, mu)  # (B,)
+        if single:
+            return actions[0], logp[0], mu[0]
+        return actions, logp, mu
+
+    # ----------------------------
+    # Loss + gradient computation (policy gradient, VPG style)
+    # ----------------------------
+    def policy_loss_and_grads(self, states, actions, advantages, entropy_coef=0.0, normalize_adv=True):
+        """
+        Compute the policy loss L = -mean(logpi * adv) - entropy_coef * H
+        and return gradients wrt every parameter:
+          - w_grads: list of arrays matching self.layers' weights
+          - b_grads: list of arrays matching self.layers' biases
+          - log_std_grad: vector (action_dim,)
+        Notes:
+          - advantages: (B,) computed outside (returns or advantage estimator)
+          - This function does NOT update parameters, it only returns gradients.
+        """
+        B = states.shape[0]
+        if normalize_adv:
+            adv_mean = np.mean(advantages)
+            adv_std = np.std(advantages) + 1e-8
+            advantages = (advantages - adv_mean) / adv_std
+
+        # forward: get mu(s)
+        mu = self.forward(states)   # (B, A)
+
+        # scalar losses
+        logp = self.gaussian_log_prob(actions, mu)          # (B,)
+        loss_policy = -np.mean(logp * advantages)           # scalar
+        loss_entropy = -entropy_coef * self.gaussian_entropy()
+        total_loss = loss_policy + loss_entropy
+
+        # ---------------------------
+        # Gradients wrt distribution parameters
+        # ---------------------------
+        log_std = self.log_std
+        std = np.exp(log_std)
+        var = std**2                 # (A,)
+
+        diff = actions - mu          # (B, A)
+
+        # dL/dmu (shape B x A): for loss = -mean(logpi * adv)
+        # per-sample gradient: -adv * d logpi/dmu ; d logpi/dmu = (a - mu) / var
+        dL_dmu = -(advantages[:, None] * (diff / var))   # (B, A)
+
+        # dL/dlogstd (shape A,): derivative of -mean(logpi * adv) wrt logstd
+        # per-sample: d logpi / d logstd = -1 + ((a-mu)^2 / var)
+        dlpi_dlogstd = -1.0 + (diff**2) / var            # (B, A)
+        dL_dlogstd = -np.mean(advantages[:, None] * dlpi_dlogstd, axis=0)  # (A,)
+
+        # entropy gradient w.r.t log_std: d(-entropy_coef * H)/d log_std = -entropy_coef
+        if entropy_coef != 0.0:
+            dL_dlogstd += -entropy_coef * np.ones_like(self.log_std)
+
+        # ---------------------------
+        # Backpropagate dL/dmu into layers
+        # ---------------------------
+        w_grads = []
+        b_grads = []
+        upstream = dL_dmu   # (B, A), gradient at network output
+        for layer in reversed(self.layers):
+            dW, db, upstream = layer.backward(upstream)
+            w_grads.insert(0, dW)
+            b_grads.insert(0, db)
+
+        grads = {
+            'loss': float(total_loss),
+            'w_grads': w_grads,
+            'b_grads': b_grads,
+            'log_std_grad': dL_dlogstd
+        }
+        return grads
+
+    # ----------------------------
+    # Adam update (applies gradients in-place)
+    # ----------------------------
+    def apply_gradients(self, w_grads, b_grads, log_std_grad,
+                        lr=1e-3, beta1=0.9, beta2=0.999, eps=1e-8):
+        """
+        Applies Adam updates to all weights, biases, and log_std.
+        The shapes of w_grads/b_grads must match self.layers.
+        """
+        st = self.adam_state
+        st['t'] += 1
+        t = st['t']
+
+        def adam_step(m, v, g):
+            m = beta1 * m + (1 - beta1) * g
+            v = beta2 * v + (1 - beta2) * (g * g)
+            m_hat = m / (1 - beta1**t)
+            v_hat = v / (1 - beta2**t)
+            step = lr * m_hat / (np.sqrt(v_hat) + eps)
+            return m, v, step
+
+        # update per-layer
+        for i, layer in enumerate(self.layers):
+            # weights
+            m_w = st['mw'][i]
+            v_w = st['vw'][i]
+            m_w, v_w, stepW = adam_step(m_w, v_w, w_grads[i])
+            layer.weights -= stepW
+            st['mw'][i], st['vw'][i] = m_w, v_w
+
+            # biases
+            m_b = st['mb'][i]
+            v_b = st['vb'][i]
+            m_b, v_b, stepB = adam_step(m_b, v_b, b_grads[i])
+            layer.biases -= stepB
+            st['mb'][i], st['vb'][i] = m_b, v_b
+
+        # log_std
+        m_ls = st['mls']
+        v_ls = st['vls']
+        m_ls, v_ls, stepLS = adam_step(m_ls, v_ls, log_std_grad)
+        self.log_std -= stepLS
+        st['mls'], st['vls'] = m_ls, v_ls
+
+    # ----------------------------
+    # Parameter vector utilities (EA-friendly)
+    # ----------------------------
+    def get_params_vector(self):
+        parts = []
+        for l in self.layers:
+            parts.append(l.weights.ravel())
+            parts.append(l.biases.ravel())
+        parts.append(self.log_std.ravel())
+        return np.concatenate(parts).astype(float)
+
+    def set_params_vector(self, vec):
+        idx = 0
+        for l in self.layers:
+            n_w = l.input_size * l.output_size
+            l.weights = vec[idx: idx + n_w].reshape((l.input_size, l.output_size)).copy()
+            idx += n_w
+            n_b = l.output_size
+            l.biases = vec[idx: idx + n_b].copy()
+            idx += n_b
+        n_ls = self.log_std.shape[0]
+        self.log_std = vec[idx: idx + n_ls].copy()
+        idx += n_ls
+        if idx != len(vec):
+            raise ValueError("Parameter vector size mismatch")
+
+    def perturb_params_vector(self, std, seed=None):
+        vec = self.get_params_vector()
+        rng = np.random.default_rng(seed) if seed is not None else self.rng
+        noise = rng.standard_normal(vec.shape) * std
+        return vec + noise
+
+    def add_noise_to_params(self, std, seed=None):
+        new_vec = self.perturb_params_vector(std, seed)
+        self.set_params_vector(new_vec)
+
+
+
+
+
+
 
 
 class UIBezierCanvas(UIElement):

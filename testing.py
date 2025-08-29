@@ -1,4 +1,8 @@
-import numpy as np
-x = {'a':1, 'b':2, 'c':3}
-a,b,c = x.values()
-print(a, b, c)
+from collections import defaultdict
+
+mydict = defaultdict(list)
+
+for i in range(10):
+    mydict[i].append(i+10)
+
+print(mydict.values())

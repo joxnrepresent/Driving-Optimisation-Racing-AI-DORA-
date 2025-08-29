@@ -1,17 +1,23 @@
+from collections import defaultdict
+
 import pygame
 import pygame_gui
 import math
+
+from numpy.ma.core import indices
 from pygame import Vector2
 from pygame_gui.core import UIElement
-import resources
+import resources as r
 
-"""This module contains custom GUI elements not included in the pygame_gui library"""
+"""
+This module contains custom GUI elements not included in the pygame_gui library
+"""
 #---------------------------------------------------------------------------------------------------------------------#
 
-# -----------------------------------#
-"""This class is for a meter that displays values as a gauge (like a speedometer/rpm meter)"""
-# -----------------------------------#
 class UIGaugeMeter(UIElement):
+    """
+    This class is for a meter that displays values as a gauge needle rotating (like a speedometer/rpm meter)
+    """
     def __init__(self, relative_rect, manager,
                  min_value=0, max_value=300, starting_value=0,
                  fill_colour="grey", dial_colour='red',
@@ -27,7 +33,8 @@ class UIGaugeMeter(UIElement):
         self.border_width = border_width
         self.dial_thickness = dial_thickness
 
-        self.image = pygame.Surface((self.relative_rect.width + border_width, self.relative_rect.height + border_width), pygame.SRCALPHA)
+        self.image = pygame.Surface((self.relative_rect.width + border_width,
+                                     self.relative_rect.height + border_width), pygame.SRCALPHA)
         self.rebuild()
 
     # Redraws updated version of meter
@@ -59,55 +66,128 @@ class UIGaugeMeter(UIElement):
     # Clamps value within the min and max range and calls rebuild
     # -----------------------------------#
     def update_value(self, value):
-        self.value = resources.clamp_value(value, self.min_value, self.max_value)
+        self.value = r.clamp_value(value, self.min_value, self.max_value)
         self.rebuild()
 
-class UICanvas(UIElement):
+
+
+
+class TrackCanvas(UIElement):
     def __init__(self, relative_rect, manager, bg_colour = "White"):
         super().__init__(relative_rect, manager, container=None, starting_height=0, layer_thickness=1)
         self.bg_colour = bg_colour
-        self.save_points = []
-        self.dragging_points = []
-        self.dragging = False
+        self.strokes = []
+        self.current_stroke = []
+        self.is_dragging = False
+        self.is_drawing = False
         self.image = pygame.Surface((self.relative_rect.width, self.relative_rect.height), pygame.SRCALPHA)
         self.rebuild()
 
+
     def process_event(self, event):
-        if event.type in (pygame.MOUSEBUTTONUP, pygame.MOUSEBUTTONDOWN, pygame.MOUSEMOTION):
-            if self.rect.collidepoint(event.pos):
-                if event.type  == pygame.MOUSEBUTTONDOWN:
-                    self.dragging = True
-                elif event.type == pygame.MOUSEMOTION and self.dragging:
-                    relative_pos = Vector2((event.pos[0] - self.rect.x, event.pos[1] - self.rect.y))
-                    self.dragging_points.append(relative_pos)
-                    self.save_points.append(relative_pos)
-                elif event.type == pygame.MOUSEBUTTONUP:
-                    self.dragging_points.clear()
-                    self.dragging = False
+        if self.is_drawing:
+            if event.type in (pygame.MOUSEBUTTONUP, pygame.MOUSEBUTTONDOWN, pygame.MOUSEMOTION):
+                if self.rect.collidepoint(event.pos):
+                    if event.type == pygame.MOUSEBUTTONDOWN:
+                        self.is_dragging = True
+                        self.current_stroke.clear()
+                    elif event.type == pygame.MOUSEMOTION and self.is_dragging:
+                        relative_pos = Vector2((event.pos[0] - self.rect.x, event.pos[1] - self.rect.y))
+                        self.current_stroke.append(relative_pos)
+                    elif event.type == pygame.MOUSEBUTTONUP:
+                        self.strokes.append(self.current_stroke.copy())
+                        self.current_stroke.clear()
+                        self.is_dragging = False
+            self.rebuild()
 
-        self.rebuild()
-
-    def rebuild(self, saved_points = None):
-        if saved_points is None:
-            for i in range(len(self.dragging_points) - 2):
-                pygame.draw.line(self.image, "Red", self.dragging_points[i], self.dragging_points[i+1], 3)
-        else:
-            for i in range(len(saved_points) - 2):
-                pygame.draw.line(self.image, "Red", saved_points[i], saved_points[i + 1], 3)
+    def rebuild(self):
+        self.image.fill((0,0,0,0))
+        r.draw_track(self.image, self.strokes)
+        if self.is_dragging:
+            for i in range(len(self.current_stroke) - 1):
+                pygame.draw.line(self.image, "Red", self.current_stroke[i], self.current_stroke[i+1], 3)
 
     def save_drawing(self, filename):
         with open(filename + ".txt", "w") as file:
-            for point in self.save_points:
-                file.write(point + ",")
+            for stroke in self.strokes:
+                for point in stroke:
+                    file.write(str(point[0]) + "," + str(point[1]) + ",")
+                file.write("\n")
             print("saved")
 
-    def open_drawing(self, filename):
-        try:
-            with open(filename+".txt", "w") as file:
-                self.save_points = file.read().split(',')
-                self.rebuild(self.save_points)
-        except FileNotFoundError:
-            print("File not found")
+    def load_drawing(self, filename):
+        self.strokes = r.load_track_from_file(filename)
+        self.rebuild()
+
+    def clear(self):
+        self.strokes.clear()
+        self.current_stroke.clear()
+        self.rebuild()
+
+class SpatialHashGrid:
+    def __init__(self, cell_size = 10):
+        self.cell_size = cell_size
+        self.cells = defaultdict(list)
+
+    def _get_cell(self, point):
+        x, y = point
+        return int(x // self.cell_size), int(y // self.cell_size)
+
+    def add_segment(self, segment):
+        (x1, y1), (x2, y2) = segment
+
+        min_point = (min(x1, x2), min(y1, y2))
+        max_point = (max(x1, x2), max(y1, y2))
+
+        min_cell = self._get_cell(min_point)
+        max_cell = self._get_cell(max_point)
+
+        for i in range(min_cell[0], max_cell[0] + 1):
+            for j in range(min_cell[1], max_cell[1] + 1):
+                self.cells[(i, j)].append(segment)
+
+    def get_cell_segments(self, point):
+        cell = self._get_cell(point)
+        return self.cells.get(cell, [])
+
+
+class Track(UIElement):
+    def __init__(self, relative_rect, manager, track_name):
+        super().__init__(relative_rect, manager, container=None, starting_height=0, layer_thickness=1)
+        self.grid = None
+        self.walls = r.load_track_from_file(track_name)
+        self.wall_segments = []
+        points = []
+        for wall in self.walls:
+            points.extend(wall)
+        for i in range(0, len(points) - 1, 2):
+            self.wall_segments.append((points[i], points[i + 1]))
+        self.image = pygame.Surface((self.relative_rect.width, self.relative_rect.height), pygame.SRCALPHA)
+        self.rebuild()
+
+    def generate_spatial_hash_grid(self):
+        self.grid = SpatialHashGrid()
+        for segment in self.wall_segments:
+            self.grid.add_segment(segment)
+
+
+    def rebuild(self):
+        # r.draw_track(self.image, self.walls)
+        for seg in self.wall_segments[:5]:
+            print("Segment:", seg)
+
+        is_black = True
+        self.generate_spatial_hash_grid()
+        for cell_segments in self.grid.cells.values():
+            colour = "red"
+            if is_black:
+                colour = "black"
+            r.draw_track(self.image, cell_segments, colour)
+            is_black = not  is_black
+
+
+
+
 
 #             pygame.draw.line(self.image, "Red", self.control_points[0], self.control_points[1], 3)
 # class UIBezierCanvas(UIElement):
