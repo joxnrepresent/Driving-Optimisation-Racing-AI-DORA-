@@ -783,3 +783,196 @@ class UIBezierCanvas(UIElement):
         info = "LClick: add • Drag anchors/handles • RClick: undo • C: clear • Hold SPACE: straight"
         text_surf = font.render(info, True, (200, 200, 200))
         surface.blit(text_surf, (self.rect.x + 6, self.rect.y + 6))
+
+
+
+# import math
+# from collections import defaultdict
+# import pygame
+#
+# class SpatialHashGrid:
+#     """
+#     Spatial hash grid using exact 2D DDA (Amanatides & Woo) to insert every segment into
+#     every grid cell it touches. Also supports coloring segments by the last cell they occupy.
+#     """
+#
+#     def __init__(self, cell_size: float):
+#         assert cell_size > 0, "cell_size must be > 0"
+#         self.cell_size = float(cell_size)
+#         self.cells = defaultdict(list)   # (ix,iy) -> [seg_id, ...]
+#         self.segments = []               # seg_id -> ((x1,y1),(x2,y2))
+#         self.seg_last_cell = {}          # seg_id -> (ix,iy)
+#
+#     # --------------------
+#     # Helpers
+#     # --------------------
+#     def _cell_coords(self, pt):
+#         x, y = pt
+#         # floor division works for negatives correctly
+#         return int(math.floor(x / self.cell_size)), int(math.floor(y / self.cell_size))
+#
+#     def _push_to_cell(self, seg_id, cell):
+#         """Append seg_id to cell list but avoid duplicate consecutive appends."""
+#         lst = self.cells[cell]
+#         # DDA won't revisit a cell non-consecutively, so checking last element is fast and safe
+#         if not lst or lst[-1] != seg_id:
+#             lst.append(seg_id)
+#         # remember last cell (for coloring)
+#         self.seg_last_cell[seg_id] = cell
+#
+#     # --------------------
+#     # DDA insertion
+#     # --------------------
+#     def _dda_insert(self, seg_id, p0, p1):
+#         """Amanatides & Woo 2D DDA: step through every grid cell touched by segment p0->p1."""
+#         x1, y1 = p0
+#         x2, y2 = p1
+#
+#         ix, iy = self._cell_coords(p0)
+#         ex, ey = self._cell_coords(p1)
+#
+#         dx = x2 - x1
+#         dy = y2 - y1
+#
+#         # degenerate: zero-length segment
+#         if abs(dx) < 1e-12 and abs(dy) < 1e-12:
+#             self._push_to_cell(seg_id, (ix, iy))
+#             return
+#
+#         step_x = 1 if dx > 0 else -1 if dx < 0 else 0
+#         step_y = 1 if dy > 0 else -1 if dy < 0 else 0
+#
+#         # param t: p(t) = p0 + t*(dx,dy), t in [0,1]
+#         t_delta_x = (self.cell_size / abs(dx)) if dx != 0 else float('inf')
+#         t_delta_y = (self.cell_size / abs(dy)) if dy != 0 else float('inf')
+#
+#         # first t at which we cross a vertical/horizontal boundary
+#         if step_x > 0:
+#             next_boundary_x = (ix + 1) * self.cell_size
+#             t_max_x = (next_boundary_x - x1) / dx
+#         elif step_x < 0:
+#             next_boundary_x = (ix) * self.cell_size
+#             t_max_x = (next_boundary_x - x1) / dx
+#         else:
+#             t_max_x = float('inf')
+#
+#         if step_y > 0:
+#             next_boundary_y = (iy + 1) * self.cell_size
+#             t_max_y = (next_boundary_y - y1) / dy
+#         elif step_y < 0:
+#             next_boundary_y = (iy) * self.cell_size
+#             t_max_y = (next_boundary_y - y1) / dy
+#         else:
+#             t_max_y = float('inf')
+#
+#         # Insert start cell
+#         self._push_to_cell(seg_id, (ix, iy))
+#
+#         # Safety cap for pathological cases (shouldn't hit)
+#         max_steps = int(abs(ex - ix) + abs(ey - iy) + 10 + math.ceil(math.hypot(dx, dy) / self.cell_size * 2))
+#         steps = 0
+#         while (ix != ex or iy != ey) and steps < max_steps:
+#             steps += 1
+#             if t_max_x < t_max_y:
+#                 ix += step_x
+#                 t_max_x += t_delta_x
+#             else:
+#                 iy += step_y
+#                 t_max_y += t_delta_y
+#             self._push_to_cell(seg_id, (ix, iy))
+#
+#     # --------------------
+#     # API
+#     # --------------------
+#     def add_segment(self, segment):
+#         """
+#         Insert a segment ((x1,y1),(x2,y2)) into the grid.
+#         The segment is stored by ID and DDA-walked into cells.
+#         """
+#         seg_id = len(self.segments)
+#         self.segments.append(segment)
+#         self._dda_insert(seg_id, segment[0], segment[1])
+#
+#     def build_from_segments(self, seg_list):
+#         """Clear and bulk insert."""
+#         self.cells.clear()
+#         self.segments = []
+#         self.seg_last_cell.clear()
+#         for seg in seg_list:
+#             # validate shape
+#             assert isinstance(seg, tuple) and len(seg) == 2, "segment must be ((x1,y1),(x2,y2))"
+#             self.add_segment(seg)
+#
+#     def get_cell_segments(self, point):
+#         """Return segment tuples stored in the cell containing point."""
+#         cell = self._cell_coords(point)
+#         return [self.segments[sid] for sid in self.cells.get(cell, [])]
+#
+#     # --------------------
+#     # Debug / visualization
+#     # --------------------
+#     def _color_from_cell(self, cell):
+#         ix, iy = cell
+#         key = (ix * 73856093) ^ (iy * 19349663)
+#         key &= 0xFFFFFF
+#         return ((key >> 16) & 0xFF, (key >> 8) & 0xFF, key & 0xFF)
+#
+#     def get_segment_color(self, seg_id):
+#         cell = self.seg_last_cell.get(seg_id)
+#         return self._color_from_cell(cell) if cell is not None else (0, 0, 0)
+#
+#     def draw_colored_segments(self, surface, width=2):
+#         """Draw each segment colored by its last cell assignment."""
+#         for sid, seg in enumerate(self.segments):
+#             (x1, y1), (x2, y2) = seg
+#             pygame.draw.line(surface, self.get_segment_color(sid), (x1, y1), (x2, y2), width)
+#
+#     def draw_grid(self, surface, outline_color=(80,80,80), max_cells=20000):
+#         """Draw outlines of occupied cells (limit to avoid huge draws)."""
+#         count = 0
+#         for (ix, iy), lst in self.cells.items():
+#             if count >= max_cells:
+#                 break
+#             r = pygame.Rect(ix * self.cell_size, iy * self.cell_size, self.cell_size, self.cell_size)
+#             pygame.draw.rect(surface, outline_color, r, 1)
+#             count += 1
+#
+#     # --------------------
+#     # Utility: auto cell size
+#     # --------------------
+#     @staticmethod
+#     def suggest_cell_size_from_segments(seg_list, multiplier=2.0, min_size=6, max_size=64):
+#         """
+#         Compute mean segment length and choose cell_size = clamp(mean_len * multiplier, min_size, max_size).
+#         multiplier=2 is a good starting value.
+#         """
+#         if not seg_list:
+#             return min_size
+#         total = 0.0
+#         for (x1,y1),(x2,y2) in seg_list:
+#             total += math.hypot(x2-x1, y2-y1)
+#         mean_len = total / len(seg_list)
+#         cell = int(max(min_size, min(max_size, round(mean_len * multiplier))))
+#         return cell
+#
+#     # --------------------
+#     # Debug verifier (optional)
+#     # --------------------
+#     def verify_segment_cells(self, seg_id, samples_per_cell=3):
+#         """Brute force sample along the segment and compare DDA cells vs sampled cells for debugging."""
+#         (x1,y1),(x2,y2) = self.segments[seg_id]
+#         length = math.hypot(x2-x1, y2-y1)
+#         if length == 0:
+#             sampled = { self._cell_coords((x1,y1)) }
+#         else:
+#             samples = max(2, int(length / (self.cell_size / samples_per_cell)))
+#             sampled = set()
+#             for i in range(samples+1):
+#                 t = i / samples
+#                 x = x1 + (x2-x1) * t
+#                 y = y1 + (y2-y1) * t
+#                 sampled.add(self._cell_coords((x,y)))
+#         dda_cells = { cell for cell,lst in self.cells.items() if seg_id in lst }
+#         missing = sampled - dda_cells
+#         extra = dda_cells - sampled
+#         return dda_cells, sampled, missing, extra

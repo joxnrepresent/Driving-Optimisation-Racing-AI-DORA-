@@ -1,4 +1,5 @@
 from collections import defaultdict
+from selectors import SelectSelector
 
 import pygame
 import pygame_gui
@@ -70,8 +71,6 @@ class UIGaugeMeter(UIElement):
         self.rebuild()
 
 
-
-
 class TrackCanvas(UIElement):
     def __init__(self, relative_rect, manager, bg_colour = "White"):
         super().__init__(relative_rect, manager, container=None, starting_height=0, layer_thickness=1)
@@ -124,66 +123,100 @@ class TrackCanvas(UIElement):
         self.current_stroke.clear()
         self.rebuild()
 
-class SpatialHashGrid:
-    def __init__(self, cell_size = 10):
-        self.cell_size = cell_size
-        self.cells = defaultdict(list)
-
-    def _get_cell(self, point):
-        x, y = point
-        return int(x // self.cell_size), int(y // self.cell_size)
-
-    def add_segment(self, segment):
-        (x1, y1), (x2, y2) = segment
-
-        min_point = (min(x1, x2), min(y1, y2))
-        max_point = (max(x1, x2), max(y1, y2))
-
-        min_cell = self._get_cell(min_point)
-        max_cell = self._get_cell(max_point)
-
-        for i in range(min_cell[0], max_cell[0] + 1):
-            for j in range(min_cell[1], max_cell[1] + 1):
-                self.cells[(i, j)].append(segment)
-
-    def get_cell_segments(self, point):
-        cell = self._get_cell(point)
-        return self.cells.get(cell, [])
-
-
 class Track(UIElement):
     def __init__(self, relative_rect, manager, track_name):
         super().__init__(relative_rect, manager, container=None, starting_height=0, layer_thickness=1)
         self.grid = None
         self.walls = r.load_track_from_file(track_name)
         self.wall_segments = []
-        points = []
+        self.is_black = True
         for wall in self.walls:
-            points.extend(wall)
-        for i in range(0, len(points) - 1, 2):
-            self.wall_segments.append((points[i], points[i + 1]))
+            for i in range(len(wall) - 1):
+                self.wall_segments.append((wall[i], wall[i + 1]))
         self.image = pygame.Surface((self.relative_rect.width, self.relative_rect.height), pygame.SRCALPHA)
         self.rebuild()
 
-    def generate_spatial_hash_grid(self):
-        self.grid = SpatialHashGrid()
-        for segment in self.wall_segments:
-            self.grid.add_segment(segment)
+    def rebuild(self):
+        self.image.fill((0, 0, 0, 0))
+        r.draw_track(self.image, self.walls)
 
+class SpatialHashGrid(Track):
+
+    def __init__(self, relative_rect, manager, track_name):
+
+        self.cells = defaultdict(list)
+        super().__init__(relative_rect, manager, track_name)
+        for segment_index, segment in enumerate(self.wall_segments):
+            self.dda_traverse(segment, segment_index)
+        self.rebuild()
+
+        r.DEBUG_ELEMENTS["grid lines"].append(True)
+
+    @staticmethod
+    def _get_cell_index(point):
+        x, y = point
+        return int(math.floor(x / r.SHG_CELL_SIZE)), int(math.floor(y / r.SHG_CELL_SIZE))
+
+    def dda_traverse(self, segment, segment_index = None):
+        (x1, y1), (x2, y2) = segment
+        dx = x2 - x1
+        dy = y2 - y1
+        ix, iy = self._get_cell_index((x1, y1))
+        ex, ey = self._get_cell_index((x2, y2))
+
+        step_x = 1 if dx > 0 else -1 if dx < 0 else 0
+        t_delta_x = (r.SHG_CELL_SIZE / abs(dx)) if dx != 0 else float('inf')
+        next_boundary_x = (ix + 1) * r.SHG_CELL_SIZE if step_x == 1 else ix * r.SHG_CELL_SIZE
+        t_max_x = (next_boundary_x - x1) / dx if dx != 0 else float("inf")
+
+        step_y = 1 if dy > 0 else -1 if dy < 0 else 0
+        t_delta_y = (r.SHG_CELL_SIZE / abs(dy)) if dy != 0 else float('inf')
+        next_boundary_y = (iy + 1) * r.SHG_CELL_SIZE if step_y == 1 else iy * r.SHG_CELL_SIZE
+        t_max_y = (next_boundary_y - y1) / dy if dy != 0 else float("inf")
+
+        max_steps = (abs(ex - ix) + abs(ey - iy) + 10)
+        for i in range(max_steps):
+
+            if segment_index is not None:
+                self._add_segment_to_grid(ix, iy, segment_index)
+            else:
+                hit_point = self.ray_cast(segment, ix, iy)
+                if hit_point:
+                    return hit_point
+
+            if ix == ex and iy == ey:
+                break
+
+            if t_max_x < t_max_y:
+                ix += step_x
+                t_max_x += t_delta_x
+            else:
+                iy += step_y
+                t_max_y += t_delta_y
+
+    def _add_segment_to_grid(self, ix, iy, segment_index):
+        self.cells[(ix, iy)].append(segment_index)
+
+    def get_cell_segments(self, cell_index):
+        return self.cells[cell_index]
+
+    def ray_cast(self, ray, ix, iy):
+        if (ix, iy) in self.cells:
+            for seg_index in self.cells[(ix, iy)]:
+                seg = self.wall_segments[seg_index]
+                hit_point = r.get_line_segment_intersection(ray, seg)
+                if hit_point:
+                    return hit_point
+        return None
 
     def rebuild(self):
-        # r.draw_track(self.image, self.walls)
-        for seg in self.wall_segments[:5]:
-            print("Segment:", seg)
-
+        self.image.fill((0,0,0,0))
         is_black = True
-        self.generate_spatial_hash_grid()
-        for cell_segments in self.grid.cells.values():
-            colour = "red"
-            if is_black:
-                colour = "black"
-            r.draw_track(self.image, cell_segments, colour)
-            is_black = not  is_black
+        for cell_segments in self.cells.values():
+            wall_segments = [self.wall_segments[i] for i in cell_segments]
+            r.draw_segments(self.image, wall_segments, is_black)
+            is_black = not is_black
+
 
 
 

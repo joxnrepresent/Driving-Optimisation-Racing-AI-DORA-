@@ -85,6 +85,7 @@ def start_drawing():
         r.GAME_MODE = "car simulation"
         r.IS_INITIALIZED = False
         r.GAME_SPRITES.empty()
+        r.DEBUG_ELEMENTS.clear()
         r.GUI_MANAGER.clear_and_reset()
         r.PRESSED_BUTTONS.remove(start_car_sim_button)
 

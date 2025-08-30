@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import pygame
 import math
 import pygame_gui
@@ -17,8 +19,12 @@ functions/methods used throughout the project.
 FRAME_TIME = 1/60
 SCREEN_DIMENSIONS = (1200, 750)
 SCREEN_FILL = "White"
-DEBUG = True
+IS_DEBUGGING = True
 CURRENT_TRACK = "testing_track"
+SHG_CELL_SIZE = 30
+CAR_MAX_RAY_CAST = 2000
+RAY_CAST_ANGLES = [30, 60, 90, 130]
+EPS = 1e-9
 
 # Core program components
 # -----------------------------------#
@@ -28,7 +34,7 @@ CLOCK = pygame.time.Clock()
 PRESSED_KEYS = set()
 PRESSED_BUTTONS = set()
 GAME_SPRITES = pygame.sprite.Group()
-DEBUG_ELEMENTS = []
+DEBUG_ELEMENTS = defaultdict(list)
 GAME_MODE = "track maker"
 IS_INITIALIZED = False
 
@@ -93,8 +99,73 @@ def load_track_from_file(filename):
         print("File not found")
         return None
 
-def draw_track(surface, strokes, colour = "Black"):
+def draw_track(surface, strokes):
+    is_black = True
     for stroke in strokes:
         for i in range(len(stroke) - 1):
+            if is_black:
+                colour = "black"
+            else:
+                colour = "red"
+            is_black = not is_black
             pygame.draw.line(surface, colour, stroke[i], stroke[i + 1], 3)
 
+def draw_segments(surface, segments, is_black):
+    colour = "black" if is_black else "red"
+    for (p1, p2) in segments:
+        pygame.draw.line(surface, colour, p1, p2, 3)
+
+def draw_grid(surface, color="green"):
+    w,h = surface.get_size()
+    s = pygame.Surface((w,h), pygame.SRCALPHA)
+    for x in range(0, w, SHG_CELL_SIZE):
+        pygame.draw.line(s, color, (x,0), (x,h))
+    for y in range(0, h, SHG_CELL_SIZE):
+        pygame.draw.line(s, color, (0,y), (w,y))
+    surface.blit(s, (0,0))
+
+def get_line_segment_intersection(seg1, seg2):
+    (x1, y1), (x2, y2) = seg1
+    (x3, y3), (x4, y4) = seg2
+
+    #Trying to early reject intersection if AABB's do not intersect
+    if (max(x1, x2) < min(x3, x4) or max(x3, x4) < min(x1, x2) or
+            max(y1, y2) < min(y3, y4) or max(y3, y4) < min(y1, y2)):
+        return None
+
+    denominator = (x2 - x1) * (y4 - y3) - (y2 - y1) * (x4 - x3)
+    alpha_numerator = (x3 - x1) * (y4 - y3) - (y3 - y1) * (x4 - x3)
+    beta_numerator = (x3 - x1) * (y2 - y1) - (y3 - y1) * (x2 - x1)
+
+    if abs(denominator) < EPS:
+        if abs(alpha_numerator) < EPS and abs(beta_numerator) < EPS:
+
+            dot_prod = (x2 - x1) * (x4 - x3) + (y2 - y1) * (y4 - y3)
+
+            overlap_start_x = max(min(x1, x2), min(x3, x4))
+            overlap_end_x = min(max(x1, x2), max(x3, x4))
+            overlap_start_y = max(min(y1, y2), min(y3, y4))
+            overlap_end_y = min(max(y1, y2), max(y3, y4))
+
+            if overlap_start_x <= overlap_end_x and overlap_start_y <= overlap_end_y:
+
+                if min(x3, x4) <= x1 <= max(x3, x4) and min(y3, y4) <= y1 <= max(y3, y4):
+                    return x1, y1
+
+                p1 = (overlap_start_x, overlap_start_y)
+                p2 = (overlap_end_x, overlap_end_y)
+                if dot_prod > 0:
+                    return p1
+                else:
+                    return p2
+        return None
+
+    alpha = alpha_numerator/denominator
+    beta = beta_numerator/denominator
+
+    if alpha >= 0 and 0 <= beta <= 1:
+        x = x1 + alpha * (x2 - x1)
+        y = y1 + alpha * (y2 - y1)
+        return x, y
+    else:
+        return None

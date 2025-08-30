@@ -47,10 +47,21 @@ def check_events():
 
 def render():
     r.MAIN_SCREEN.fill(r.SCREEN_FILL)
-    if r.DEBUG:
-        for element in r.DEBUG_ELEMENTS:
-            if len(element) == 4:
-                pygame.draw.polygon(r.MAIN_SCREEN, "red", element)
+    if r.IS_DEBUGGING:
+        if r.DEBUG_ELEMENTS:
+            for element_type, elements in r.DEBUG_ELEMENTS.items():
+                for element in elements:
+                    if element_type == "hitboxes":
+                        pygame.draw.polygon(r.MAIN_SCREEN, "red", element)
+                    elif element_type == "rays":
+                        try:
+                            pygame.draw.line(r.MAIN_SCREEN, "red", element[0], element[1])
+                        except:
+                            print(element)
+                    elif element_type == "grid lines":
+                        if element:
+                            r.draw_grid(r.MAIN_SCREEN)
+
     r.GAME_SPRITES.draw(r.MAIN_SCREEN)
     r.GUI_MANAGER.draw_ui(r.MAIN_SCREEN)
 
