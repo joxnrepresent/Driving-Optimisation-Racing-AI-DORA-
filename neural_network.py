@@ -1,6 +1,6 @@
+import numpy as np
 from statistics import variance
 
-import numpy as np
 class Layer:
     def __init__(self, input_size, output_size, activation):
         self.biases = np.zeros(output_size)

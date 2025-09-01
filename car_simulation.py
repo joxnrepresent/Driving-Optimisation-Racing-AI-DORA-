@@ -1,12 +1,9 @@
 import math
-from tkinter.ttk import Button
-
-import pygame
-import pygame_gui
 import resources as r
+from pygame_gui import elements
+from pygame import Rect, K_s, K_w
 from gui_custom_elements import UIGaugeMeter
-from gui_custom_elements import SpatialHashGrid
-from gui_custom_elements import Track
+from track import Track
 from cars import Car
 
 """
@@ -16,7 +13,6 @@ the magnitude of throttle/braking (max throttle = 100, max braking = 0, neutral 
 magnitude of the velocity
 """
 #---------------------------------------------------------------------------------------------------------------------#
-
 
 """
 Running car simulation
@@ -51,33 +47,31 @@ def initialise_car_simulation():
     throttle_and_braking = 0
     steer = 0
     car = Car((550, 130))
+    track = Track(r.CURRENT_TRACK)
     r.GAME_SPRITES.add(car)
+    r.GAME_SPRITES.add(track)
     r.DEBUG_ELEMENTS["hitboxes"].append(car.hitbox)
-    steering_slider = pygame_gui.elements.UIHorizontalSlider(
-        relative_rect=pygame.Rect((r.SCREEN_DIMENSIONS[0] / 2, 700), (600, 30)),
+    steering_slider = elements.UIHorizontalSlider(
+        relative_rect= Rect((r.SCREEN_DIMENSIONS[0] / 2, 700), (600, 30)),
         start_value=0,
         value_range=(-100, 100),
         manager=r.GUI_MANAGER
     )
-    throttle_and_braking_meter = pygame_gui.elements.UIProgressBar(
-        relative_rect=pygame.Rect((r.SCREEN_DIMENSIONS[0] / 4 - 300, 700), (500, 30)),
+    throttle_and_braking_meter = elements.UIProgressBar(
+        relative_rect= Rect((r.SCREEN_DIMENSIONS[0] / 4 - 300, 700), (500, 30)),
         manager=r.GUI_MANAGER
     )
     speedometer = UIGaugeMeter(
-        relative_rect=pygame.Rect((r.SCREEN_DIMENSIONS[0] / 4 - 300, 600), (200, 100)),
+        relative_rect= Rect((r.SCREEN_DIMENSIONS[0] / 4 - 300, 600), (200, 100)),
         manager=r.GUI_MANAGER
     )
 
-    reset_button = pygame_gui.elements.UIButton(
-        relative_rect=pygame.Rect((300, 600), (100, 30)),
+    reset_button = elements.UIButton(
+        relative_rect= Rect((300, 600), (100, 30)),
         text="Click to reset",
         manager=r.GUI_MANAGER
     )
-    track = SpatialHashGrid(
-        relative_rect=pygame.Rect((0, 0), (r.SCREEN_DIMENSIONS[0], r.SCREEN_DIMENSIONS[1])),
-        manager=r.GUI_MANAGER,
-        track_name= r.CURRENT_TRACK
-    )
+
 
 # Calls procedures to update the throttle and steering values.
 # Updates the car's properties with respect to these values
@@ -106,9 +100,9 @@ having 2 separate sliders
 # -----------------------------------#
 def handle_throttle():
     global throttle_and_braking
-    if pygame.K_w in r.PRESSED_KEYS:
+    if K_w in r.PRESSED_KEYS:
         throttle_and_braking = r.clamp_value(throttle_and_braking + r.throttle_factor, 0, 1)
-    elif pygame.K_s in r.PRESSED_KEYS:
+    elif K_s in r.PRESSED_KEYS:
         throttle_and_braking = r.clamp_value(throttle_and_braking - r.brake_factor, -1, 0)
     else:
         throttle_and_braking *= 0.9

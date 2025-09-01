@@ -1,11 +1,8 @@
 import math
-import pygame
-from pygame import Vector2, draw, Rect
-import pygame_gui
-from sklearn.decomposition import non_negative_factorization
-
 import resources as r
-from gui_custom_elements import TrackCanvas
+from pygame import Vector2, draw, Rect
+from pygame_gui import elements
+from gui_custom_elements import UITrackCanvas
 
 
 def run_track_maker():
@@ -24,47 +21,47 @@ canvas = None
 
 def initialise_track_maker():
     global start_drawing_button, save_button, load_button, clear_button, start_car_sim_button, canvas
-    instructions_label = pygame_gui.elements.UILabel(
-        relative_rect= pygame.Rect((r.SCREEN_DIMENSIONS[0]//2 - 250, 100),(500, 30)),
-        text="Click to add control points. Hold SPACE to draw a straight",
-        manager=r.GUI_MANAGER,
+    instructions_label = elements.UILabel(
+        relative_rect = Rect((r.SCREEN_DIMENSIONS[0]//2 - 250, 100),(500, 30)),
+        text = "Click to add control points. Hold SPACE to draw a straight",
+        manager = r.GUI_MANAGER,
     )
-    canvas = TrackCanvas(
-        relative_rect=pygame.Rect((0, 0),(r.SCREEN_DIMENSIONS[0], r.SCREEN_DIMENSIONS[1])),
-        manager= r.GUI_MANAGER
+    canvas = UITrackCanvas(
+        relative_rect= Rect((0, 0),(r.SCREEN_DIMENSIONS[0], r.SCREEN_DIMENSIONS[1])),
+        manager = r.GUI_MANAGER
     )
 
-    start_drawing_button = pygame_gui.elements.UIButton(
-        relative_rect= pygame.Rect((0, 100), (100, 30)),
+    start_drawing_button = elements.UIButton(
+        relative_rect= Rect((0, 100), (100, 30)),
         text = "Click to draw",
-        manager=r.GUI_MANAGER
+        manager = r.GUI_MANAGER
     )
 
-    save_button = pygame_gui.elements.UIButton(
-        relative_rect= pygame.Rect((100, 100), (100, 30)),
+    save_button = elements.UIButton(
+        relative_rect = Rect((100, 100), (100, 30)),
         text = "Click to save",
-        manager=r.GUI_MANAGER
+        manager = r.GUI_MANAGER
     )
 
-    load_button = pygame_gui.elements.UIButton(
-        relative_rect= pygame.Rect((200, 100), (100, 30)),
+    load_button = elements.UIButton(
+        relative_rect = Rect((200, 100), (100, 30)),
         text = "Click to load",
-        manager=r.GUI_MANAGER
+        manager = r.GUI_MANAGER
     )
 
-    clear_button = pygame_gui.elements.UIButton(
-        relative_rect= pygame.Rect((300, 100), (100, 30)),
+    clear_button = elements.UIButton(
+        relative_rect = Rect((300, 100), (100, 30)),
         text = "Click to clear",
-        manager=r.GUI_MANAGER
+        manager = r.GUI_MANAGER
     )
 
-    start_car_sim_button = pygame_gui.elements.UIButton(
-        relative_rect= pygame.Rect((300, 200), (100, 30)),
+    start_car_sim_button = elements.UIButton(
+        relative_rect = Rect((300, 200), (100, 30)),
         text = "Click to start sim",
-        manager=r.GUI_MANAGER
+        manager = r.GUI_MANAGER
     )
 
-def start_drawing():
+def handle_buttons():
     if start_drawing_button in r.PRESSED_BUTTONS:
         canvas.is_drawing = not canvas.is_drawing
         if canvas.is_drawing:
@@ -89,4 +86,5 @@ def start_drawing():
         r.GUI_MANAGER.clear_and_reset()
         r.PRESSED_BUTTONS.remove(start_car_sim_button)
 
-
+def start_drawing():
+    handle_buttons()

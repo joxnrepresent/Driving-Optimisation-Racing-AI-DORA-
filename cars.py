@@ -1,8 +1,9 @@
+import math
+import resources as r
 from pygame.transform import rotate, scale
 from pygame.sprite import Sprite
 from pygame import Vector2
-import resources as r
-import math
+
 class Car(Sprite):
     """
     This class is the Car sprite and extends the Sprite class. The movement of the car is controlled by user input.
@@ -94,16 +95,16 @@ class Car(Sprite):
         self.hitbox[:] = corners
 
 
-    def collision_detection(self, grid):
+    def collision_detection(self, track):
         self._update_hitbox()
         for i in range(len(self.hitbox)):
             box_border = (self.hitbox[i-1], self.hitbox[i])
-            collision_point = grid.dda_traverse(box_border)
+            collision_point = track.collision_detection(box_border)
             if collision_point is not None:
                 self.is_crashed = True
 
 
-    def ray_cast(self, grid):
+    def ray_cast(self, track):
         center = Vector2(self.rect.center)
         rays = []
 
@@ -115,7 +116,7 @@ class Car(Sprite):
 
         collided_rays = []
         for ray in rays:
-            hit_point = grid.dda_traverse((ray[0], ray[1]))
+            hit_point = track.collision_detection((ray[0], ray[1]))
             collided_rays.append((center, hit_point))
         r.DEBUG_ELEMENTS["rays"] = collided_rays
 

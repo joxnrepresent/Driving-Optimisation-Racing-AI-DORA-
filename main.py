@@ -1,7 +1,6 @@
 import pygame
 import pygame_gui
 import resources as r
-from gui_custom_elements import UIGaugeMeter
 from car_simulation import run_car_simulation
 from track_drawing_interface import run_track_maker
 
@@ -44,7 +43,6 @@ def check_events():
             r.PRESSED_BUTTONS.add(event.ui_element)
 
 
-
 def render():
     r.MAIN_SCREEN.fill(r.SCREEN_FILL)
     if r.IS_DEBUGGING:
@@ -75,4 +73,3 @@ def update_frame():
     r.CLOCK.tick(1/r.FRAME_TIME)
 
 game_loop()
-

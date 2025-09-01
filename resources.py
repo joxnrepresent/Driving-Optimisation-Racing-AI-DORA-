@@ -1,9 +1,7 @@
-from collections import defaultdict
-
-import pygame
 import math
-import pygame_gui
-from pygame import Vector2
+import pygame
+from pygame_gui import UIManager
+from collections import defaultdict
 
 """
 This module contains shared resources like constants, game-state variables (singletons), and utility 
@@ -48,7 +46,7 @@ starting_orientation = 270
 steer_factor = max_steer/10
 throttle_factor = 0.08
 brake_factor = 0.01
-car_proportions = Vector2(27.18, 42.87)
+car_proportions = pygame.Vector2(27.18, 42.87)
 
 """Utility functions"""
 # -----------------------------------#
@@ -57,7 +55,7 @@ car_proportions = Vector2(27.18, 42.87)
 # -----------------------------------#
 def create_gui_manager():
     global GUI_MANAGER
-    GUI_MANAGER = pygame_gui.UIManager((1500, 1000))
+    GUI_MANAGER = UIManager((1500, 1000))
 
 # Loads an image using the file name (png only)
 # -----------------------------------#
@@ -86,7 +84,7 @@ def wrap_value(value, lower_limit, upper_limit):
 
 def load_track_from_file(filename):
     try:
-        with open(filename + ".txt", "r") as file:
+        with open("Tracks/"+filename + ".txt", "r") as file:
             strokes = []
             for line in file:
                 coordinates = line.split(',')
@@ -99,7 +97,7 @@ def load_track_from_file(filename):
         print("File not found")
         return None
 
-def draw_track(surface, strokes):
+def draw_track_outline(surface, strokes):
     is_black = True
     for stroke in strokes:
         for i in range(len(stroke) - 1):
@@ -110,7 +108,7 @@ def draw_track(surface, strokes):
             is_black = not is_black
             pygame.draw.line(surface, colour, stroke[i], stroke[i + 1], 3)
 
-def draw_segments(surface, segments, is_black):
+def draw_alternating_line_segments(surface, segments, is_black):
     colour = "black" if is_black else "red"
     for (p1, p2) in segments:
         pygame.draw.line(surface, colour, p1, p2, 3)
@@ -124,7 +122,7 @@ def draw_grid(surface, color="green"):
         pygame.draw.line(s, color, (0,y), (w,y))
     surface.blit(s, (0,0))
 
-def get_line_segment_intersection(seg1, seg2):
+def get_line_segments_intersection(seg1, seg2):
     (x1, y1), (x2, y2) = seg1
     (x3, y3), (x4, y4) = seg2
 

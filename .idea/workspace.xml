@@ -4,15 +4,16 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="5e9ec6eb-ef78-4013-8fcc-b4aee51ca562" name="Changes" comment="Track Canvas Made">
-      <change afterPath="$PROJECT_DIR$/cars.py" afterDir="false" />
+    <list default="true" id="5e9ec6eb-ef78-4013-8fcc-b4aee51ca562" name="Changes" comment="Ray Casting and Collision Detection">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Random stuff.py" beforeDir="false" afterPath="$PROJECT_DIR$/Random stuff.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/car_simulation.py" beforeDir="false" afterPath="$PROJECT_DIR$/car_simulation.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cars.py" beforeDir="false" afterPath="$PROJECT_DIR$/cars.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/gui_custom_elements.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui_custom_elements.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/neural_network.py" beforeDir="false" afterPath="$PROJECT_DIR$/neural_network.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/resources.py" beforeDir="false" afterPath="$PROJECT_DIR$/resources.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/testing.py" beforeDir="false" afterPath="$PROJECT_DIR$/testing.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/testing_track.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Tracks/testing_track.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/track.py" beforeDir="false" afterPath="$PROJECT_DIR$/track.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/track_drawing_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/track_drawing_interface.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -60,6 +61,7 @@
     "Python.resources.executor": "Run",
     "Python.testing.executor": "Run",
     "Python.threading.executor": "Debug",
+    "Python.track.executor": "Run",
     "Python.track_drawing_interface.executor": "Run",
     "Python.ui_font_dictionary.executor": "Run",
     "Python.user_interface.executor": "Run",
@@ -146,7 +148,23 @@
       <option name="project" value="LOCAL" />
       <updated>1756482258978</updated>
     </task>
-    <option name="localTasksCounter" value="8" />
+    <task id="LOCAL-00008" summary="Ray Casting and Collision Detection">
+      <option name="closed" value="true" />
+      <created>1756591216336</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1756591216336</updated>
+    </task>
+    <task id="LOCAL-00009" summary="Ray Casting and Collision Detection">
+      <option name="closed" value="true" />
+      <created>1756591237859</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1756591237859</updated>
+    </task>
+    <option name="localTasksCounter" value="10" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -166,19 +184,20 @@
     <MESSAGE value="Neural network framework" />
     <MESSAGE value="Updated the canvas" />
     <MESSAGE value="Track Canvas Made" />
-    <option name="LAST_COMMIT_MESSAGE" value="Track Canvas Made" />
+    <MESSAGE value="Ray Casting and Collision Detection" />
+    <option name="LAST_COMMIT_MESSAGE" value="Ray Casting and Collision Detection" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/track_drawing_interface.py</url>
-          <line>34</line>
+          <line>31</line>
           <option name="timeStamp" value="2" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/resources.py</url>
-          <line>128</line>
+          <line>126</line>
           <option name="timeStamp" value="5" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
