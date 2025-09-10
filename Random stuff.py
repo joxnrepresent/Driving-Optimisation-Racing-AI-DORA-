@@ -130,3 +130,4 @@ class VPGAgent:
 
         # Clear episode memory
         self.states, self.actions, self.rewards = [], [], []
+

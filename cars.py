@@ -130,7 +130,6 @@ class Car(Sprite):
         self.image = rotate(self._original_car, -self.direction)
         self.rect = self.image.get_rect(center=(int(self.position.x), int(self.position.y)))
 
-
 class PlayerCar(Car):
     def __init__(self, starting_position = None):
         super().__init__(starting_position)
@@ -140,4 +139,5 @@ class PlayerCar(Car):
             value_range=(-100, 100),
             manager=r.GUI_MANAGER
         )
+
 

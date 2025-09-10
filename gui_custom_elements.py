@@ -113,3 +113,5 @@ class UITrackCanvas(UIElement):
         self.strokes.clear()
         self.current_stroke.clear()
         self.rebuild()
+
+

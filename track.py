@@ -8,7 +8,7 @@ class Track(Sprite):
     """
     This class creates an instance of a track sprite. The track is composed of individual wall segments which are
     represented as list of start and end points, and has a separate image that is loaded onto the screen. The grid a
-    hash map that maps the cells of the grid to the track segments in that cell
+    hash map that maps the cells of the grid to the track segments in that cell.
     """
     def __init__(self, track_name, position = ((0,0), r.SCREEN_DIMENSIONS)):
         super().__init__()
@@ -114,3 +114,4 @@ class SpatialHashGrid:
 
     def return_collision_point(self, line, wall_segments):
         return self.dda_grid_traverse(line, on_visit=lambda ix, iy: self._check_cell_for_collision(ix, iy, line, wall_segments))
+

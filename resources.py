@@ -160,3 +160,4 @@ def get_line_segments_intersection(seg1, seg2):
         return x, y
     else:
         return None
+

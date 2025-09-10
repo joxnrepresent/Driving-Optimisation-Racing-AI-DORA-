@@ -55,7 +55,6 @@ def render():
                     elif element_type == "grid lines":
                         if element:
                             r.draw_grid(r.MAIN_SCREEN)
-
     r.GAME_SPRITES.draw(r.MAIN_SCREEN)
     r.GUI_MANAGER.draw_ui(r.MAIN_SCREEN)
 

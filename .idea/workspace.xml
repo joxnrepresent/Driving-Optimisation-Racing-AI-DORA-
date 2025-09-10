@@ -4,21 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="5e9ec6eb-ef78-4013-8fcc-b4aee51ca562" name="Changes" comment="Ray Casting and Collision Detection">
-      <change afterPath="$PROJECT_DIR$/game_modes.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/rl_model.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Random stuff.py" beforeDir="false" afterPath="$PROJECT_DIR$/Random stuff.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/car_simulation.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/cars.py" beforeDir="false" afterPath="$PROJECT_DIR$/cars.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/gui_custom_elements.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui_custom_elements.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/neural_network.py" beforeDir="false" afterPath="$PROJECT_DIR$/neural_network.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/resources.py" beforeDir="false" afterPath="$PROJECT_DIR$/resources.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/testing.py" beforeDir="false" afterPath="$PROJECT_DIR$/testing.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/track.py" beforeDir="false" afterPath="$PROJECT_DIR$/track.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/track_drawing_interface.py" beforeDir="false" />
-    </list>
+    <list default="true" id="5e9ec6eb-ef78-4013-8fcc-b4aee51ca562" name="Changes" comment="save working sim" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -55,27 +41,27 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Python.car.executor": "Run",
-    "Python.car_simulation.executor": "Run",
-    "Python.cars.executor": "Run",
-    "Python.game_modes.executor": "Run",
-    "Python.gui_custom_elements.executor": "Run",
-    "Python.main.executor": "Run",
-    "Python.resources.executor": "Run",
-    "Python.testing.executor": "Run",
-    "Python.threading.executor": "Debug",
-    "Python.track.executor": "Run",
-    "Python.track_drawing_interface.executor": "Run",
-    "Python.ui_font_dictionary.executor": "Run",
-    "Python.user_interface.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "main",
-    "settings.editor.selected.configurable": "preferences.lookFeel"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Python.car.executor&quot;: &quot;Run&quot;,
+    &quot;Python.car_simulation.executor&quot;: &quot;Run&quot;,
+    &quot;Python.cars.executor&quot;: &quot;Run&quot;,
+    &quot;Python.game_modes.executor&quot;: &quot;Run&quot;,
+    &quot;Python.gui_custom_elements.executor&quot;: &quot;Run&quot;,
+    &quot;Python.main.executor&quot;: &quot;Run&quot;,
+    &quot;Python.resources.executor&quot;: &quot;Run&quot;,
+    &quot;Python.testing.executor&quot;: &quot;Run&quot;,
+    &quot;Python.threading.executor&quot;: &quot;Debug&quot;,
+    &quot;Python.track.executor&quot;: &quot;Run&quot;,
+    &quot;Python.track_drawing_interface.executor&quot;: &quot;Run&quot;,
+    &quot;Python.ui_font_dictionary.executor&quot;: &quot;Run&quot;,
+    &quot;Python.user_interface.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.lookFeel&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/Tracks" />
@@ -178,7 +164,15 @@
       <option name="project" value="LOCAL" />
       <updated>1756744828162</updated>
     </task>
-    <option name="localTasksCounter" value="11" />
+    <task id="LOCAL-00011" summary="save working sim">
+      <option name="closed" value="true" />
+      <created>1757488385844</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1757488385844</updated>
+    </task>
+    <option name="localTasksCounter" value="12" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -199,7 +193,8 @@
     <MESSAGE value="Updated the canvas" />
     <MESSAGE value="Track Canvas Made" />
     <MESSAGE value="Ray Casting and Collision Detection" />
-    <option name="LAST_COMMIT_MESSAGE" value="Ray Casting and Collision Detection" />
+    <MESSAGE value="save working sim" />
+    <option name="LAST_COMMIT_MESSAGE" value="save working sim" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
