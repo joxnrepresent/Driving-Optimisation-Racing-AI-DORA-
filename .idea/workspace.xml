@@ -5,16 +5,19 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="5e9ec6eb-ef78-4013-8fcc-b4aee51ca562" name="Changes" comment="Ray Casting and Collision Detection">
+      <change afterPath="$PROJECT_DIR$/game_modes.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/rl_model.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/car_simulation.py" beforeDir="false" afterPath="$PROJECT_DIR$/car_simulation.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Random stuff.py" beforeDir="false" afterPath="$PROJECT_DIR$/Random stuff.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/car_simulation.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/cars.py" beforeDir="false" afterPath="$PROJECT_DIR$/cars.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/gui_custom_elements.py" beforeDir="false" afterPath="$PROJECT_DIR$/gui_custom_elements.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/neural_network.py" beforeDir="false" afterPath="$PROJECT_DIR$/neural_network.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/resources.py" beforeDir="false" afterPath="$PROJECT_DIR$/resources.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/testing_track.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Tracks/testing_track.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/testing.py" beforeDir="false" afterPath="$PROJECT_DIR$/testing.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/track.py" beforeDir="false" afterPath="$PROJECT_DIR$/track.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/track_drawing_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/track_drawing_interface.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/track_drawing_interface.py" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -56,6 +59,8 @@
   "keyToString": {
     "Python.car.executor": "Run",
     "Python.car_simulation.executor": "Run",
+    "Python.cars.executor": "Run",
+    "Python.game_modes.executor": "Run",
     "Python.gui_custom_elements.executor": "Run",
     "Python.main.executor": "Run",
     "Python.resources.executor": "Run",
@@ -73,6 +78,7 @@
 }]]></component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/Tracks" />
       <recent name="$PROJECT_DIR$/Images" />
     </key>
   </component>
@@ -164,7 +170,15 @@
       <option name="project" value="LOCAL" />
       <updated>1756591237859</updated>
     </task>
-    <option name="localTasksCounter" value="10" />
+    <task id="LOCAL-00010" summary="Ray Casting and Collision Detection">
+      <option name="closed" value="true" />
+      <created>1756744828162</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1756744828162</updated>
+    </task>
+    <option name="localTasksCounter" value="11" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -191,18 +205,9 @@
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/track_drawing_interface.py</url>
-          <line>31</line>
-          <option name="timeStamp" value="2" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/resources.py</url>
-          <line>126</line>
+          <line>119</line>
           <option name="timeStamp" value="5" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/testing.py</url>
-          <option name="timeStamp" value="8" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>

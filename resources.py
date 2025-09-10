@@ -10,22 +10,20 @@ functions/methods used throughout the project.
 #---------------------------------------------------------------------------------------------------------------------#
 
 """Singletons"""
-# -----------------------------------#
 
 # Program constants
-# -----------------------------------#
+  
 FRAME_TIME = 1/60
 SCREEN_DIMENSIONS = (1200, 750)
 SCREEN_FILL = "White"
-IS_DEBUGGING = True
+IS_DEBUGGING = False
 CURRENT_TRACK = "testing_track"
 SHG_CELL_SIZE = 30
-CAR_MAX_RAY_CAST = 2000
-RAY_CAST_ANGLES = [30, 60, 90, 130]
+CAR_MAX_RAY_CAST = SCREEN_DIMENSIONS[0]
+RAY_CAST_ANGLES = [15, 30, 45, 60, 90, 130]
 EPS = 1e-9
 
 # Core program components
-# -----------------------------------#
 MAIN_SCREEN = pygame.display.set_mode(SCREEN_DIMENSIONS)
 GUI_MANAGER = None
 CLOCK = pygame.time.Clock()
@@ -37,33 +35,30 @@ GAME_MODE = "track maker"
 IS_INITIALIZED = False
 
 # Car properties (May vary in later versions)
-# -----------------------------------#
 car_mass = 800
 max_steer = 1.4
+max_speed = 300
 driving_force = 30
 braking_force = 100
 starting_orientation = 270
+starting_position = (550, 130)
 steer_factor = max_steer/10
 throttle_factor = 0.08
 brake_factor = 0.01
 car_proportions = pygame.Vector2(27.18, 42.87)
 
 """Utility functions"""
-# -----------------------------------#
 
 # Initialisation of GUI manager
-# -----------------------------------#
 def create_gui_manager():
     global GUI_MANAGER
     GUI_MANAGER = UIManager((1500, 1000))
 
 # Loads an image using the file name (png only)
-# -----------------------------------#
 def set_image(image):
     return pygame.image.load(f'Images/{image}.png').convert_alpha()
 
 # Returns the sign of the input
-# -----------------------------------#
 def sign(x):
     if x > 0:
         return 1
@@ -73,12 +68,10 @@ def sign(x):
         return 0
 
 # Keeps input value within a range with an upper and lower limit
-# -----------------------------------#
 def clamp_value(value, lower_limit, upper_limit):
     return max(lower_limit, min(value, upper_limit))
 
 # Wraps a value by looping to the lower limit when the upper limit is crossed
-# -----------------------------------#
 def wrap_value(value, lower_limit, upper_limit):
     return ((value - lower_limit) % (upper_limit-lower_limit)) + lower_limit
 

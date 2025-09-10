@@ -38,11 +38,9 @@ class Layer:
     def layer_forward_pass(self, x):
         z = x.dot(self.weights) + self.biases
         a = self.activation(z)
-
         self.last_x = x
         self.last_z = z
         self.last_a = a
-
         return a
 
     def layer_backward_pass(self, d_a):
@@ -107,6 +105,8 @@ class NeuralNetwork:
             d_W, d_b, d_a = layer.layer_backward_pass(d_a)
             weight_grads.insert(0, d_W)
             bias_grads.insert(0, d_b)
+
+        return weight_grads, bias_grads
 
     def update_parameters(self, d_log_std):
         # Adam optimisation

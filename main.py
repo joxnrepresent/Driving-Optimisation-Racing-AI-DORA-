@@ -1,21 +1,18 @@
 import pygame
 import pygame_gui
 import resources as r
-from car_simulation import run_car_simulation
-from track_drawing_interface import run_track_maker
+from game_modes import run_car_simulation, run_track_maker
 
 """
-Main module for running the program. This handles initialisation, input, updates, and rendering
+Main module for running the program. This handles input, updates, and rendering
 """
 #---------------------------------------------------------------------------------------------------------------------#
 
 # pygame and GUI initialisation
-# -----------------------------------#
 pygame.init()
 r.create_gui_manager()
 
 # Game loop which runs indefinitely till program is closed
-# -----------------------------------#
 def game_loop():
     while True:
         check_events()
@@ -23,13 +20,11 @@ def game_loop():
             run_track_maker()
         elif r.GAME_MODE == "car simulation":
             run_car_simulation()
-
         update_frame()
 
 # Handles user input in keystrokes and interaction with GUI.
-# Keystrokes are appended/ removed from 'PRESSED_KEYS' set.
 # The GUI manager processes events with respect to the GUI elements on screen
-# -----------------------------------#
+# Keystrokes and pressed buttons are appended to respective hash sets
 def check_events():
     for event in pygame.event.get():
         r.GUI_MANAGER.process_events(event)
@@ -42,7 +37,8 @@ def check_events():
         if event.type == pygame.USEREVENT and  event.user_type == pygame_gui.UI_BUTTON_PRESSED:
             r.PRESSED_BUTTONS.add(event.ui_element)
 
-
+# Renders all game and GUI elements onto the screen
+# If debugger is on, then also renders hitboxes, rays, and gridlines
 def render():
     r.MAIN_SCREEN.fill(r.SCREEN_FILL)
     if r.IS_DEBUGGING:
@@ -63,8 +59,7 @@ def render():
     r.GAME_SPRITES.draw(r.MAIN_SCREEN)
     r.GUI_MANAGER.draw_ui(r.MAIN_SCREEN)
 
-# Handles drawing to the screen and frame timing
-# -----------------------------------#
+# Handles updating frame and internal clock
 def update_frame():
     r.GUI_MANAGER.update(1/r.FRAME_TIME)
     r.GAME_SPRITES.update()
@@ -73,3 +68,4 @@ def update_frame():
     r.CLOCK.tick(1/r.FRAME_TIME)
 
 game_loop()
+

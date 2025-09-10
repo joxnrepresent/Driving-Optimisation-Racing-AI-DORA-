@@ -1,31 +1,50 @@
 import resources as r
-from math import floor
+from math import floor, hypot
 from pygame.sprite import Sprite
-from pygame import Surface, Rect, SRCALPHA
+from pygame import Surface, Rect, SRCALPHA, Vector2
 from collections import defaultdict
 
 class Track(Sprite):
+    """
+    This class creates an instance of a track sprite. The track is composed of individual wall segments which are
+    represented as list of start and end points, and has a separate image that is loaded onto the screen. The grid a
+    hash map that maps the cells of the grid to the track segments in that cell
+    """
     def __init__(self, track_name, position = ((0,0), r.SCREEN_DIMENSIONS)):
         super().__init__()
         self.grid = SpatialHashGrid()
         self.walls = r.load_track_from_file(track_name)
         self.wall_segments = []
-        self.is_black = True
+        segment_index = 0
         for wall in self.walls:
-            for i in range(len(wall) - 1):
-                segment = (wall[i], wall[i + 1])
+            for i in range(len(wall)):
+                segment = (wall[i], wall[(i + 1) % len(wall)])
                 self.wall_segments.append(segment)
-                self.hash_track_segment(segment, self.wall_segments.index(segment))
+                self.grid.hash_segment(segment, segment_index)
+                segment_index += 1
+
         self.rect = Rect(position)
         self.image = Surface((self.rect.width, self.rect.height), SRCALPHA)
         self.draw_track()
 
-    def hash_track_segment(self, segment, segment_index):
-        self.grid.dda_traverse(segment, segment_index= segment_index)
+    # Cast ray and return shortened ray up till nearest point of intersection
+    # Returns normalised distance which is the percentage of max length
+    def ray_cast(self, ray):
+        hit_point = Vector2(self.grid.return_collision_point(ray, self.wall_segments))
+        normalised_distance = ((hit_point - ray[0]).length()/r.CAR_MAX_RAY_CAST) ** 0.3
+        return hit_point, normalised_distance
 
-    def collision_detection(self, ray):
-        return self.grid.dda_traverse(ray, wall_segments= self.wall_segments)
+    # Checks each border of the hitbox for collision with track segments in the cells it passes through
+    def hitbox_collision_detection(self, hitbox):
+        for i in range(len(hitbox)):
+            hitbox_border_line = (hitbox[i], hitbox[(i + 1) % len(hitbox)] )
+            collision = self.grid.return_collision_point(hitbox_border_line, self.wall_segments)
+            if collision is not None:
+                return True
+        return False
 
+    # Draws all track segments as lines
+    # Colour alternates between black and red
     def draw_track(self):
         self.image.fill((0, 0, 0, 0))
         is_black = True
@@ -45,34 +64,40 @@ class SpatialHashGrid:
         x, y = point
         return int(floor(x / r.SHG_CELL_SIZE)), int(floor(y / r.SHG_CELL_SIZE))
 
-    def dda_traverse(self, segment, segment_index = None, wall_segments = None):
+    def _add_segment_to_cell(self, ix, iy, segment_index):
+        self.cells[(ix, iy)].append(segment_index)
+
+    def _check_cell_for_collision(self, ix, iy, ray, wall_segments):
+        if (ix, iy) in self.cells:
+            for seg_index in self.cells[(ix, iy)]:
+                seg = wall_segments[seg_index]
+                hit_point = r.get_line_segments_intersection(ray, seg)
+                if hit_point:
+                    return hit_point
+        return None
+
+    def dda_grid_traverse(self, segment, on_visit):
         (x1, y1), (x2, y2) = segment
         dx = x2 - x1
         dy = y2 - y1
         ix, iy = self._get_cell_index_of_point((x1, y1))
         ex, ey = self._get_cell_index_of_point((x2, y2))
 
-        step_x = 1 if dx > 0 else -1 if dx < 0 else 0
+        step_x = r.sign(dx)
         t_delta_x = (r.SHG_CELL_SIZE / abs(dx)) if dx != 0 else float('inf')
         next_boundary_x = (ix + 1) * r.SHG_CELL_SIZE if step_x == 1 else ix * r.SHG_CELL_SIZE
         t_max_x = (next_boundary_x - x1) / dx if dx != 0 else float("inf")
 
-        step_y = 1 if dy > 0 else -1 if dy < 0 else 0
+        step_y = r.sign(dy)
         t_delta_y = (r.SHG_CELL_SIZE / abs(dy)) if dy != 0 else float('inf')
         next_boundary_y = (iy + 1) * r.SHG_CELL_SIZE if step_y == 1 else iy * r.SHG_CELL_SIZE
         t_max_y = (next_boundary_y - y1) / dy if dy != 0 else float("inf")
 
         max_steps = (abs(ex - ix) + abs(ey - iy) + 10)
         for i in range(max_steps):
-
-            if segment_index is not None:
-                self._add_segment_to_grid(ix, iy, segment_index)
-            elif wall_segments is not None:
-                hit_point = self.lookup_nearby_segments(ix, iy, wall_segments, segment)
-                if hit_point:
-                    return hit_point
-            else:
-                return AttributeError
+            result = on_visit(ix, iy)
+            if result is not None:
+                return result
 
             if ix == ex and iy == ey:
                 break
@@ -84,14 +109,8 @@ class SpatialHashGrid:
                 iy += step_y
                 t_max_y += t_delta_y
 
-    def _add_segment_to_grid(self, ix, iy, segment_index):
-        self.cells[(ix, iy)].append(segment_index)
+    def hash_segment(self, wall_segment, segment_index):
+        self.dda_grid_traverse(wall_segment, on_visit=lambda ix, iy: self._add_segment_to_cell(ix, iy, segment_index))
 
-    def lookup_nearby_segments(self, ix, iy, wall_segments, ray):
-        if (ix, iy) in self.cells:
-            for seg_index in self.cells[(ix, iy)]:
-                seg = wall_segments[seg_index]
-                hit_point = r.get_line_segments_intersection(ray, seg)
-                if hit_point:
-                    return hit_point
-        return None
+    def return_collision_point(self, line, wall_segments):
+        return self.dda_grid_traverse(line, on_visit=lambda ix, iy: self._check_cell_for_collision(ix, iy, line, wall_segments))
