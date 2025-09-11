@@ -4,7 +4,7 @@ import resources as r
 from game_modes import run_car_simulation, run_track_maker
 
 """
-Main module for running the program. This handles input, updates, and rendering
+Main module for running the program. This handles input, updates, and rendering TESTING UPDATES
 """
 #---------------------------------------------------------------------------------------------------------------------#
 
