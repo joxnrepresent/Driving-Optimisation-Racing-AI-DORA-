@@ -4,7 +4,7 @@ import resources as r
 from game_modes import run_car_simulation, run_track_maker
 
 """
-Main module for running the program. This handles input, updates, and rendering TESTING UPDATES
+Main module for running the program. This handles input, updates, and rendering
 """
 #---------------------------------------------------------------------------------------------------------------------#
 
@@ -15,11 +15,11 @@ r.create_gui_manager()
 # Game loop which runs indefinitely till program is closed
 def game_loop():
     while True:
-        check_events()
         if r.GAME_MODE == "track maker":
             run_track_maker()
         elif r.GAME_MODE == "car simulation":
             run_car_simulation()
+        check_events()
         update_frame()
 
 # Handles user input in keystrokes and interaction with GUI.

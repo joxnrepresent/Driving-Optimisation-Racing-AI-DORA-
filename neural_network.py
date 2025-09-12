@@ -43,9 +43,9 @@ class Layer:
         self.last_a = a
         return a
 
-    def layer_backward_pass(self, d_a):
-        batch_size = d_a.shape[0]                           #d_a is dL/d_a
-        d_z =  d_a * self.activation_derivative(self.last_z) #dL/d_z = dL/d_a * d_a/d_z
+    def layer_backward_pass(self, d_mu):
+        batch_size = d_mu.shape[0]                           #d_mu is dL/d_mu
+        d_z = d_mu * self.activation_derivative(self.last_z) #dL/d_z = dL/d_mu * d_mu/d_z
         d_W = self.last_x.T.dot(d_z) / batch_size                      #dL/d_W = x.T * dL/d_z
         """x.t has shape (input_size, batch_size)
         d_z has shape (batch_size, output_size) 
@@ -87,30 +87,27 @@ class NeuralNetwork:
             self.adam_moments['b'].append((np.zeros_like(layer.biases), np.zeros_like(layer.biases)))
 
     def forward_propagation(self, a):
-        # a -> output to next layer
+        # a -> input to next layer
         activation_outputs = [a]
         for layer in self.layers:
             a = layer.layer_forward_pass(a)
             activation_outputs.append(a)
         return a, activation_outputs
 
-    def computing_log_probabilities(self, actions, mu):
-        sigma = np.exp(self.log_std)
-        return -0.5 * np.sum(((actions-mu) ** 2) / sigma ** 2 + 2 * self.log_std + np.log(2 * np.pi), axis=1)
-
-    def compute_gradients(self, d_a):
+    def compute_gradients(self, d_mu):
         weight_grads = []
         bias_grads = []
         for layer in reversed(self.layers):
-            d_W, d_b, d_a = layer.layer_backward_pass(d_a)
+            d_W, d_b, d_mu = layer.layer_backward_pass(d_mu)
             weight_grads.insert(0, d_W)
             bias_grads.insert(0, d_b)
-
         return weight_grads, bias_grads
 
-    def update_parameters(self, d_log_std):
+    def update_params(self, d_mu, d_log_std):
         # Adam optimisation
         # w_moments, b_moments, log_stds_moments, t = self.adam_moments.values()
+        weight_grads, bias_grads = self.compute_gradients(d_mu)
+
         self.adam_moments['t'] += 1
         for i, layer in enumerate(self.layers):
             self.adam_moments['w'][i], weight_update = self.adam_estimation(self.adam_moments['w'][i][0],
@@ -122,17 +119,17 @@ class NeuralNetwork:
                                                                           self.adam_moments['b'][i][1],
                                                                           bias_grads[i],
                                                                           self.adam_moments['t'])
-            layer.weights -= weight_update
-            layer.biases -= bias_update
+            layer.weights += weight_update
+            layer.biases += bias_update
 
         self.adam_moments['log_std'], log_std_update = self.adam_estimation(self.adam_moments['log_std'][0],
                                                                             self.adam_moments['log_std'][1],
                                                                             d_log_std,
                                                                             self.adam_moments['t'])
-        self.log_std -= log_std_update
+        self.log_std += log_std_update
         
     @staticmethod
-    def adam_estimation(m, v, grad, t, alpha = 1e-3, beta1 = 0.9, beta2 = 0.999, eps = 1e-8):
+    def adam_estimation(m, v, grad, t, alpha = 0.001, beta1 = 0.9, beta2 = 0.999, eps = 1e-8):
         m = beta1 * m + (1 - beta1) * grad
         v = beta2 * v + (1 - beta2) * grad * grad
         m_hat = m / (1 - beta1 ** t)

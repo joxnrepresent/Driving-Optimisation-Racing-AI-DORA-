@@ -16,7 +16,7 @@ functions/methods used throughout the project.
 FRAME_TIME = 1/60
 SCREEN_DIMENSIONS = (1200, 750)
 SCREEN_FILL = "White"
-IS_DEBUGGING = False
+IS_DEBUGGING = True
 CURRENT_TRACK = "testing_track"
 SHG_CELL_SIZE = 30
 CAR_MAX_RAY_CAST = SCREEN_DIMENSIONS[0]

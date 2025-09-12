@@ -4,7 +4,17 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="5e9ec6eb-ef78-4013-8fcc-b4aee51ca562" name="Changes" comment="save working sim" />
+    <list default="true" id="5e9ec6eb-ef78-4013-8fcc-b4aee51ca562" name="Changes" comment="save working sim">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Random stuff.py" beforeDir="false" afterPath="$PROJECT_DIR$/Random stuff.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cars.py" beforeDir="false" afterPath="$PROJECT_DIR$/cars.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_modes.py" beforeDir="false" afterPath="$PROJECT_DIR$/game_modes.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/neural_network.py" beforeDir="false" afterPath="$PROJECT_DIR$/neural_network.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources.py" beforeDir="false" afterPath="$PROJECT_DIR$/resources.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rl_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/rl_model.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/testing.py" beforeDir="false" afterPath="$PROJECT_DIR$/testing.py" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -58,7 +68,7 @@
     &quot;Python.user_interface.executor&quot;: &quot;Run&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;Redesigning__cars&quot;,
     &quot;settings.editor.selected.configurable&quot;: &quot;preferences.lookFeel&quot;
   }
 }</component>
@@ -203,6 +213,20 @@
           <url>file://$PROJECT_DIR$/resources.py</url>
           <line>119</line>
           <option name="timeStamp" value="5" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/main.py</url>
+          <option name="timeStamp" value="7" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/neural_network.py</url>
+          <line>97</line>
+          <option name="timeStamp" value="8" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/testing.py</url>
+          <line>4</line>
+          <option name="timeStamp" value="9" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>

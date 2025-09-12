@@ -4,8 +4,9 @@ import resources as r
 from pygame_gui import elements
 from gui_custom_elements import UIGaugeMeter, UITrackCanvas
 from track import Track
-from cars import Car
+from cars import PlayerCar, AICar
 from rl_model import VPGModel
+from numpy import clip
 
 """This module contains classes """
 #---------------------------------------------------------------------------------------------------------------------#
@@ -19,18 +20,25 @@ class CarSimulation:
     """
     """Class stores the variables, objects and methods needed to run the car simulation."""
     def __init__(self):
-        self.throttle_and_braking = 0
-        self.steer = 0
-        self.car = Car(r.starting_position)
+
         self.track = Track(r.CURRENT_TRACK)
-        self.vpg_model = VPGModel()
-        r.GAME_SPRITES.add(self.car)
         r.GAME_SPRITES.add(self.track)
+        self.reset_cars()
+        """
+        VPG model testing variables
+        """
+        self.vpg_model = VPGModel()
+        self.actions = (0.0,0.0)
+        self.sensors = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        self.total_reward = 0
+
+    def reset_cars(self):
+        self.car = AICar(r.starting_position)
+        r.GAME_SPRITES.add(self.car)
         r.DEBUG_ELEMENTS["hitboxes"].append(self.car.hitbox)
-        self.steering_slider = elements.UIHorizontalSlider(
-            relative_rect=pygame.Rect((r.SCREEN_DIMENSIONS[0] / 2, 700), (600, 30)),
-            start_value=0,
-            value_range=(-100, 100),
+        self.reset_button = elements.UIButton(
+            relative_rect=pygame.Rect((300, 600), (100, 30)),
+            text="Click to reset",
             manager=r.GUI_MANAGER
         )
         self.throttle_and_braking_meter = elements.UIProgressBar(
@@ -41,63 +49,67 @@ class CarSimulation:
             relative_rect=pygame.Rect((r.SCREEN_DIMENSIONS[0] / 4 - 300, 600), (200, 100)),
             manager=r.GUI_MANAGER
         )
+    def _model_drive_car(self):
+        self._ray_cast()
+        # state_vector = [*self.actions]
+        state_vector = self.sensors
+        self.actions = clip(self.vpg_model.get_actions(state_vector)[0], -1, 1)
 
-        self.reset_button = elements.UIButton(
-            relative_rect=pygame.Rect((300, 600), (100, 30)),
-            text="Click to reset",
-            manager=r.GUI_MANAGER
-        )
+    # Calls ray cast method of track to get point of collision and normalised distance (w.r.t max ray length)
+    # Stores distances as sensor data
+    # Adds coordinates of start and end point of each ray to debugger
+    def _ray_cast(self):
+        center = pygame.Vector2(self.car.rect.center)
+        rays = []
+
+        forward_ray = pygame.Vector2(0, 1).rotate(self.car.direction) * r.CAR_MAX_RAY_CAST
+        rays.append((center, center + forward_ray))
+        for angle in r.RAY_CAST_ANGLES:
+            rays.append((center, center + forward_ray.rotate(angle)))
+            rays.append((center, center + forward_ray.rotate(-angle)))
+
+        collided_rays = []
+        self.sensors.clear()
+        for ray in rays:
+            hit_point, normalised_collision_distance = self.track.ray_cast(ray)
+            collided_rays.append((center, hit_point))
+            self.sensors.append(normalised_collision_distance)
+        r.DEBUG_ELEMENTS["rays"] = collided_rays
 
     def update_car_simulation(self):
-        self._car_movement()
+        self._drive_car()
         self._handle_buttons()
 
     # Calls procedures to update the throttle and steering values.
     # Updates the car's properties with respect to these values
-    def _car_movement(self):
-        self._handle_steering(self.steering_slider.get_current_value()/100)
-        self._handle_throttle()
-        self.car.car_movement(self.steer, self.throttle_and_braking)
-        self.car.ray_cast(self.track)
-        self.car.collision_detection(self.track)
+    def _drive_car(self):
+        if not self.car.is_crashed:
+            # self.car.car_movement()
+
+            self._model_drive_car()
+            self.car.car_movement(self.actions)
+            self.car.collision_detection(self.track)
+            reward = self.car.compute_reward()
+            self.total_reward += reward
+            self.vpg_model.append_return(reward)
+            """
+            update testing meters
+            """
+            self.throttle_and_braking_meter.set_current_progress(self.actions[1])
+            self.speedometer.update_value(self.car.velocity.magnitude())
 
     def _handle_buttons(self):
         if self.reset_button in r.PRESSED_BUTTONS:
+            expected_return = self.vpg_model.update_params()
+            print(self.total_reward, expected_return)
+            self.total_reward = 0
             self._reinitialise_car_simulation()
-
         r.PRESSED_BUTTONS.clear()
 
-    # Updates the steer value when the steering slider is moved.
-    def _handle_steering(self, steer_ratio):
-        self.steer = r.max_steer * steer_ratio
-
-
-    # Increments the throttle or braking based on user input.
-    # Value decays when there is no input to emulate release of throttle/brake.
-    """
-    For accuracy, the throttle would have to be handled in a similar way as the steering using a slider of some sort
-    to allow more control over the magnitude, since by using keys to control throttle, there is no way to steadily hold 
-    the throttle partially pressed down. However for testing purposes, this is ideal since its easier to control than
-    having 2 separate sliders
-    """
-    def _handle_throttle(self):
-        if pygame.K_w in r.PRESSED_KEYS:
-            self.throttle_and_braking = r.clamp_value(self.throttle_and_braking + r.throttle_factor, 0, 1)
-        elif pygame.K_s in r.PRESSED_KEYS:
-            self.throttle_and_braking = r.clamp_value(self.throttle_and_braking - r.brake_factor, -1, 0)
-        else:
-            self.throttle_and_braking *= 0.9
-            if -0.01 < self.throttle_and_braking < 0.01:
-                self.throttle_and_braking = 0
-        throttle_normalised_value = (self.throttle_and_braking + 1) * 50
-        self.throttle_and_braking_meter.set_current_progress(throttle_normalised_value)
-        self.speedometer.update_value(self.car.velocity.magnitude())
-
-    @staticmethod
-    def _reinitialise_car_simulation():
-        r.IS_INITIALIZED = False
-        r.GAME_SPRITES.empty()
+    def _reinitialise_car_simulation(self):
+        r.GAME_SPRITES.remove(self.car)
         r.GUI_MANAGER.clear_and_reset()
+        self.reset_cars()
         r.DEBUG_ELEMENTS.clear()
 
 
@@ -110,14 +122,15 @@ def run_car_simulation():
 
 
 
-    # def _get_actions_from_model(self):
-    #     state_vector = [self.car.throttle, self.car.steer]
-    #     state_vector.extend(self.car.sensors)
-    #     actions = self.vpg_model.get_actions(state_vector)[0]
-    #     self.steering_slider.set_current_value(actions[0])
-    #     self.throttle_and_braking = actions[1]
+
+class PlayerCarSim(CarSimulation):
+    def __init__(self):
+        super().__init__()
 
 
+class AICarSim(CarSimulation):
+    def __init__(self):
+        super().__init__()
 
 
 """
