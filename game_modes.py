@@ -35,7 +35,8 @@ class CarSimulation:
     def reset_cars(self):
         self.car = AICar(r.starting_position)
         r.GAME_SPRITES.add(self.car)
-        r.DEBUG_ELEMENTS["hitboxes"].append(self.car.hitbox)
+
+        # r.DEBUG_ELEMENTS["hitboxes"] = (self.car.hitbox)
         self.reset_button = elements.UIButton(
             relative_rect=pygame.Rect((300, 600), (100, 30)),
             text="Click to reset",
@@ -49,32 +50,12 @@ class CarSimulation:
             relative_rect=pygame.Rect((r.SCREEN_DIMENSIONS[0] / 4 - 300, 600), (200, 100)),
             manager=r.GUI_MANAGER
         )
+
     def _model_drive_car(self):
-        self._ray_cast()
-        # state_vector = [*self.actions]
-        state_vector = self.sensors
+        self.sensors = self.car._ray_cast(self.track)
+        state_vector = [*self.actions]
+        state_vector.extend(self.sensors)
         self.actions = clip(self.vpg_model.get_actions(state_vector)[0], -1, 1)
-
-    # Calls ray cast method of track to get point of collision and normalised distance (w.r.t max ray length)
-    # Stores distances as sensor data
-    # Adds coordinates of start and end point of each ray to debugger
-    def _ray_cast(self):
-        center = pygame.Vector2(self.car.rect.center)
-        rays = []
-
-        forward_ray = pygame.Vector2(0, 1).rotate(self.car.direction) * r.CAR_MAX_RAY_CAST
-        rays.append((center, center + forward_ray))
-        for angle in r.RAY_CAST_ANGLES:
-            rays.append((center, center + forward_ray.rotate(angle)))
-            rays.append((center, center + forward_ray.rotate(-angle)))
-
-        collided_rays = []
-        self.sensors.clear()
-        for ray in rays:
-            hit_point, normalised_collision_distance = self.track.ray_cast(ray)
-            collided_rays.append((center, hit_point))
-            self.sensors.append(normalised_collision_distance)
-        r.DEBUG_ELEMENTS["rays"] = collided_rays
 
     def update_car_simulation(self):
         self._drive_car()
@@ -109,8 +90,10 @@ class CarSimulation:
     def _reinitialise_car_simulation(self):
         r.GAME_SPRITES.remove(self.car)
         r.GUI_MANAGER.clear_and_reset()
-        self.reset_cars()
         r.DEBUG_ELEMENTS.clear()
+        self.reset_cars()
+        r.DEBUG_ELEMENTS["grid lines"] = [True]
+
 
 
 def run_car_simulation():

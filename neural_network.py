@@ -64,7 +64,7 @@ class Layer:
 
 
 class NeuralNetwork:
-    def __init__(self, layer_sizes, activations, init_log_std=-1.0, seed=None):
+    def __init__(self, layer_sizes, activations, init_log_std=-2.0, seed=None):
         if seed is not None:
             np.random.seed(seed)
 
@@ -129,7 +129,7 @@ class NeuralNetwork:
         self.log_std += log_std_update
         
     @staticmethod
-    def adam_estimation(m, v, grad, t, alpha = 0.001, beta1 = 0.9, beta2 = 0.999, eps = 1e-8):
+    def adam_estimation(m, v, grad, t, alpha = 0.005, beta1 = 0.9, beta2 = 0.999, eps = 1e-8):
         m = beta1 * m + (1 - beta1) * grad
         v = beta2 * v + (1 - beta2) * grad * grad
         m_hat = m / (1 - beta1 ** t)

@@ -2,7 +2,7 @@ import numpy as np
 import resources as r
 from neural_network import NeuralNetwork
 class VPGModel:
-    def __init__(self, input_size = 13, output_size = 2, hidden_layer_sizes=[64, 64], seed=None):
+    def __init__(self, input_size = len(r.RAY_CAST_ANGLES) * 2 + 3, output_size = 2, hidden_layer_sizes=[64, 64], seed=None):
         layer_sizes = [input_size] + hidden_layer_sizes + [output_size]
         activations = ['relu'] * len(hidden_layer_sizes) + ['linear']
         self.neural_net = NeuralNetwork(layer_sizes, activations, seed=seed)
@@ -30,12 +30,16 @@ class VPGModel:
         self.rewards.append(reward)
 
     def compute_return(self):
-        returns = []
-        for i in range(len(self.rewards)):
-            Gt = sum((self.rewards[i + j] * self.gamma ** j for j in range(len(self.rewards) - i)))
-            returns.append(Gt)
-        returns = np.array(returns, dtype= np.float32)
-        # returns = (returns - returns.mean()) / (returns.std() + 1e-8)
+        n = len(self.rewards)
+        returns = np.zeros(n, dtype=np.float32)
+        G = 0.0
+        for i in reversed(range(n)):
+            G = self.rewards[i] + self.gamma * G
+            returns[i] = G
+        if returns.std() > 0:
+            returns = (returns - returns.mean()) / (returns.std() + 1e-8)
+        else:
+            returns = returns - returns.mean()
         return returns
 
     def update_params(self):
@@ -49,18 +53,10 @@ class VPGModel:
         objective = (log_probs * returns).mean()
 
         d_mu = (actions - mu) / (sigma ** 2) * returns[:, None]
-        d_log_std = np.mean((((actions - mu) ** 2) / (sigma ** 2) - 1) * returns[:, None], axis = 0)
+        d_log_std = (np.mean((((actions - mu) ** 2) / (sigma ** 2) - 1) * returns[:, None], axis = 0))
 
         self.neural_net.update_params(d_mu, d_log_std)
         self.states.clear()
         self.actions.clear()
         self.rewards.clear()
         return objective
-
-
-
-
-
-
-
-

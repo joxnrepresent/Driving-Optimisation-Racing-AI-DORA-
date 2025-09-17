@@ -6,14 +6,11 @@
   <component name="ChangeListManager">
     <list default="true" id="5e9ec6eb-ef78-4013-8fcc-b4aee51ca562" name="Changes" comment="save working sim">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Random stuff.py" beforeDir="false" afterPath="$PROJECT_DIR$/Random stuff.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/cars.py" beforeDir="false" afterPath="$PROJECT_DIR$/cars.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/game_modes.py" beforeDir="false" afterPath="$PROJECT_DIR$/game_modes.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/neural_network.py" beforeDir="false" afterPath="$PROJECT_DIR$/neural_network.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/resources.py" beforeDir="false" afterPath="$PROJECT_DIR$/resources.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/rl_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/rl_model.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/testing.py" beforeDir="false" afterPath="$PROJECT_DIR$/testing.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/track.py" beforeDir="false" afterPath="$PROJECT_DIR$/track.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -26,6 +23,9 @@
         <option value="Python Script" />
       </list>
     </option>
+  </component>
+  <component name="Git.Rebase.Settings">
+    <option name="NEW_BASE" value="origin/main" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -51,27 +51,27 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Python.car.executor&quot;: &quot;Run&quot;,
-    &quot;Python.car_simulation.executor&quot;: &quot;Run&quot;,
-    &quot;Python.cars.executor&quot;: &quot;Run&quot;,
-    &quot;Python.game_modes.executor&quot;: &quot;Run&quot;,
-    &quot;Python.gui_custom_elements.executor&quot;: &quot;Run&quot;,
-    &quot;Python.main.executor&quot;: &quot;Run&quot;,
-    &quot;Python.resources.executor&quot;: &quot;Run&quot;,
-    &quot;Python.testing.executor&quot;: &quot;Run&quot;,
-    &quot;Python.threading.executor&quot;: &quot;Debug&quot;,
-    &quot;Python.track.executor&quot;: &quot;Run&quot;,
-    &quot;Python.track_drawing_interface.executor&quot;: &quot;Run&quot;,
-    &quot;Python.ui_font_dictionary.executor&quot;: &quot;Run&quot;,
-    &quot;Python.user_interface.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;Redesigning__cars&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.lookFeel&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Python.car.executor": "Run",
+    "Python.car_simulation.executor": "Run",
+    "Python.cars.executor": "Run",
+    "Python.game_modes.executor": "Run",
+    "Python.gui_custom_elements.executor": "Run",
+    "Python.main.executor": "Run",
+    "Python.resources.executor": "Run",
+    "Python.testing.executor": "Run",
+    "Python.threading.executor": "Debug",
+    "Python.track.executor": "Run",
+    "Python.track_drawing_interface.executor": "Run",
+    "Python.ui_font_dictionary.executor": "Run",
+    "Python.user_interface.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "main",
+    "settings.editor.selected.configurable": "preferences.lookFeel"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/Tracks" />
@@ -182,7 +182,15 @@
       <option name="project" value="LOCAL" />
       <updated>1757488385844</updated>
     </task>
-    <option name="localTasksCounter" value="12" />
+    <task id="LOCAL-00012" summary="Working AI prototype">
+      <option name="closed" value="true" />
+      <created>1757695723721</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1757695723721</updated>
+    </task>
+    <option name="localTasksCounter" value="13" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -204,31 +212,32 @@
     <MESSAGE value="Track Canvas Made" />
     <MESSAGE value="Ray Casting and Collision Detection" />
     <MESSAGE value="save working sim" />
-    <option name="LAST_COMMIT_MESSAGE" value="save working sim" />
+    <MESSAGE value="Working AI prototype" />
+    <option name="LAST_COMMIT_MESSAGE" value="Working AI prototype" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/resources.py</url>
-          <line>119</line>
-          <option name="timeStamp" value="5" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/main.py</url>
           <option name="timeStamp" value="7" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/neural_network.py</url>
-          <line>97</line>
-          <option name="timeStamp" value="8" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/testing.py</url>
           <line>4</line>
           <option name="timeStamp" value="9" />
         </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/main.py</url>
+          <line>45</line>
+          <option name="timeStamp" value="11" />
+        </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
+    <watches-manager>
+      <configuration name="PythonConfigurationType">
+        <watch expression="DEBUG_ELEMENTS" />
+      </configuration>
+    </watches-manager>
   </component>
 </project>

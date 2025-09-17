@@ -6,9 +6,9 @@ from collections import defaultdict
 
 class Track(Sprite):
     """
-    This class creates an instance of a track sprite. The track is composed of individual wall segments which are
-    represented as list of start and end points, and has a separate image that is loaded onto the screen. The grid a
-    hash map that maps the cells of the grid to the track segments in that cell.
+    Creates a track sprite. The track is composed of individual wall segments which are represented as list of start
+    and end points, and has a separate image that is loaded onto the screen. The grid is a hash map that maps the cells
+    of the grid to the track segments in that cell.
     """
     def __init__(self, track_name, position = ((0,0), r.SCREEN_DIMENSIONS)):
         super().__init__()
@@ -31,7 +31,7 @@ class Track(Sprite):
     # Returns normalised distance which is the percentage of max length
     def ray_cast(self, ray):
         hit_point = Vector2(self.grid.return_collision_point(ray, self.wall_segments))
-        normalised_distance = ((hit_point - ray[0]).length()/r.CAR_MAX_RAY_CAST) ** 0.3
+        normalised_distance = ((hit_point - ray[0]).length()/r.CAR_MAX_RAY_CAST) ** 0.4
         return hit_point, normalised_distance
 
     # Checks each border of the hitbox for collision with track segments in the cells it passes through
@@ -54,7 +54,11 @@ class Track(Sprite):
             is_black = not is_black
 
 class SpatialHashGrid:
-
+    """
+    Segments the set of wall segments into a hash set of cells, with each cell coordinate as the key, and a list of
+    wall segments in that cell as the value. Also includes dda travelsal method and helper methods to hash and query
+    cells.
+    """
     def __init__(self):
         self.cells = defaultdict(list)
         r.DEBUG_ELEMENTS["grid lines"].append(True)
@@ -113,5 +117,6 @@ class SpatialHashGrid:
         self.dda_grid_traverse(wall_segment, on_visit=lambda ix, iy: self._add_segment_to_cell(ix, iy, segment_index))
 
     def return_collision_point(self, line, wall_segments):
-        return self.dda_grid_traverse(line, on_visit=lambda ix, iy: self._check_cell_for_collision(ix, iy, line, wall_segments))
+        return self.dda_grid_traverse(line, on_visit=lambda ix, iy:
+                                                    self._check_cell_for_collision(ix, iy, line, wall_segments))
 

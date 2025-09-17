@@ -5,7 +5,6 @@ from abc import ABC, abstractmethod
 from pygame_gui import elements
 from gui_custom_elements import UIGaugeMeter
 class Car(pygame.sprite.Sprite, ABC):
-
     """
     This class is the Car sprite and extends the Sprite class. The movement of the car is controlled by user input.
     The throttle and steer values are used to control the car's movement. The car's acceleration, velocity and position
@@ -13,6 +12,7 @@ class Car(pygame.sprite.Sprite, ABC):
     version.In later versions, forces will be used to model car movement which would allow lesser bugs, more accurate
     steering and implementing drifting physics, however for present testing, this level of abstraction is sufficient
     """
+
     def __init__(self, starting_position = (0,0)):
         super().__init__()
         self.is_crashed = False
@@ -176,13 +176,33 @@ class AICar(Car):
     def compute_reward(self):
         reward = 0
         if self.is_crashed:
-            reward -= 100
+            reward -= 80
         else:
-            reward += 0.01
-            reward += (self.velocity.magnitude() / r.max_speed) * 3
-            reward -= 0.05 * abs(self.steer)
-
+            reward += 0.005
+            reward += (self.velocity.magnitude() / r.max_speed) * 4
+            reward -= (abs(self.steer)/r.max_steer)*3
         return reward
 
+    # Calls ray cast method of track to get point of collision and normalised distance (w.r.t max ray length)
+    # Stores distances as sensor data
+    # Adds coordinates of start and end point of each ray to debugger
+    def _ray_cast(self, track):
+        center = pygame.Vector2(self.rect.center)
+        rays = []
 
+        forward_ray = pygame.Vector2(0, 1).rotate(self.direction) * r.CAR_MAX_RAY_CAST
+        rays.append((center, center + forward_ray))
+        for angle in r.RAY_CAST_ANGLES:
+            rays.append((center, center + forward_ray.rotate(angle)))
+            rays.append((center, center + forward_ray.rotate(-angle)))
+
+        collided_rays = []
+        sensors = []
+        for ray in rays:
+            hit_point, normalised_collision_distance = track.ray_cast(ray)
+            collided_rays.append((center, hit_point))
+            sensors.append(normalised_collision_distance)
+        r.DEBUG_ELEMENTS["rays"] = collided_rays
+
+        return sensors
 
