@@ -2,7 +2,7 @@ import numpy as np
 import resources as r
 from neural_network import NeuralNetwork
 class VPGModel:
-    def __init__(self, input_size = len(r.RAY_CAST_ANGLES) * 2 + 3, output_size = 2, hidden_layer_sizes=[64, 64], seed=None):
+    def __init__(self, input_size, output_size = 2, hidden_layer_sizes=[64, 128, 64], seed=None):
         layer_sizes = [input_size] + hidden_layer_sizes + [output_size]
         activations = ['relu'] * len(hidden_layer_sizes) + ['linear']
         self.neural_net = NeuralNetwork(layer_sizes, activations, seed=seed)
@@ -10,7 +10,7 @@ class VPGModel:
         self.states = []
         self.actions = []
         self.rewards = []
-        self.gamma = 0.99
+        self.gamma = 0.9
 
     def get_actions(self, state_vector):
         x = np.array(state_vector, np.float32)

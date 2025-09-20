@@ -1,8 +1,12 @@
 import math
+
+from pygame import Vector2
+
 import resources as r
 import pygame
 from abc import ABC, abstractmethod
 from pygame_gui import elements
+
 from gui_custom_elements import UIGaugeMeter
 class Car(pygame.sprite.Sprite, ABC):
     """
@@ -20,13 +24,10 @@ class Car(pygame.sprite.Sprite, ABC):
         self.velocity = pygame.Vector2(0,0)
         self.acceleration = pygame.Vector2(0,0)
         self.direction = r.starting_orientation
+        self.progress = 0
 
         self.throttle = 0
         self.steer = 0.0
-        """
-        hitbox -> Stores coordinates of 4 corners of hitbox
-        """
-        self.hitbox = []
 
         """
         The '_original_car' variable is necessary for rotating the sprite properly since the car sprite is rotated
@@ -38,13 +39,20 @@ class Car(pygame.sprite.Sprite, ABC):
 
         self._update_car_sprite_position()
 
+        """
+        hitbox -> Stores coordinates of 4 corners of hitbox
+        """
+        self.hitbox = []
+        self._update_hitboxes()
+
+
     @abstractmethod
     def car_movement(self, *args, **kwargs):
         pass
 
     # Changes the state of the car to indicate it has crashed and stop its movement
     def collision_detection(self, track):
-        self._update_hitbox()
+        self._update_hitboxes()
         self.is_crashed = track.hitbox_collision_detection(self.hitbox)
 
 
@@ -92,7 +100,7 @@ class Car(pygame.sprite.Sprite, ABC):
         self.position += self.velocity * r.FRAME_TIME
 
     # Updates the coordinates of the corners of the hitbox w.r.t the position and orientation of the car
-    def _update_hitbox(self):
+    def _update_hitboxes(self):
         center_x, center_y = self.rect.center
         width, length = r.car_proportions / 2
         width -= 5
@@ -104,6 +112,12 @@ class Car(pygame.sprite.Sprite, ABC):
             corners[i] = (center_x + x * math.cos(angle) - y * math.sin(angle),
                           center_y + x * math.sin(angle) + y * math.cos(angle))
         self.hitbox[:] = corners
+
+    def get_progress(self, track_spine):
+        center = Vector2(self.rect.center)
+        closest_point = min(track_spine, key=lambda point: (center - point).length_squared())
+        self.progress =  track_spine.index(closest_point)/(len(track_spine)-1)
+        return self.progress
 
     # Updates the rotation of the car sprite with respect to its direction and the original orientation
     # Updates position (rect) of the car sprite
@@ -173,20 +187,10 @@ class AICar(Car):
     def car_movement(self, actions):
         self._update_car_values(*actions)
 
-    def compute_reward(self):
-        reward = 0
-        if self.is_crashed:
-            reward -= 80
-        else:
-            reward += 0.005
-            reward += (self.velocity.magnitude() / r.max_speed) * 4
-            reward -= (abs(self.steer)/r.max_steer)*3
-        return reward
-
     # Calls ray cast method of track to get point of collision and normalised distance (w.r.t max ray length)
     # Stores distances as sensor data
     # Adds coordinates of start and end point of each ray to debugger
-    def _ray_cast(self, track):
+    def ray_cast(self, track):
         center = pygame.Vector2(self.rect.center)
         rays = []
 
@@ -203,6 +207,18 @@ class AICar(Car):
             collided_rays.append((center, hit_point))
             sensors.append(normalised_collision_distance)
         r.DEBUG_ELEMENTS["rays"] = collided_rays
-
         return sensors
+
+    def compute_reward(self):
+        reward = 0
+
+        if self.is_crashed:
+            reward -= 50
+        else:
+            reward += 0.05
+            reward += (self.velocity.magnitude() / r.max_speed) * 3
+            reward -= (abs(self.steer)/r.max_steer)*3
+            reward += self.progress * 200
+        return reward
+
 

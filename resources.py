@@ -18,7 +18,7 @@ SCREEN_DIMENSIONS = (1200, 750)
 SCREEN_FILL = "White"
 IS_DEBUGGING = True
 CURRENT_TRACK = "testing_track"
-SHG_CELL_SIZE = 30
+SHG_CELL_SIZE = 10
 CAR_MAX_RAY_CAST = SCREEN_DIMENSIONS[0]
 RAY_CAST_ANGLES = [15, 30, 45, 60, 90, 130]
 EPS = 1e-9
@@ -36,10 +36,10 @@ IS_INITIALIZED = False
 
 # Car properties (May vary in later versions)
 car_mass = 800
-max_steer = 1.4
-max_speed = 300
-driving_force = 30
-braking_force = 100
+max_steer = 1.7
+max_speed = 500
+driving_force = 60
+braking_force = 150
 starting_orientation = 270
 starting_position = (550, 130)
 steer_factor = max_steer/10
@@ -100,6 +100,9 @@ def draw_track_outline(surface, strokes):
                 colour = "red"
             is_black = not is_black
             pygame.draw.line(surface, colour, stroke[i], stroke[i + 1], 3)
+
+def draw_line(surface, colour, p1, p2):
+    pygame.draw.line(surface, colour, p1, p2, 2)
 
 def draw_alternating_line_segments(surface, segments, is_black):
     colour = "black" if is_black else "red"

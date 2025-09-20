@@ -46,12 +46,17 @@ def render():
             for element_type, elements in r.DEBUG_ELEMENTS.items():
                 for element in elements:
                     if element_type == "hitboxes":
-                        pygame.draw.polygon(r.MAIN_SCREEN, "red", element)
+                        pygame.draw.polygon(r.MAIN_SCREEN, "red", element,2)
+                    elif element_type == "AABB":
+                        pygame.draw.rect(r.MAIN_SCREEN, "red", element,2)
                     elif element_type == "rays":
                         try:
                             pygame.draw.line(r.MAIN_SCREEN, "red", element[0], element[1])
                         except:
                             print(element)
+                    elif element_type == "track spine":
+                        for i in range(len(element) - 1):
+                            r.draw_line(r.MAIN_SCREEN, "Blue", element[i], element[i + 1])
                     elif element_type == "grid lines":
                         if element:
                             r.draw_grid(r.MAIN_SCREEN)
