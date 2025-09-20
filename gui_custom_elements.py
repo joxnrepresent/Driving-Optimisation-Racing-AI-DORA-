@@ -98,7 +98,7 @@ class UITrackCanvas(UIElement):
                 pygame.draw.line(self.image, "Red", self.current_stroke[i], self.current_stroke[i+1], 3)
 
     def save_drawing(self, filename):
-        with open(filename + ".txt", "w") as file:
+        with open("Tracks/"+ filename + ".txt", "w") as file:
             for stroke in self.strokes:
                 for point in stroke:
                     file.write(str(point[0]) + "," + str(point[1]) + ",")

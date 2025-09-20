@@ -1,4 +1,5 @@
 import math
+from logging import setLogRecordFactory
 import pygame
 import resources as r
 from pygame_gui import elements
@@ -7,11 +8,20 @@ from track import Track
 from cars import PlayerCar, AICar
 from rl_model import VPGModel
 from numpy import clip
+from abc import ABC, abstractmethod
 
 """This module contains classes """
 #---------------------------------------------------------------------------------------------------------------------#
 car_simulation = None
-class CarSimulation:
+
+def run_car_simulation():
+    global car_simulation
+    if not r.IS_INITIALIZED:
+        car_simulation = AICarSim()
+        r.IS_INITIALIZED = True
+    car_simulation.update_car_simulation()
+
+class CarSimulation(ABC):
     """
     This module is for running a program that creates an instance of the Car class that can be controlled by the user.
     A slider controls the  steering, 'W' for throttle and 'S' for braking. The meter in the bottom left corner represents
@@ -20,28 +30,84 @@ class CarSimulation:
     """
     """Class stores the variables, objects and methods needed to run the car simulation."""
     def __init__(self):
-
         self.track = Track(r.CURRENT_TRACK)
         r.GAME_SPRITES.add(self.track)
-        self.reset_cars()
-        """
-        VPG model testing variables
-        """
-        self.vpg_model = VPGModel()
-        self.actions = (0.0,0.0)
-        self.sensors = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        self.total_reward = 0
-
-    def reset_cars(self):
-        self.car = AICar(r.starting_position)
-        r.GAME_SPRITES.add(self.car)
-
-        # r.DEBUG_ELEMENTS["hitboxes"] = (self.car.hitbox)
+        r.starting_position = self.track.track_spine[0]
         self.reset_button = elements.UIButton(
             relative_rect=pygame.Rect((300, 600), (100, 30)),
             text="Click to reset",
             manager=r.GUI_MANAGER
         )
+        self.car = []
+        self._reset_cars()
+
+    def update_car_simulation(self):
+        self._drive_car()
+        self._handle_buttons()
+
+    @abstractmethod
+    def _reset_cars(self):
+        pass
+
+    # Calls procedures to update the throttle and steering values.
+    # Updates the car's properties with respect to these values
+    @abstractmethod
+    def _drive_car(self):
+        pass
+
+    def _reset_gui(self):
+        r.GUI_MANAGER.clear_and_reset()
+        self.reset_button = elements.UIButton(
+            relative_rect=pygame.Rect((300, 600), (100, 30)),
+            text="Click to reset",
+            manager=r.GUI_MANAGER
+        )
+
+    def _handle_buttons(self):
+        if self.reset_button in r.PRESSED_BUTTONS:
+            self._reinitialise_car_simulation()
+        r.PRESSED_BUTTONS.clear()
+
+    def _reinitialise_car_simulation(self):
+        r.GAME_SPRITES.remove(self.car)
+        r.DEBUG_ELEMENTS["hitboxes"].clear()
+        r.DEBUG_ELEMENTS["rays"].clear()
+        r.DEBUG_ELEMENTS["AABB"].clear()
+        self._reset_gui()
+        self._reset_cars()
+
+
+class PlayerCarSim(CarSimulation):
+    def __init__(self):
+        super().__init__()
+
+    def _reset_cars(self):
+        self.car = PlayerCar(r.starting_position)
+        r.GAME_SPRITES.add(self.car)
+        r.DEBUG_ELEMENTS["hitboxes"].append(self.car.hitbox)
+
+    def _drive_car(self):
+        if not self.car.is_crashed:
+            progress = self.car.get_progress(self.track.track_spine)
+            self.car.car_movement()
+            self.car.collision_detection(self.track)
+
+
+class AICarSim(CarSimulation):
+    def __init__(self):
+        super().__init__()
+        """
+        VPG model testing variables
+        """
+        self.vpg_model = VPGModel(16)
+        self.actions = (0.0,0.0)
+        self.sensors = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        self.total_reward = 0
+
+    def _reset_cars(self):
+        self.car = AICar(r.starting_position)
+        r.GAME_SPRITES.add(self.car)
+        r.DEBUG_ELEMENTS["hitboxes"].append(self.car.hitbox)
         self.throttle_and_braking_meter = elements.UIProgressBar(
             relative_rect=pygame.Rect((r.SCREEN_DIMENSIONS[0] / 4 - 300, 700), (500, 30)),
             manager=r.GUI_MANAGER
@@ -51,22 +117,8 @@ class CarSimulation:
             manager=r.GUI_MANAGER
         )
 
-    def _model_drive_car(self):
-        self.sensors = self.car._ray_cast(self.track)
-        state_vector = [*self.actions]
-        state_vector.extend(self.sensors)
-        self.actions = clip(self.vpg_model.get_actions(state_vector)[0], -1, 1)
-
-    def update_car_simulation(self):
-        self._drive_car()
-        self._handle_buttons()
-
-    # Calls procedures to update the throttle and steering values.
-    # Updates the car's properties with respect to these values
     def _drive_car(self):
         if not self.car.is_crashed:
-            # self.car.car_movement()
-
             self._model_drive_car()
             self.car.car_movement(self.actions)
             self.car.collision_detection(self.track)
@@ -79,41 +131,20 @@ class CarSimulation:
             self.throttle_and_braking_meter.set_current_progress(self.actions[1])
             self.speedometer.update_value(self.car.velocity.magnitude())
 
-    def _handle_buttons(self):
-        if self.reset_button in r.PRESSED_BUTTONS:
-            expected_return = self.vpg_model.update_params()
-            print(self.total_reward, expected_return)
-            self.total_reward = 0
-            self._reinitialise_car_simulation()
-        r.PRESSED_BUTTONS.clear()
+    def _model_drive_car(self):
+        state_vector = [*self.actions]
+        progress = self.car.get_progress(self.track.track_spine)
+        state_vector.append(progress)
+        self.sensors = self.car.ray_cast(self.track)
+        state_vector.extend(self.sensors)
+        self.actions = clip(self.vpg_model.get_actions(state_vector)[0], -1, 1)
 
     def _reinitialise_car_simulation(self):
-        r.GAME_SPRITES.remove(self.car)
-        r.GUI_MANAGER.clear_and_reset()
-        r.DEBUG_ELEMENTS.clear()
-        self.reset_cars()
-        r.DEBUG_ELEMENTS["grid lines"] = [True]
+        expected_return = self.vpg_model.update_params()
+        print(self.total_reward, expected_return)
+        self.total_reward = 0
+        super()._reinitialise_car_simulation()
 
-
-
-def run_car_simulation():
-    global car_simulation
-    if not r.IS_INITIALIZED:
-        car_simulation = CarSimulation()
-        r.IS_INITIALIZED = True
-    car_simulation.update_car_simulation()
-
-
-
-
-class PlayerCarSim(CarSimulation):
-    def __init__(self):
-        super().__init__()
-
-
-class AICarSim(CarSimulation):
-    def __init__(self):
-        super().__init__()
 
 
 """

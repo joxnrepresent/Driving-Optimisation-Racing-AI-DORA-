@@ -13,10 +13,13 @@ class Track(Sprite):
     def __init__(self, track_name, position = ((0,0), r.SCREEN_DIMENSIONS)):
         super().__init__()
         self.grid = SpatialHashGrid()
-        self.walls = r.load_track_from_file(track_name)
+        track_data = r.load_track_from_file(track_name)
+        track_spine = track_data.pop(0)
+        self.track_spine = [Vector2(point) for point in track_spine]
+        walls = track_data
         self.wall_segments = []
         segment_index = 0
-        for wall in self.walls:
+        for wall in walls:
             for i in range(len(wall)):
                 segment = (wall[i], wall[(i + 1) % len(wall)])
                 self.wall_segments.append(segment)
@@ -52,6 +55,8 @@ class Track(Sprite):
             wall_segments = [self.wall_segments[i] for i in cell_segments]
             r.draw_alternating_line_segments(self.image, wall_segments, is_black)
             is_black = not is_black
+        r.DEBUG_ELEMENTS["track spine"] = [self.track_spine]
+
 
 class SpatialHashGrid:
     """
@@ -64,7 +69,7 @@ class SpatialHashGrid:
         r.DEBUG_ELEMENTS["grid lines"].append(True)
 
     @staticmethod
-    def _get_cell_index_of_point(point):
+    def get_cell_index_of_point(point):
         x, y = point
         return int(floor(x / r.SHG_CELL_SIZE)), int(floor(y / r.SHG_CELL_SIZE))
 
@@ -84,8 +89,8 @@ class SpatialHashGrid:
         (x1, y1), (x2, y2) = segment
         dx = x2 - x1
         dy = y2 - y1
-        ix, iy = self._get_cell_index_of_point((x1, y1))
-        ex, ey = self._get_cell_index_of_point((x2, y2))
+        ix, iy = self.get_cell_index_of_point((x1, y1))
+        ex, ey = self.get_cell_index_of_point((x2, y2))
 
         step_x = r.sign(dx)
         t_delta_x = (r.SHG_CELL_SIZE / abs(dx)) if dx != 0 else float('inf')
