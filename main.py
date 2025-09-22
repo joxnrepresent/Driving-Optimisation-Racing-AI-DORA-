@@ -15,11 +15,13 @@ r.create_gui_manager()
 # Game loop which runs indefinitely till program is closed
 def game_loop():
     while True:
-        if r.GAME_MODE == "track maker":
-            run_track_maker()
-        elif r.GAME_MODE == "car simulation":
-            run_car_simulation()
-        check_events()
+        for i in range(r.TICK_SPEEDUP):
+            if r.GAME_MODE == "track maker":
+                run_track_maker()
+            elif r.GAME_MODE == "car simulation":
+                run_car_simulation()
+            check_events()
+            r.GAME_SPRITES.update()
         update_frame()
 
 # Handles user input in keystrokes and interaction with GUI.
@@ -66,10 +68,9 @@ def render():
 # Handles updating frame and internal clock
 def update_frame():
     r.GUI_MANAGER.update(1/r.FRAME_TIME)
-    r.GAME_SPRITES.update()
     render()
     pygame.display.flip()
-    r.CLOCK.tick(1/r.FRAME_TIME)
+    r.CLOCK.tick(1 / r.FRAME_TIME)
 
 game_loop()
 

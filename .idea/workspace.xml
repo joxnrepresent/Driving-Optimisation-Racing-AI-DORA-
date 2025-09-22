@@ -4,7 +4,20 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
+<<<<<<< Updated upstream
     <list default="true" id="5e9ec6eb-ef78-4013-8fcc-b4aee51ca562" name="Changes" comment="Working AI prototype" />
+=======
+    <list default="true" id="5e9ec6eb-ef78-4013-8fcc-b4aee51ca562" name="Changes" comment="Adding Progress parameter">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cars.py" beforeDir="false" afterPath="$PROJECT_DIR$/cars.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/game_modes.py" beforeDir="false" afterPath="$PROJECT_DIR$/game_modes.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/neural_network.py" beforeDir="false" afterPath="$PROJECT_DIR$/neural_network.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/resources.py" beforeDir="false" afterPath="$PROJECT_DIR$/resources.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/rl_model.py" beforeDir="false" afterPath="$PROJECT_DIR$/rl_model.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/track.py" beforeDir="false" afterPath="$PROJECT_DIR$/track.py" afterDir="false" />
+    </list>
+>>>>>>> Stashed changes
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -34,10 +47,31 @@
     &quot;assignee&quot;: &quot;joxnrepresent&quot;
   }
 }</component>
+  <component name="GitHubPullRequestState">{
+  &quot;prStates&quot;: [
+    {
+      &quot;id&quot;: {
+        &quot;id&quot;: &quot;PR_kwDOPVp_c86pqYhw&quot;,
+        &quot;number&quot;: 2
+      },
+      &quot;lastSeen&quot;: 1758392702974
+    }
+  ]
+}</component>
   <component name="GithubPullRequestsUISettings">{
   &quot;selectedUrlAndAccountId&quot;: {
     &quot;url&quot;: &quot;https://github.com/joxnrepresent/NEA_CODE.git&quot;,
     &quot;accountId&quot;: &quot;9954b9da-cb88-45a2-b20e-297300f5f6e7&quot;
+  },
+  &quot;recentNewPullRequestHead&quot;: {
+    &quot;server&quot;: {
+      &quot;useHttp&quot;: false,
+      &quot;host&quot;: &quot;github.com&quot;,
+      &quot;port&quot;: null,
+      &quot;suffix&quot;: null
+    },
+    &quot;owner&quot;: &quot;joxnrepresent&quot;,
+    &quot;repository&quot;: &quot;NEA_CODE&quot;
   }
 }</component>
   <component name="ProjectColorInfo">{
@@ -196,7 +230,15 @@
       <option name="project" value="LOCAL" />
       <updated>1758107182966</updated>
     </task>
-    <option name="localTasksCounter" value="14" />
+    <task id="LOCAL-00014" summary="Adding Progress parameter">
+      <option name="closed" value="true" />
+      <created>1758392636324</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1758392636324</updated>
+    </task>
+    <option name="localTasksCounter" value="15" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -219,7 +261,8 @@
     <MESSAGE value="Ray Casting and Collision Detection" />
     <MESSAGE value="save working sim" />
     <MESSAGE value="Working AI prototype" />
-    <option name="LAST_COMMIT_MESSAGE" value="Working AI prototype" />
+    <MESSAGE value="Adding Progress parameter" />
+    <option name="LAST_COMMIT_MESSAGE" value="Adding Progress parameter" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -230,13 +273,25 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/main.py</url>
+<<<<<<< Updated upstream
           <line>43</line>
+=======
+          <line>47</line>
+>>>>>>> Stashed changes
           <option name="timeStamp" value="11" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/game_modes.py</url>
+<<<<<<< Updated upstream
           <line>106</line>
+=======
+          <line>108</line>
+>>>>>>> Stashed changes
           <option name="timeStamp" value="14" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/game_modes.py</url>
+          <option name="timeStamp" value="15" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>

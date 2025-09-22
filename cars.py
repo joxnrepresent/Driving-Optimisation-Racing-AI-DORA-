@@ -1,4 +1,5 @@
 import math
+from multiprocessing.dummy import current_process
 
 from pygame import Vector2
 
@@ -53,7 +54,8 @@ class Car(pygame.sprite.Sprite, ABC):
     # Changes the state of the car to indicate it has crashed and stop its movement
     def collision_detection(self, track):
         self._update_hitboxes()
-        self.is_crashed = track.hitbox_collision_detection(self.hitbox)
+        if not self.is_crashed:
+            self.is_crashed = track.hitbox_collision_detection(self.hitbox)
 
 
     # Calls procedures which handle the movement of the car sprite and update its parameters
@@ -116,7 +118,27 @@ class Car(pygame.sprite.Sprite, ABC):
     def get_progress(self, track_spine):
         center = Vector2(self.rect.center)
         closest_point = min(track_spine, key=lambda point: (center - point).length_squared())
-        self.progress =  track_spine.index(closest_point)/(len(track_spine)-1)
+        current_progress = track_spine.index(closest_point)/(len(track_spine)-1)
+
+        change_in_progress = current_progress - self.progress
+        if change_in_progress > 0.5:
+            change_in_progress -= 1.0
+        elif change_in_progress <= -0.5:
+            change_in_progress += 1.0
+
+        normalised_progress = self.progress + change_in_progress
+        if normalised_progress > self.progress:
+            if normalised_progress >= 1:
+                print("lap completed!")
+                self.progress = normalised_progress - 1
+            else:
+                self.progress = normalised_progress
+        else:
+            if normalised_progress <= -0.5:
+                print("Wrong way! Please reset")
+                self.is_crashed = True
+            else:
+                self.progress = normalised_progress
         return self.progress
 
     # Updates the rotation of the car sprite with respect to its direction and the original orientation
@@ -215,10 +237,14 @@ class AICar(Car):
         if self.is_crashed:
             reward -= 50
         else:
-            reward += 0.05
-            reward += (self.velocity.magnitude() / r.max_speed) * 3
-            reward -= (abs(self.steer)/r.max_steer)*3
-            reward += self.progress * 200
+            reward -= 0.005
+            if self.velocity.magnitude() < 50:
+                reward -= (1-self.velocity.magnitude()) *2
+            else:
+                reward += (self.velocity.magnitude() / r.max_speed) * 1
+            reward -= (abs(self.steer)/r.max_steer)*1
+            reward += self.progress * 2
+
         return reward
 
 

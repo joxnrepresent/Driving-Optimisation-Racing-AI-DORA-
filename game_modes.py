@@ -7,7 +7,7 @@ from gui_custom_elements import UIGaugeMeter, UITrackCanvas
 from track import Track
 from cars import PlayerCar, AICar
 from rl_model import VPGModel
-from numpy import clip
+from numpy import clip, exp
 from abc import ABC, abstractmethod
 
 """This module contains classes """
@@ -89,6 +89,7 @@ class PlayerCarSim(CarSimulation):
     def _drive_car(self):
         if not self.car.is_crashed:
             progress = self.car.get_progress(self.track.track_spine)
+            print(progress)
             self.car.car_movement()
             self.car.collision_detection(self.track)
 
@@ -141,7 +142,7 @@ class AICarSim(CarSimulation):
 
     def _reinitialise_car_simulation(self):
         expected_return = self.vpg_model.update_params()
-        print(self.total_reward, expected_return)
+        print(self.total_reward, expected_return, exp(self.vpg_model.neural_net.log_std))
         self.total_reward = 0
         super()._reinitialise_car_simulation()
 

@@ -34,7 +34,7 @@ class Track(Sprite):
     # Returns normalised distance which is the percentage of max length
     def ray_cast(self, ray):
         hit_point = Vector2(self.grid.return_collision_point(ray, self.wall_segments))
-        normalised_distance = ((hit_point - ray[0]).length()/r.CAR_MAX_RAY_CAST) ** 0.4
+        normalised_distance = (hit_point - ray[0]).length() / r.METER_PIXEL_CONVERSION
         return hit_point, normalised_distance
 
     # Checks each border of the hitbox for collision with track segments in the cells it passes through
