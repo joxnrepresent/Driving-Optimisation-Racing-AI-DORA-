@@ -1,5 +1,6 @@
 import numpy as np
 from statistics import variance
+from resources import transformed_sigmoid
 
 class Layer:
     def __init__(self, input_size, output_size, activation):
@@ -27,12 +28,20 @@ class Layer:
             return np.maximum(0, z)
         elif self.activation_name == 'linear':
             return z
+        elif self.activation_name == "tanh":
+            return np.tanh(z)
+        elif self.activation_name == "sigmoid":
+            return transformed_sigmoid(z)
 
     def activation_derivative(self, z):
         if self.activation_name == 'relu':
             return (z>0).astype(float)
         elif self.activation_name == 'linear':
             return np.ones_like(z)
+        elif self.activation_name == "tanh":
+            return 1 - np.tanh(z) ** 2
+        elif self.activation_name == "sigmoid":
+            return 0.5 * (1 - transformed_sigmoid(z) ** 2)
 
 
     def layer_forward_pass(self, x):
@@ -64,7 +73,7 @@ class Layer:
 
 
 class NeuralNetwork:
-    def __init__(self, layer_sizes, activations, init_log_std=-0.4, seed=None):
+    def __init__(self, layer_sizes, activations, init_log_std=1, seed=None):
         if seed is not None:
             np.random.seed(seed)
 
@@ -73,7 +82,7 @@ class NeuralNetwork:
         for i in range(len(layer_sizes)-1):
             self.layers.append(Layer(layer_sizes[i], layer_sizes[i+1], activations[i]))
 
-        self.log_std = np.full(layer_sizes[-1], init_log_std)
+        self.log_std = np.full(layer_sizes[-1], init_log_std, dtype=np.float64)
 
         #Adaptive Moment (Adam) Optimiser
         """
@@ -85,6 +94,9 @@ class NeuralNetwork:
         for layer in self.layers:
             self.adam_moments['w'].append((np.zeros_like(layer.weights), np.zeros_like(layer.weights)))
             self.adam_moments['b'].append((np.zeros_like(layer.biases), np.zeros_like(layer.biases)))
+
+    def get_params(self):
+        print()
 
     def forward_propagation(self, a):
         # a -> input to next layer

@@ -12,11 +12,12 @@ from abc import ABC, abstractmethod
 
 """This module contains classes """
 #---------------------------------------------------------------------------------------------------------------------#
-car_simulation = None
 
+car_simulation = None
 def run_car_simulation():
     global car_simulation
     if not r.IS_INITIALIZED:
+        # car_simulation = RacingSim()
         car_simulation = AICarSim()
         r.IS_INITIALIZED = True
     car_simulation.update_car_simulation()
@@ -42,6 +43,8 @@ class CarSimulation(ABC):
         self._reset_cars()
 
     def update_car_simulation(self):
+        if self.car.is_crashed:
+            self._reinitialise_car_simulation()
         self._drive_car()
         self._handle_buttons()
 
@@ -77,7 +80,7 @@ class CarSimulation(ABC):
         self._reset_cars()
 
 
-class PlayerCarSim(CarSimulation):
+class RacingSim(CarSimulation):
     def __init__(self):
         super().__init__()
 
@@ -104,6 +107,16 @@ class AICarSim(CarSimulation):
         self.actions = (0.0,0.0)
         self.sensors = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         self.total_reward = 0
+        self.tick_speed_up = elements.UIButton(
+            relative_rect=pygame.Rect((400, 600), (100, 30)),
+            text="Click to slow",
+            manager=r.GUI_MANAGER
+        )
+        self.save_ai = elements.UIButton(
+            relative_rect=pygame.Rect((400, 650), (100, 30)),
+            text="Click to save",
+            manager=r.GUI_MANAGER
+        )
 
     def _reset_cars(self):
         self.car = AICar(r.starting_position)
@@ -135,6 +148,8 @@ class AICarSim(CarSimulation):
     def _model_drive_car(self):
         state_vector = [*self.actions]
         progress = self.car.get_progress(self.track.track_spine)
+        if progress >= 0.9:
+            r.SCREEN_FILL = "green"
         state_vector.append(progress)
         self.sensors = self.car.ray_cast(self.track)
         state_vector.extend(self.sensors)
@@ -146,13 +161,49 @@ class AICarSim(CarSimulation):
         self.total_reward = 0
         super()._reinitialise_car_simulation()
 
+    def _handle_buttons(self):
+        if self.reset_button in r.PRESSED_BUTTONS:
+            self._reinitialise_car_simulation()
+        if self.tick_speed_up in r.PRESSED_BUTTONS:
+            if r.TICK_SPEEDUP == 1:
+                r.TICK_SPEEDUP = 250
+            elif r.TICK_SPEEDUP == 250:
+                r.TICK_SPEEDUP = 750
+            else:
+                r.TICK_SPEEDUP = 1
+        r.PRESSED_BUTTONS.clear()
+        if self.save_ai in r.PRESSED_BUTTONS:
+            with open("Model_weights/" + "testing_weights" + "1" + ".txt", "w") as file:
+                file.write(self.vpg_model.neural_net.get_params())
+            print("saved")
 
+    def _reset_gui(self):
+        super()._reset_gui()
+        self.tick_speed_up = elements.UIButton(
+            relative_rect=pygame.Rect((400, 600), (100, 30)),
+            text="Click to slow",
+            manager=r.GUI_MANAGER
+        )
+        self.save_ai = elements.UIButton(
+            relative_rect=pygame.Rect((400, 650), (100, 30)),
+            text="Click to save",
+            manager=r.GUI_MANAGER
+        )
 
 """
-This module creates an interface that allows the user to create, save and draw custom tracks.
+Creates an interface that allows the user to create, save and draw custom tracks.
 """
 #---------------------------------------------------------------------------------------------------------------------#
 track_maker = None
+# global method to initialise and run the track maker
+def run_track_maker():
+    global track_maker
+    if not r.IS_INITIALIZED:
+        track_maker = TrackMakerUI()
+        r.IS_INITIALIZED = True
+    track_maker.update_drawing_interface()
+
+
 class TrackMakerUI:
     """
     Class stores the variables, objects and methods needed to run the track maker.
@@ -229,11 +280,3 @@ class TrackMakerUI:
 
     def update_drawing_interface(self):
         self._handle_buttons()
-
-# global method to initialise and run the track maker
-def run_track_maker():
-    global track_maker
-    if not r.IS_INITIALIZED:
-        track_maker = TrackMakerUI()
-        r.IS_INITIALIZED = True
-    track_maker.update_drawing_interface()

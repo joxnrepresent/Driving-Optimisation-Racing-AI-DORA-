@@ -2,9 +2,9 @@ import numpy as np
 import resources as r
 from neural_network import NeuralNetwork
 class VPGModel:
-    def __init__(self, input_size, output_size = 2, hidden_layer_sizes=[32,64, 128,128,  64, 32], seed=None):
+    def __init__(self, input_size, output_size = 2, hidden_layer_sizes=[128, 128, 128,128,128,128], seed=None):
         layer_sizes = [input_size] + hidden_layer_sizes + [output_size]
-        activations = ['relu'] * len(hidden_layer_sizes) + ['linear']
+        activations = ['tanh'] * len(hidden_layer_sizes) + ['linear']
         self.neural_net = NeuralNetwork(layer_sizes, activations, seed=seed)
 
         self.states = []
@@ -13,7 +13,7 @@ class VPGModel:
         self.gamma = 0.95
 
     def get_actions(self, state_vector):
-        x = np.array(state_vector, np.float32)x
+        x = np.array(state_vector, np.float32)
         if x.ndim == 1:
             x = np.expand_dims(x, axis=0)
 
@@ -22,10 +22,9 @@ class VPGModel:
         noise = np.random.randn(*mu.shape) * sigma
         actions = mu + noise
 
-
         self.states.append(x)
         self.actions.append(actions)
-        return np.tanh(actions)
+        return actions
 
     def append_return(self, reward):
         self.rewards.append(reward)
