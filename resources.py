@@ -2,6 +2,7 @@ import math
 import pygame
 from pygame_gui import UIManager
 from collections import defaultdict
+from numpy import exp
 
 """
 This module contains shared resources like constants, game-state variables (singletons), and utility 
@@ -13,14 +14,16 @@ functions/methods used throughout the project.
 
 # Program constants
   
-FRAME_TIME = 1/60
+FRAME_RATE = 60
+TICK_SPEEDUP = 1
 SCREEN_DIMENSIONS = (1200, 750)
 SCREEN_FILL = "White"
 IS_DEBUGGING = True
 CURRENT_TRACK = "testing_track"
-SHG_CELL_SIZE = 10
+SHG_CELL_SIZE = 20
 CAR_MAX_RAY_CAST = SCREEN_DIMENSIONS[0]
-RAY_CAST_ANGLES = [15, 30, 45, 60, 90, 130]
+RAY_CAST_ANGLES = [5, 10, 20, 45, 60, 90]
+METER_PIXEL_CONVERSION = 10
 EPS = 1e-9
 
 # Core program components
@@ -45,7 +48,7 @@ starting_position = (550, 130)
 steer_factor = max_steer/10
 throttle_factor = 0.08
 brake_factor = 0.01
-car_proportions = pygame.Vector2(27.18, 42.87)
+car_proportions = pygame.Vector2(2.718, 4.287) * METER_PIXEL_CONVERSION
 
 """Utility functions"""
 
@@ -164,3 +167,5 @@ def get_line_segments_intersection(seg1, seg2):
     else:
         return None
 
+def transformed_sigmoid(x):
+    return (2.0 / (1.0 + exp(-x)))-1

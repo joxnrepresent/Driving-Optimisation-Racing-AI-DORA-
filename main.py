@@ -15,11 +15,14 @@ r.create_gui_manager()
 # Game loop which runs indefinitely till program is closed
 def game_loop():
     while True:
-        if r.GAME_MODE == "track maker":
-            run_track_maker()
-        elif r.GAME_MODE == "car simulation":
-            run_car_simulation()
-        check_events()
+        for i in range(r.TICK_SPEEDUP):
+            if r.GAME_MODE == "track maker":
+                run_track_maker()
+            elif r.GAME_MODE == "car simulation":
+                run_car_simulation()
+            check_events()
+            r.GAME_SPRITES.update()
+            r.GUI_MANAGER.update(1 / r.FRAME_RATE / r.TICK_SPEEDUP)
         update_frame()
 
 # Handles user input in keystrokes and interaction with GUI.
@@ -54,10 +57,10 @@ def render():
                             pygame.draw.line(r.MAIN_SCREEN, "red", element[0], element[1])
                         except:
                             print(element)
-                    elif element_type == "track spine":
-                        for i in range(len(element) - 1):
-                            r.draw_line(r.MAIN_SCREEN, "Blue", element[i], element[i + 1])
-                    elif element_type == "grid lines":
+                    # elif element_type == "track spine":
+                    #     for i in range(len(element) - 1):
+                    #         r.draw_line(r.MAIN_SCREEN, "Blue", element[i], element[i + 1])
+                    if element_type == "grid lines":
                         if element:
                             r.draw_grid(r.MAIN_SCREEN)
     r.GAME_SPRITES.draw(r.MAIN_SCREEN)
@@ -65,11 +68,9 @@ def render():
 
 # Handles updating frame and internal clock
 def update_frame():
-    r.GUI_MANAGER.update(1/r.FRAME_TIME)
-    r.GAME_SPRITES.update()
     render()
     pygame.display.flip()
-    r.CLOCK.tick(1/r.FRAME_TIME)
+    r.CLOCK.tick(r.FRAME_RATE)
 
 game_loop()
 

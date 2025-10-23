@@ -1,4 +1,5 @@
 import math
+from multiprocessing.dummy import current_process
 
 from pygame import Vector2
 
@@ -36,7 +37,7 @@ class Car(pygame.sprite.Sprite, ABC):
         self._original_car = r.set_image("Mclaren")
         self._original_car = pygame.transform.scale(self._original_car, r.car_proportions)
         self._original_car = pygame.transform.rotate(self._original_car, 180)
-
+        r.DEBUG_ELEMENTS["AABB"].append(self.rect)
         self._update_car_sprite_position()
 
         """
@@ -53,7 +54,8 @@ class Car(pygame.sprite.Sprite, ABC):
     # Changes the state of the car to indicate it has crashed and stop its movement
     def collision_detection(self, track):
         self._update_hitboxes()
-        self.is_crashed = track.hitbox_collision_detection(self.hitbox)
+        if not self.is_crashed:
+            self.is_crashed = track.hitbox_collision_detection(self.hitbox)
 
 
     # Calls procedures which handle the movement of the car sprite and update its parameters
@@ -86,18 +88,19 @@ class Car(pygame.sprite.Sprite, ABC):
     # Grip variable and lerp function are used to smoothly update car position each frame (arbitrary values).
     """This method would be different when modelling forces."""
     def _update_car_vector_values(self):
+        dt = 1/ r.FRAME_RATE
         direction_unit_vector = pygame.Vector2(0, 1).rotate(self.direction)
         self.acceleration = self.throttle * direction_unit_vector
         if self.throttle == 0:
             self.velocity *= 0.996
         else:
-            self.velocity += self.acceleration * r.FRAME_TIME
+            self.velocity += self.acceleration * dt
         if self.velocity.length_squared() != 0:
             self.velocity.clamp_magnitude_ip(r.max_speed)
         grip = 0.5
         speed = self.velocity.magnitude()
         self.velocity = self.velocity.lerp(direction_unit_vector * speed, grip)
-        self.position += self.velocity * r.FRAME_TIME
+        self.position += self.velocity * dt
 
     # Updates the coordinates of the corners of the hitbox w.r.t the position and orientation of the car
     def _update_hitboxes(self):
@@ -116,14 +119,36 @@ class Car(pygame.sprite.Sprite, ABC):
     def get_progress(self, track_spine):
         center = Vector2(self.rect.center)
         closest_point = min(track_spine, key=lambda point: (center - point).length_squared())
-        self.progress =  track_spine.index(closest_point)/(len(track_spine)-1)
+        current_progress = track_spine.index(closest_point)/(len(track_spine)-1)
+
+        change_in_progress = current_progress - self.progress
+        if change_in_progress > 0.5:
+            change_in_progress -= 1.0
+        elif change_in_progress <= -0.5:
+            change_in_progress += 1.0
+
+        normalised_progress = self.progress + change_in_progress
+        if normalised_progress > self.progress:
+            if normalised_progress >= 1:
+                print("lap completed!")
+                self.progress = normalised_progress - 1
+            else:
+                self.progress = normalised_progress
+        else:
+            if normalised_progress <= -0.5:
+                print("Wrong way! Please reset")
+                self.is_crashed = True
+            else:
+                self.progress = normalised_progress
         return self.progress
 
     # Updates the rotation of the car sprite with respect to its direction and the original orientation
     # Updates position (rect) of the car sprite
     def _update_car_sprite_position(self):
         self.image = pygame.transform.rotate(self._original_car, -self.direction)
+        r.DEBUG_ELEMENTS["AABB"].remove(self.rect)
         self.rect = self.image.get_rect(center=(int(self.position.x), int(self.position.y)))
+        r.DEBUG_ELEMENTS["AABB"].append(self.rect)
 
 class PlayerCar(Car):
     def __init__(self, starting_position = None):
@@ -151,6 +176,7 @@ class PlayerCar(Car):
         self._handle_steering()
         self._handle_throttle()
         self._update_car_values(self.steering_wheel_amount, self.throttle_and_braking_pedal_amount)
+
 
     # Updates the steer value when the steering slider is moved.
     def _handle_steering(self):
@@ -213,12 +239,16 @@ class AICar(Car):
         reward = 0
 
         if self.is_crashed:
-            reward -= 50
+            reward -= 30
         else:
-            reward += 0.05
-            reward += (self.velocity.magnitude() / r.max_speed) * 3
-            reward -= (abs(self.steer)/r.max_steer)*3
-            reward += self.progress * 200
+            reward -= 0.0005
+
+            reward += (self.velocity.magnitude() / r.max_speed) * 0.6
+
+            if self.velocity.magnitude() > 2:
+                reward += self.progress * 4.5
+            else:
+                reward -= self.progress * 1.5
         return reward
 
 

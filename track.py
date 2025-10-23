@@ -34,7 +34,7 @@ class Track(Sprite):
     # Returns normalised distance which is the percentage of max length
     def ray_cast(self, ray):
         hit_point = Vector2(self.grid.return_collision_point(ray, self.wall_segments))
-        normalised_distance = ((hit_point - ray[0]).length()/r.CAR_MAX_RAY_CAST) ** 0.4
+        normalised_distance = (hit_point - ray[0]).length() / r.METER_PIXEL_CONVERSION
         return hit_point, normalised_distance
 
     # Checks each border of the hitbox for collision with track segments in the cells it passes through
@@ -111,6 +111,8 @@ class SpatialHashGrid:
             if ix == ex and iy == ey:
                 break
 
+            print(f"cell x: {ix}, cell y: {iy}")
+
             if t_max_x < t_max_y:
                 ix += step_x
                 t_max_x += t_delta_x
@@ -121,7 +123,42 @@ class SpatialHashGrid:
     def hash_segment(self, wall_segment, segment_index):
         self.dda_grid_traverse(wall_segment, on_visit=lambda ix, iy: self._add_segment_to_cell(ix, iy, segment_index))
 
-    def return_collision_point(self, line, wall_segments):
-        return self.dda_grid_traverse(line, on_visit=lambda ix, iy:
-                                                    self._check_cell_for_collision(ix, iy, line, wall_segments))
+    def return_collision_point(self, ray, wall_segments):
+        return self.dda_grid_traverse(ray, on_visit=lambda ix, iy:
+                                                    self._check_cell_for_collision(ix, iy, ray, wall_segments))
+
+
+
+grid = SpatialHashGrid()
+
+walls = [
+    ((0, 0), (200, 0)),
+    ((0, 0), (0, 200)),
+    ((0, 0), (200, 200)),
+    ((230, 20), (120, 175)),
+]
+
+for i, seg in enumerate(walls):
+    grid.hash_segment(seg, i)
+
+print()
+print("Testing ray intersection")
+print()
+
+print("Test 1: dx > dy")
+ray1 = ((100, 50), (250, 100))
+hit1 = grid.return_collision_point(ray1, walls)
+print("Collision point:", hit1)
+print()
+
+print("Test 2: dy > dx")
+ray2 = ((100, 20), (130, 250))
+hit2 = grid.return_collision_point(ray2, walls)
+print("Collision point:", hit2)
+print()
+
+print("Test 3: no collision")
+ray3 = ((250, 250), (400, 400))
+hit3 = grid.return_collision_point(ray3, walls)
+print(" Collision point:", hit3)
 
