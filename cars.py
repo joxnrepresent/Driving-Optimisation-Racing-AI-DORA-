@@ -1,14 +1,13 @@
 import math
 from multiprocessing.dummy import current_process
-
 from pygame import Vector2
-
-import resources as r
 import pygame
 from abc import ABC, abstractmethod
 from pygame_gui import elements
+import resources as r
 
 from gui_custom_elements import UIGaugeMeter
+
 class Car(pygame.sprite.Sprite, ABC):
     """
     This class is the Car sprite and extends the Sprite class. The movement of the car is controlled by user input.
@@ -21,7 +20,7 @@ class Car(pygame.sprite.Sprite, ABC):
     def __init__(self, starting_position = (0,0)):
         super().__init__()
         self.is_crashed = False
-        self.position = pygame.Vector2(starting_position)
+        self.position = pygame.Vector2(r.starting_position)
         self.velocity = pygame.Vector2(0,0)
         self.acceleration = pygame.Vector2(0,0)
         self.direction = r.starting_orientation
@@ -37,7 +36,6 @@ class Car(pygame.sprite.Sprite, ABC):
         self._original_car = r.set_image("Mclaren")
         self._original_car = pygame.transform.scale(self._original_car, r.car_proportions)
         self._original_car = pygame.transform.rotate(self._original_car, 180)
-        r.DEBUG_ELEMENTS["AABB"].append(self.rect)
         self._update_car_sprite_position()
 
         """
@@ -146,9 +144,8 @@ class Car(pygame.sprite.Sprite, ABC):
     # Updates position (rect) of the car sprite
     def _update_car_sprite_position(self):
         self.image = pygame.transform.rotate(self._original_car, -self.direction)
-        r.DEBUG_ELEMENTS["AABB"].remove(self.rect)
         self.rect = self.image.get_rect(center=(int(self.position.x), int(self.position.y)))
-        r.DEBUG_ELEMENTS["AABB"].append(self.rect)
+
 
 class PlayerCar(Car):
     def __init__(self, starting_position = None):
@@ -180,7 +177,7 @@ class PlayerCar(Car):
 
     # Updates the steer value when the steering slider is moved.
     def _handle_steering(self):
-        self.steering_wheel_amount = r.max_steer * self.steering_slider.get_current_value()/100
+        self.steering_wheel_amount = max_steer * self.steering_slider.get_current_value()/100
 
     # Increments the throttle or braking based on user input.
     # Value decays when there is no input to emulate release of throttle/brake.
@@ -239,16 +236,13 @@ class AICar(Car):
         reward = 0
 
         if self.is_crashed:
-            reward -= 30
+            reward -= 10
         else:
             reward -= 0.0005
 
             reward += (self.velocity.magnitude() / r.max_speed) * 0.6
+            reward += self.progress * 2
 
-            if self.velocity.magnitude() > 2:
-                reward += self.progress * 4.5
-            else:
-                reward -= self.progress * 1.5
         return reward
 
 

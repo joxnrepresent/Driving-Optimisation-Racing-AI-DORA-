@@ -1,14 +1,30 @@
 import math
-from logging import setLogRecordFactory
 import pygame
 import resources as r
 from pygame_gui import elements
 from gui_custom_elements import UIGaugeMeter, UITrackCanvas
 from track import Track
 from cars import PlayerCar, AICar
-from rl_model import VPGModel
+from rl_model import REINFORCEModel, A2CModel
 from numpy import clip, exp
 from abc import ABC, abstractmethod
+# class GameMode(ABC):
+#     def __init__(self):
+#         self.game_elemets = []
+#         self.gui_elements = []
+#
+#     @abstractmethod
+#     def initialise(self):
+#         pass
+#
+#     @abstractmethod
+#     def handle_buttons(self):
+#         pass
+#
+#     @abstractmethod
+#     def update(self):
+#         pass
+
 
 """This module contains classes """
 #---------------------------------------------------------------------------------------------------------------------#
@@ -54,9 +70,11 @@ class CarSimulation(ABC):
 
     # Calls procedures to update the throttle and steering values.
     # Updates the car's properties with respect to these values
-    @abstractmethod
     def _drive_car(self):
-        pass
+        for car in self.cars:
+            if not car.is_crashed:
+                car.car_movement()
+                car.collision_detection(self.track)
 
     def _reset_gui(self):
         r.GUI_MANAGER.clear_and_reset()
@@ -91,8 +109,6 @@ class RacingSim(CarSimulation):
 
     def _drive_car(self):
         if not self.car.is_crashed:
-            progress = self.car.get_progress(self.track.track_spine)
-            print(progress)
             self.car.car_movement()
             self.car.collision_detection(self.track)
 
@@ -100,10 +116,7 @@ class RacingSim(CarSimulation):
 class AICarSim(CarSimulation):
     def __init__(self):
         super().__init__()
-        """
-        VPG model testing variables
-        """
-        self.vpg_model = VPGModel(16)
+        self.rl_model = REINFORCEModel(16)
         self.actions = (0.0,0.0)
         self.sensors = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         self.total_reward = 0
@@ -117,6 +130,11 @@ class AICarSim(CarSimulation):
             text="Click to save",
             manager=r.GUI_MANAGER
         )
+
+        """Data log"""
+        self.best_progress = 0
+        self.num_of_epochs = 0
+        self.mean_best_progress = 0
 
     def _reset_cars(self):
         self.car = AICar(r.starting_position)
@@ -138,7 +156,7 @@ class AICarSim(CarSimulation):
             self.car.collision_detection(self.track)
             reward = self.car.compute_reward()
             self.total_reward += reward
-            self.vpg_model.append_return(reward)
+            self.rl_model.append_return(reward)
             """
             update testing meters
             """
@@ -148,22 +166,23 @@ class AICarSim(CarSimulation):
     def _model_drive_car(self):
         state_vector = [*self.actions]
         progress = self.car.get_progress(self.track.track_spine)
-        if progress >= 0.9:
+        if progress >= 0.99:
             r.SCREEN_FILL = "green"
         state_vector.append(progress)
         self.sensors = self.car.ray_cast(self.track)
         state_vector.extend(self.sensors)
-        self.actions = clip(self.vpg_model.get_actions(state_vector)[0], -1, 1)
+        self.actions = self.rl_model.get_actions(state_vector)[0]
+        if progress > self.best_progress:
+            self.best_progress = progress
 
     def _reinitialise_car_simulation(self):
-        expected_return = self.vpg_model.update_params()
-        print(self.total_reward, expected_return, exp(self.vpg_model.neural_net.log_std))
+        self.rl_model.update_params()
         self.total_reward = 0
         super()._reinitialise_car_simulation()
 
     def _handle_buttons(self):
         if self.reset_button in r.PRESSED_BUTTONS:
-            self._reinitialise_car_simulation()
+            self.car.is_crashed = True
         if self.tick_speed_up in r.PRESSED_BUTTONS:
             if r.TICK_SPEEDUP == 1:
                 r.TICK_SPEEDUP = 250
@@ -174,7 +193,7 @@ class AICarSim(CarSimulation):
         r.PRESSED_BUTTONS.clear()
         if self.save_ai in r.PRESSED_BUTTONS:
             with open("Model_weights/" + "testing_weights" + "1" + ".txt", "w") as file:
-                file.write(self.vpg_model.neural_net.get_params())
+                file.write(self.rl_model.actor.get_params())
             print("saved")
 
     def _reset_gui(self):

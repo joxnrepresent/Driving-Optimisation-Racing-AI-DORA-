@@ -73,7 +73,7 @@ class Layer:
 
 
 class NeuralNetwork:
-    def __init__(self, layer_sizes, activations, init_log_std=1, seed=None):
+    def __init__(self, layer_sizes, activations, init_log_std= 0, seed=None):
         if seed is not None:
             np.random.seed(seed)
 
@@ -100,11 +100,9 @@ class NeuralNetwork:
 
     def forward_propagation(self, a):
         # a -> input to next layer
-        activation_outputs = [a]
         for layer in self.layers:
             a = layer.layer_forward_pass(a)
-            activation_outputs.append(a)
-        return a, activation_outputs
+        return a
 
     def compute_gradients(self, d_mu):
         weight_grads = []
@@ -115,7 +113,7 @@ class NeuralNetwork:
             bias_grads.insert(0, d_b)
         return weight_grads, bias_grads
 
-    def update_params(self, d_mu, d_log_std):
+    def update_params(self, d_mu, d_log_std = None):
         # Adam optimisation
         # w_moments, b_moments, log_stds_moments, t = self.adam_moments.values()
         weight_grads, bias_grads = self.compute_gradients(d_mu)
@@ -134,12 +132,14 @@ class NeuralNetwork:
             layer.weights += weight_update
             layer.biases += bias_update
 
-        self.adam_moments['log_std'], log_std_update = self.adam_estimation(self.adam_moments['log_std'][0],
+        if d_log_std is not None:
+            self.adam_moments['log_std'], log_std_update = self.adam_estimation(self.adam_moments['log_std'][0],
                                                                             self.adam_moments['log_std'][1],
                                                                             d_log_std,
                                                                             self.adam_moments['t'])
-        self.log_std += log_std_update
-        self.log_std = np.clip(self.log_std, -3, 1)
+        if d_log_std is not None:
+            self.log_std += log_std_update
+            self.log_std = np.clip(self.log_std, -3, 1)
 
     @staticmethod
     def adam_estimation(m, v, grad, t, alpha = 3e-4, beta1 = 0.9, beta2 = 0.999, eps = 1e-8):
