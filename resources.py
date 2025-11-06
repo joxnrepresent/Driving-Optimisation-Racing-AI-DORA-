@@ -1,5 +1,6 @@
 import math
 import pygame
+import pygame_gui
 from pygame_gui import UIManager
 from collections import defaultdict
 from numpy import exp
@@ -12,50 +13,87 @@ functions/methods used throughout the project.
 
 """Singletons"""
 
-# Program constants
-  
-FRAME_RATE = 60
-TICK_SPEEDUP = 1
-SCREEN_DIMENSIONS = (1200, 750)
-SCREEN_FILL = "White"
-IS_DEBUGGING = True
-CURRENT_TRACK = "testing_track"
-SHG_CELL_SIZE = 20
-CAR_MAX_RAY_CAST = SCREEN_DIMENSIONS[0]
-RAY_CAST_ANGLES = [5, 10, 20, 45, 60, 90]
-METER_PIXEL_CONVERSION = 10
-EPS = 1e-9
+class GameCore:
+    def __init__(self):
+        # Program constants
+        self.frame_rate = 60
+        self.tick_speedup = 1
+        self.screen_dimensions = (1200, 750)
+        self.screen_fill = "White"
+        self.is_debugging = True
+        self.current_track = "testing_track"
+        self.shg_cell_size = 20
+        self.car_max_ray_cast = self.screen_dimensions[0]
+        self.ray_cast_angles = [5, 10, 20, 45, 60, 90]
+        self.meter_pixel_conversion = 10
+        self.eps = 1e-9
 
-# Core program components
-MAIN_SCREEN = pygame.display.set_mode(SCREEN_DIMENSIONS)
-GUI_MANAGER = None
-CLOCK = pygame.time.Clock()
-PRESSED_KEYS = set()
-PRESSED_BUTTONS = set()
-GAME_SPRITES = pygame.sprite.Group()
-DEBUG_ELEMENTS = defaultdict(list)
-GAME_MODE = "track maker"
-IS_INITIALIZED = False
+        # Core program components
+        self.main_screen = pygame.display.set_mode(self.screen_dimensions)
+        self.gui_manager = None
+        self.clock = pygame.time.Clock()
+        self.pressed_keys = set()
+        self.pressed_buttons = set()
+        self.game_sprites = pygame.sprite.Group()
+        self.debug_elements = defaultdict(list)
+        self.game_mode = "track maker"
+        self.is_initialized = False
 
-# Car properties (May vary in later versions)
-car_mass = 800
-max_steer = 1.7
-max_speed = 500
-driving_force = 60
-braking_force = 150
-starting_orientation = 270
-starting_position = (550, 130)
-steer_factor = max_steer/10
-throttle_factor = 0.08
-brake_factor = 0.01
-car_proportions = pygame.Vector2(2.718, 4.287) * METER_PIXEL_CONVERSION
+        # Car properties
+        self.car_mass = 800
+        self.max_steer = 1.7
+        self.max_speed = 500
+        self.driving_force = 60
+        self.braking_force = 150
+        self.starting_orientation = 270
+        self.starting_position = (550, 130)
+        self.steer_factor = self.max_steer / 10
+        self.throttle_factor = 0.08
+        self.brake_factor = 0.01
+        self.car_proportions = pygame.Vector2(2.718, 4.287) * self.meter_pixel_conversion
+
+    def render(self):
+        self.main_screen.fill(self.screen_fill)
+        if self.is_debugging:
+            if self.debug_elements:
+                for element_type, elements in self.debug_elements.items():
+                    for element in elements:
+                        if element_type == "hitboxes":
+                            pygame.draw.polygon(self.main_screen, "red", element, 2)
+                        elif element_type == "AABB":
+                            pygame.draw.rect(self.main_screen, "red", element, 2)
+                        elif element_type == "rays":
+                            try:
+                                pygame.draw.line(self.main_screen, "red", element[0], element[1])
+                            except:
+                                print(element)
+                        elif element_type == "track spine":
+                            for i in range(len(element) - 1):
+                                draw_line(self.main_screen, "Blue", element[i], element[i + 1])
+                        if element_type == "grid lines":
+                            if element:
+                                draw_grid(self.main_screen)
+        self.game_sprites.draw(self.main_screen)
+        self.gui_manager.draw_ui(self.main_screen)
+
+    def event_handle(self, event):
+        self.gui_manager.process_events(event)
+        if event.type == pygame.QUIT:
+            exit()
+        if event.type == pygame.KEYDOWN:
+            self.pressed_keys.add(event.key)
+        if event.type == pygame.KEYUP:
+            self.pressed_keys.remove(event.key)
+        if event.type == pygame.USEREVENT and  event.user_type == pygame_gui.UI_BUTTON_PRESSED:
+            self.pressed_buttons.add(event.ui_element)
+
+
+
+game_core = GameCore()
+
 
 """Utility functions"""
 
-# Initialisation of GUI manager
-def create_gui_manager():
-    global GUI_MANAGER
-    GUI_MANAGER = UIManager((1500, 1000))
 
 # Loads an image using the file name (png only)
 def set_image(image):
@@ -115,9 +153,9 @@ def draw_alternating_line_segments(surface, segments, is_black):
 def draw_grid(surface, color="green"):
     w,h = surface.get_size()
     s = pygame.Surface((w,h), pygame.SRCALPHA)
-    for x in range(0, w, SHG_CELL_SIZE):
+    for x in range(0, w, game_core.shg_cell_size):
         pygame.draw.line(s, color, (x,0), (x,h))
-    for y in range(0, h, SHG_CELL_SIZE):
+    for y in range(0, h, game_core.shg_cell_size):
         pygame.draw.line(s, color, (0,y), (w,y))
     surface.blit(s, (0,0))
 
@@ -134,8 +172,8 @@ def get_line_segments_intersection(seg1, seg2):
     alpha_numerator = (x3 - x1) * (y4 - y3) - (y3 - y1) * (x4 - x3)
     beta_numerator = (x3 - x1) * (y2 - y1) - (y3 - y1) * (x2 - x1)
 
-    if abs(denominator) < EPS:
-        if abs(alpha_numerator) < EPS and abs(beta_numerator) < EPS:
+    if abs(denominator) < game_core.eps:
+        if abs(alpha_numerator) < game_core.eps and abs(beta_numerator) < game_core.eps:
 
             dot_prod = (x2 - x1) * (x4 - x3) + (y2 - y1) * (y4 - y3)
 

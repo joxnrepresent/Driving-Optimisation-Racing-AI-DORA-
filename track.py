@@ -3,6 +3,7 @@ from math import floor, hypot
 from pygame.sprite import Sprite
 from pygame import Surface, Rect, SRCALPHA, Vector2
 from collections import defaultdict
+from resources import game_core
 
 class Track(Sprite):
     """
@@ -10,7 +11,7 @@ class Track(Sprite):
     and end points, and has a separate image that is loaded onto the screen. The grid is a hash map that maps the cells
     of the grid to the track segments in that cell.
     """
-    def __init__(self, track_name, position = ((0,0), r.SCREEN_DIMENSIONS)):
+    def __init__(self, track_name, position = ((0,0), game_core.screen_dimensions)):
         super().__init__()
         self.grid = SpatialHashGrid()
         track_data = r.load_track_from_file(track_name)
@@ -34,7 +35,7 @@ class Track(Sprite):
     # Returns normalised distance which is the percentage of max length
     def ray_cast(self, ray):
         hit_point = Vector2(self.grid.return_collision_point(ray, self.wall_segments))
-        normalised_distance = (hit_point - ray[0]).length() / r.METER_PIXEL_CONVERSION
+        normalised_distance = (hit_point - ray[0]).length() / game_core.meter_pixel_conversion
         return hit_point, normalised_distance
 
     # Checks each border of the hitbox for collision with track segments in the cells it passes through
@@ -55,7 +56,7 @@ class Track(Sprite):
             wall_segments = [self.wall_segments[i] for i in cell_segments]
             r.draw_alternating_line_segments(self.image, wall_segments, is_black)
             is_black = not is_black
-        r.DEBUG_ELEMENTS["track spine"] = [self.track_spine]
+        game_core.debug_elements["track spine"] = [self.track_spine]
 
 
 class SpatialHashGrid:
@@ -66,12 +67,12 @@ class SpatialHashGrid:
     """
     def __init__(self):
         self.cells = defaultdict(list)
-        r.DEBUG_ELEMENTS["grid lines"].append(True)
+        game_core.debug_elements["grid lines"].append(True)
 
     @staticmethod
     def get_cell_index_of_point(point):
         x, y = point
-        return int(floor(x / r.SHG_CELL_SIZE)), int(floor(y / r.SHG_CELL_SIZE))
+        return int(floor(x / game_core.shg_cell_size)), int(floor(y / game_core.shg_cell_size))
 
     def _add_segment_to_cell(self, ix, iy, segment_index):
         self.cells[(ix, iy)].append(segment_index)
@@ -93,13 +94,13 @@ class SpatialHashGrid:
         ex, ey = self.get_cell_index_of_point((x2, y2))
 
         step_x = r.sign(dx)
-        t_delta_x = (r.SHG_CELL_SIZE / abs(dx)) if dx != 0 else float('inf')
-        next_boundary_x = (ix + 1) * r.SHG_CELL_SIZE if step_x == 1 else ix * r.SHG_CELL_SIZE
+        t_delta_x = (game_core.shg_cell_size / abs(dx)) if dx != 0 else float('inf')
+        next_boundary_x = (ix + 1) * game_core.shg_cell_size if step_x == 1 else ix * game_core.shg_cell_size
         t_max_x = (next_boundary_x - x1) / dx if dx != 0 else float("inf")
 
         step_y = r.sign(dy)
-        t_delta_y = (r.SHG_CELL_SIZE / abs(dy)) if dy != 0 else float('inf')
-        next_boundary_y = (iy + 1) * r.SHG_CELL_SIZE if step_y == 1 else iy * r.SHG_CELL_SIZE
+        t_delta_y = (game_core.shg_cell_size / abs(dy)) if dy != 0 else float('inf')
+        next_boundary_y = (iy + 1) * game_core.shg_cell_size if step_y == 1 else iy * game_core.shg_cell_size
         t_max_y = (next_boundary_y - y1) / dy if dy != 0 else float("inf")
 
         max_steps = (abs(ex - ix) + abs(ey - iy) + 10)

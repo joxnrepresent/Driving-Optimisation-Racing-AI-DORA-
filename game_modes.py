@@ -9,6 +9,7 @@ from cars import PlayerCar, AICar
 from rl_model import VPGModel
 from numpy import clip, exp
 from abc import ABC, abstractmethod
+from resources import game_core
 
 """This module contains classes """
 #---------------------------------------------------------------------------------------------------------------------#
@@ -16,10 +17,10 @@ from abc import ABC, abstractmethod
 car_simulation = None
 def run_car_simulation():
     global car_simulation
-    if not r.IS_INITIALIZED:
+    if not game_core.is_initialized:
         # car_simulation = RacingSim()
         car_simulation = AICarSim()
-        r.IS_INITIALIZED = True
+        game_core.is_initialized= True
     car_simulation.update_car_simulation()
 
 class CarSimulation(ABC):
@@ -31,13 +32,13 @@ class CarSimulation(ABC):
     """
     """Class stores the variables, objects and methods needed to run the car simulation."""
     def __init__(self):
-        self.track = Track(r.CURRENT_TRACK)
-        r.GAME_SPRITES.add(self.track)
-        r.starting_position = self.track.track_spine[0]
+        self.track = Track(game_core.current_track)
+        game_core.game_sprites.add(self.track)
+        game_core.starting_position = self.track.track_spine[0]
         self.reset_button = elements.UIButton(
             relative_rect=pygame.Rect((300, 600), (100, 30)),
             text="Click to reset",
-            manager=r.GUI_MANAGER
+            manager=game_core.gui_manager
         )
         self.car = []
         self._reset_cars()
@@ -59,23 +60,23 @@ class CarSimulation(ABC):
         pass
 
     def _reset_gui(self):
-        r.GUI_MANAGER.clear_and_reset()
+        game_core.gui_manager.clear_and_reset()
         self.reset_button = elements.UIButton(
             relative_rect=pygame.Rect((300, 600), (100, 30)),
             text="Click to reset",
-            manager=r.GUI_MANAGER
+            manager=game_core.gui_manager
         )
 
     def _handle_buttons(self):
-        if self.reset_button in r.PRESSED_BUTTONS:
+        if self.reset_button in game_core.pressed_buttons:
             self._reinitialise_car_simulation()
-        r.PRESSED_BUTTONS.clear()
+        game_core.pressed_buttons.clear()
 
     def _reinitialise_car_simulation(self):
-        r.GAME_SPRITES.remove(self.car)
-        r.DEBUG_ELEMENTS["hitboxes"].clear()
-        r.DEBUG_ELEMENTS["rays"].clear()
-        r.DEBUG_ELEMENTS["AABB"].clear()
+        game_core.game_sprites.remove(self.car)
+        game_core.debug_elements["hitboxes"].clear()
+        game_core.debug_elements["rays"].clear()
+        game_core.debug_elements["AABB"].clear()
         self._reset_gui()
         self._reset_cars()
 
@@ -85,9 +86,9 @@ class RacingSim(CarSimulation):
         super().__init__()
 
     def _reset_cars(self):
-        self.car = PlayerCar(r.starting_position)
-        r.GAME_SPRITES.add(self.car)
-        r.DEBUG_ELEMENTS["hitboxes"].append(self.car.hitbox)
+        self.car = PlayerCar(game_core.starting_position)
+        game_core.GAME_SPRITES.add(self.car)
+        game_core.debug_elements["hitboxes"].append(self.car.hitbox)
 
     def _drive_car(self):
         if not self.car.is_crashed:
@@ -107,28 +108,28 @@ class AICarSim(CarSimulation):
         self.actions = (0.0,0.0)
         self.sensors = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         self.total_reward = 0
-        self.tick_speed_up = elements.UIButton(
+        self.tick_speedup = elements.UIButton(
             relative_rect=pygame.Rect((400, 600), (100, 30)),
             text="Click to slow",
-            manager=r.GUI_MANAGER
+            manager=game_core.gui_manager
         )
         self.save_ai = elements.UIButton(
             relative_rect=pygame.Rect((400, 650), (100, 30)),
             text="Click to save",
-            manager=r.GUI_MANAGER
+            manager=game_core.gui_manager
         )
 
     def _reset_cars(self):
-        self.car = AICar(r.starting_position)
-        r.GAME_SPRITES.add(self.car)
-        r.DEBUG_ELEMENTS["hitboxes"].append(self.car.hitbox)
+        self.car = AICar(game_core.starting_position)
+        game_core.game_sprites.add(self.car)
+        game_core.debug_elements["hitboxes"].append(self.car.hitbox)
         self.throttle_and_braking_meter = elements.UIProgressBar(
-            relative_rect=pygame.Rect((r.SCREEN_DIMENSIONS[0] / 4 - 300, 700), (500, 30)),
-            manager=r.GUI_MANAGER
+            relative_rect=pygame.Rect((game_core.screen_dimensions[0] / 4 - 300, 700), (500, 30)),
+            manager=game_core.gui_manager
         )
         self.speedometer = UIGaugeMeter(
-            relative_rect=pygame.Rect((r.SCREEN_DIMENSIONS[0] / 4 - 300, 600), (200, 100)),
-            manager=r.GUI_MANAGER
+            relative_rect=pygame.Rect((game_core.screen_dimensions[0] / 4 - 300, 600), (200, 100)),
+            manager=game_core.gui_manager
         )
 
     def _drive_car(self):
@@ -149,7 +150,7 @@ class AICarSim(CarSimulation):
         state_vector = [*self.actions]
         progress = self.car.get_progress(self.track.track_spine)
         if progress >= 0.9:
-            r.SCREEN_FILL = "green"
+            game_core.screen_fill = "green"
         state_vector.append(progress)
         self.sensors = self.car.ray_cast(self.track)
         state_vector.extend(self.sensors)
@@ -162,32 +163,32 @@ class AICarSim(CarSimulation):
         super()._reinitialise_car_simulation()
 
     def _handle_buttons(self):
-        if self.reset_button in r.PRESSED_BUTTONS:
+        if self.reset_button in game_core.pressed_buttons:
             self._reinitialise_car_simulation()
-        if self.tick_speed_up in r.PRESSED_BUTTONS:
-            if r.TICK_SPEEDUP == 1:
-                r.TICK_SPEEDUP = 250
-            elif r.TICK_SPEEDUP == 250:
-                r.TICK_SPEEDUP = 750
+        if self.tick_speedup in game_core.pressed_buttons:
+            if game_core.tick_speedup == 1:
+                game_core.tick_speedup = 250
+            elif game_core.tick_speedup == 250:
+                game_core.tick_speedup = 750
             else:
-                r.TICK_SPEEDUP = 1
-        r.PRESSED_BUTTONS.clear()
-        if self.save_ai in r.PRESSED_BUTTONS:
+                game_core.tick_speedup = 1
+        game_core.pressed_buttons.clear()
+        if self.save_ai in game_core.pressed_buttons:
             with open("Model_weights/" + "testing_weights" + "1" + ".txt", "w") as file:
                 file.write(self.vpg_model.neural_net.get_params())
             print("saved")
 
     def _reset_gui(self):
         super()._reset_gui()
-        self.tick_speed_up = elements.UIButton(
+        self.tick_speedup = elements.UIButton(
             relative_rect=pygame.Rect((400, 600), (100, 30)),
             text="Click to slow",
-            manager=r.GUI_MANAGER
+            manager=game_core.gui_manager
         )
         self.save_ai = elements.UIButton(
             relative_rect=pygame.Rect((400, 650), (100, 30)),
             text="Click to save",
-            manager=r.GUI_MANAGER
+            manager=game_core.gui_manager
         )
 
 """
@@ -198,9 +199,9 @@ track_maker = None
 # global method to initialise and run the track maker
 def run_track_maker():
     global track_maker
-    if not r.IS_INITIALIZED:
+    if not game_core.is_initialized:
         track_maker = TrackMakerUI()
-        r.IS_INITIALIZED = True
+        game_core.is_initialized = True
     track_maker.update_drawing_interface()
 
 
@@ -210,73 +211,73 @@ class TrackMakerUI:
     """
     def __init__(self):
         self.instructions_label = elements.UILabel(
-            relative_rect= pygame.Rect((r.SCREEN_DIMENSIONS[0] // 2 - 250, 100), (500, 30)),
+            relative_rect= pygame.Rect((game_core.screen_dimensions[0] // 2 - 250, 100), (500, 30)),
             text="Click to add control points. Hold SPACE to draw a straight",
-            manager=r.GUI_MANAGER,
+            manager=game_core.gui_manager,
         )
         self.canvas = UITrackCanvas(
-            relative_rect= pygame.Rect((0, 0), (r.SCREEN_DIMENSIONS[0], r.SCREEN_DIMENSIONS[1])),
-            manager=r.GUI_MANAGER
+            relative_rect= pygame.Rect((0, 0), (game_core.screen_dimensions[0], game_core.screen_dimensions[1])),
+            manager=game_core.gui_manager
         )
 
         self.start_drawing_button = elements.UIButton(
             relative_rect= pygame.Rect((0, 100), (100, 30)),
             text="Click to draw",
-            manager=r.GUI_MANAGER
+            manager=game_core.gui_manager
         )
 
         self.save_button = elements.UIButton(
             relative_rect= pygame.Rect((100, 100), (100, 30)),
             text="Click to save",
-            manager=r.GUI_MANAGER
+            manager=game_core.gui_manager
         )
 
         self.load_button = elements.UIButton(
             relative_rect= pygame.Rect((200, 100), (100, 30)),
             text="Click to load",
-            manager=r.GUI_MANAGER
+            manager=game_core.gui_manager
         )
 
         self.clear_button = elements.UIButton(
             relative_rect= pygame.Rect((300, 100), (100, 30)),
             text="Click to clear",
-            manager=r.GUI_MANAGER
+            manager=game_core.gui_manager
         )
 
         self.start_car_sim_button = elements.UIButton(
             relative_rect= pygame.Rect((300, 200), (100, 30)),
             text="Click to start sim",
-            manager=r.GUI_MANAGER
+            manager=game_core.gui_manager
         )
 
     # Handles button presses:
     def _handle_buttons(self):
-        if self.start_drawing_button in r.PRESSED_BUTTONS:
+        if self.start_drawing_button in game_core.pressed_buttons:
             self.canvas.is_drawing = not self.canvas.is_drawing
             if self.canvas.is_drawing:
                 self.start_drawing_button.set_text("Click to stop")
             else:
                 self.start_drawing_button.set_text("Click to draw")
 
-        if self.save_button in r.PRESSED_BUTTONS:
+        if self.save_button in game_core.pressed_buttons:
             self.canvas.save_drawing("testing_track")
 
-        if self.load_button in r.PRESSED_BUTTONS:
+        if self.load_button in game_core.pressed_buttons:
             self.canvas.load_drawing("testing_track")
 
-        if self.clear_button in r.PRESSED_BUTTONS:
+        if self.clear_button in game_core.pressed_buttons:
             self.canvas.clear()
 
-        if self.start_car_sim_button in r.PRESSED_BUTTONS:
-            r.GAME_MODE = "car simulation"
-            r.IS_INITIALIZED = False
-            r.GAME_SPRITES.empty()
-            r.DEBUG_ELEMENTS.clear()
-            r.GUI_MANAGER.clear_and_reset()
+        if self.start_car_sim_button in game_core.pressed_buttons:
+            game_core.game_mode = "car simulation"
+            game_core.is_initialized = False
+            game_core.game_sprites.empty()
+            game_core.debug_elements.clear()
+            game_core.gui_manager.clear_and_reset()
             global track_maker
             track_maker = None
 
-        r.PRESSED_BUTTONS.clear()
+        game_core.pressed_buttons.clear()
 
     def update_drawing_interface(self):
         self._handle_buttons()
