@@ -2,6 +2,7 @@ import pygame
 import pygame_gui
 import resources as r
 from game_modes import run_car_simulation, run_track_maker
+from resources import game_core
 
 """
 Main module for running the program. This handles input, updates, and rendering
@@ -10,19 +11,19 @@ Main module for running the program. This handles input, updates, and rendering
 
 # pygame and GUI initialisation
 pygame.init()
-r.create_gui_manager()
+game_core.gui_manager = pygame_gui.UIManager((1500, 1000))
 
 # Game loop which runs indefinitely till program is closed
 def game_loop():
     while True:
-        for i in range(r.TICK_SPEEDUP):
-            if r.GAME_MODE == "track maker":
+        for i in range(game_core.tick_speedup):
+            if game_core.game_mode == "track maker":
                 run_track_maker()
-            elif r.GAME_MODE == "car simulation":
+            elif game_core.game_mode == "car simulation":
                 run_car_simulation()
             check_events()
-            r.GAME_SPRITES.update()
-            r.GUI_MANAGER.update(1 / r.FRAME_RATE/ r.TICK_SPEEDUP)
+            game_core.game_sprites.update()
+            game_core.gui_manager.update(1 / game_core.frame_rate / game_core.tick_speedup)
         update_frame()
 
 # Handles user input in keystrokes and interaction with GUI.
@@ -30,47 +31,16 @@ def game_loop():
 # Keystrokes and pressed buttons are appended to respective hash sets
 def check_events():
     for event in pygame.event.get():
-        r.GUI_MANAGER.process_events(event)
-        if event.type == pygame.QUIT:
-            exit()
-        if event.type == pygame.KEYDOWN:
-            r.PRESSED_KEYS.add(event.key)
-        if event.type == pygame.KEYUP:
-            r.PRESSED_KEYS.remove(event.key)
-        if event.type == pygame.USEREVENT and  event.user_type == pygame_gui.UI_BUTTON_PRESSED:
-            r.PRESSED_BUTTONS.add(event.ui_element)
+        game_core.event_handle(event)
 
 # Renders all game and GUI elements onto the screen
 # If debugger is on, then also renders hitboxes, rays, and gridlines
-def render():
-    r.MAIN_SCREEN.fill(r.SCREEN_FILL)
-    if r.IS_DEBUGGING:
-        if r.DEBUG_ELEMENTS:
-            for element_type, elements in r.DEBUG_ELEMENTS.items():
-                for element in elements:
-                    if element_type == "hitboxes":
-                        pygame.draw.polygon(r.MAIN_SCREEN, "red", element,2)
-                    elif element_type == "AABB":
-                        pygame.draw.rect(r.MAIN_SCREEN, "red", element,2)
-                    elif element_type == "rays":
-                        try:
-                            pygame.draw.line(r.MAIN_SCREEN, "red", element[0], element[1])
-                        except:
-                            print(element)
-                    elif element_type == "track spine":
-                        for i in range(len(element) - 1):
-                            r.draw_line(r.MAIN_SCREEN, "Blue", element[i], element[i + 1])
-                    if element_type == "grid lines":
-                        if element:
-                            r.draw_grid(r.MAIN_SCREEN)
-    r.GAME_SPRITES.draw(r.MAIN_SCREEN)
-    r.GUI_MANAGER.draw_ui(r.MAIN_SCREEN)
 
 # Handles updating frame and internal clock
 def update_frame():
-    render()
+    game_core.render()
     pygame.display.flip()
-    r.CLOCK.tick(r.FRAME_RATE)
+    game_core.clock.tick(game_core.frame_rate)
 
 game_loop()
 

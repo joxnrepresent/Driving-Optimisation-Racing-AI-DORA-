@@ -1,5 +1,6 @@
 import math
 import pygame
+import pygame_gui
 from pygame_gui import UIManager
 from collections import defaultdict
 from numpy import exp
@@ -8,75 +9,95 @@ from numpy import exp
 This module contains shared resources like constants, game-state variables (singletons), and utility 
 functions/methods used throughout the project.
 """
-# ---------------------------------------------------------------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------#
 
 """Singletons"""
 
-# Program constants
+class GameCore:
+    def __init__(self):
+        # Program constants
+        self.frame_rate = 60
+        self.tick_speedup = 1
+        self.screen_dimensions = (1200, 750)
+        self.screen_fill = "White"
+        self.is_debugging = True
+        self.current_track = "testing_track"
+        self.shg_cell_size = 20
+        self.car_max_ray_cast = self.screen_dimensions[0]
+        self.ray_cast_angles = [5, 10, 20, 45, 60, 90]
+        self.meter_pixel_conversion = 10
+        self.eps = 1e-9
 
-FRAME_RATE = 60
-TICK_SPEEDUP = 1
-SCREEN_DIMENSIONS = (1200, 750)
-SCREEN_FILL = "White"
-IS_DEBUGGING = True
-CURRENT_TRACK = "testing_track"
-SHG_CELL_SIZE = 20
-CAR_MAX_RAY_CAST = SCREEN_DIMENSIONS[0]
-RAY_CAST_ANGLES = [5, 10, 20, 45, 60, 90]
-METER_PIXEL_CONVERSION = 10
-EPS = 1e-9
+        # Core program components
+        self.main_screen = pygame.display.set_mode(self.screen_dimensions)
+        self.gui_manager = None
+        self.clock = pygame.time.Clock()
+        self.pressed_keys = set()
+        self.pressed_buttons = set()
+        self.game_sprites = pygame.sprite.Group()
+        self.debug_elements = defaultdict(list)
+        self.game_mode = "track maker"
+        self.is_initialized = False
 
-# Core program components
-MAIN_SCREEN = pygame.display.set_mode(SCREEN_DIMENSIONS)
-GUI_MANAGER = None
-CLOCK = pygame.time.Clock()
-PRESSED_KEYS = set()
-PRESSED_BUTTONS = set()
-GAME_SPRITES = pygame.sprite.Group()
-DEBUG_ELEMENTS = defaultdict(list)
-GAME_MODE = "track maker"
-IS_INITIALIZED = False
+        # Car properties
+        self.car_mass = 800
+        self.max_steer = 1.7
+        self.max_speed = 500
+        self.driving_force = 60
+        self.braking_force = 150
+        self.starting_orientation = 270
+        self.starting_position = (550, 130)
+        self.steer_factor = self.max_steer / 10
+        self.throttle_factor = 0.08
+        self.brake_factor = 0.01
+        self.car_proportions = pygame.Vector2(2.718, 4.287) * self.meter_pixel_conversion
 
-# Car properties (May vary in later versions)
-car_mass = 800
-max_steer = 1.7
-max_speed = 500
-driving_force = 60
-braking_force = 150
-starting_orientation = 270
-starting_position = (550, 130)
-steer_factor = max_steer / 10
-throttle_factor = 0.08
-brake_factor = 0.01
-car_proportions = pygame.Vector2(2.718, 4.287) * METER_PIXEL_CONVERSION
+    def render(self):
+        self.main_screen.fill(self.screen_fill)
+        if self.is_debugging:
+            if self.debug_elements:
+                for element_type, elements in self.debug_elements.items():
+                    for element in elements:
+                        if element_type == "hitboxes":
+                            pygame.draw.polygon(self.main_screen, "red", element, 2)
+                        elif element_type == "AABB":
+                            pygame.draw.rect(self.main_screen, "red", element, 2)
+                        elif element_type == "rays":
+                            try:
+                                pygame.draw.line(self.main_screen, "red", element[0], element[1])
+                            except:
+                                print(element)
+                        elif element_type == "track spine":
+                            for i in range(len(element) - 1):
+                                draw_line(self.main_screen, "Blue", element[i], element[i + 1])
+                        if element_type == "grid lines":
+                            if element:
+                                draw_grid(self.main_screen)
+        self.game_sprites.draw(self.main_screen)
+        self.gui_manager.draw_ui(self.main_screen)
 
-# Car properties (May vary in later versions)
-car_mass = 800
-max_steer = 1.7
-max_speed = 500
-driving_force = 60
-braking_force = 150
-starting_orientation = 270
-starting_position = (550, 130)
-steer_factor = max_steer/10
-throttle_factor = 0.08
-brake_factor = 0.01
-car_proportions = pygame.Vector2(2.718, 4.287) * METER_PIXEL_CONVERSION
+    def event_handle(self, event):
+        self.gui_manager.process_events(event)
+        if event.type == pygame.QUIT:
+            exit()
+        if event.type == pygame.KEYDOWN:
+            self.pressed_keys.add(event.key)
+        if event.type == pygame.KEYUP:
+            self.pressed_keys.remove(event.key)
+        if event.type == pygame.USEREVENT and  event.user_type == pygame_gui.UI_BUTTON_PRESSED:
+            self.pressed_buttons.add(event.ui_element)
+
+
+
+game_core = GameCore()
 
 
 """Utility functions"""
 
 
-# Initialisation of GUI manager
-def create_gui_manager():
-    global GUI_MANAGER
-    GUI_MANAGER = UIManager((1500, 1000))
-
-
 # Loads an image using the file name (png only)
 def set_image(image):
     return pygame.image.load(f'Images/{image}.png').convert_alpha()
-
 
 # Returns the sign of the input
 def sign(x):
@@ -87,20 +108,17 @@ def sign(x):
     else:
         return 0
 
-
 # Keeps input value within a range with an upper and lower limit
 def clamp_value(value, lower_limit, upper_limit):
     return max(lower_limit, min(value, upper_limit))
 
-
 # Wraps a value by looping to the lower limit when the upper limit is crossed
 def wrap_value(value, lower_limit, upper_limit):
-    return ((value - lower_limit) % (upper_limit - lower_limit)) + lower_limit
-
+    return ((value - lower_limit) % (upper_limit-lower_limit)) + lower_limit
 
 def load_track_from_file(filename):
     try:
-        with open("Tracks/" + filename + ".txt", "r") as file:
+        with open("Tracks/"+filename + ".txt", "r") as file:
             strokes = []
             for line in file:
                 coordinates = line.split(',')
@@ -113,7 +131,6 @@ def load_track_from_file(filename):
         print("File not found")
         return None
 
-
 def draw_track_outline(surface, strokes):
     is_black = True
     for stroke in strokes:
@@ -125,32 +142,28 @@ def draw_track_outline(surface, strokes):
             is_black = not is_black
             pygame.draw.line(surface, colour, stroke[i], stroke[i + 1], 3)
 
-
 def draw_line(surface, colour, p1, p2):
     pygame.draw.line(surface, colour, p1, p2, 2)
-
 
 def draw_alternating_line_segments(surface, segments, is_black):
     colour = "black" if is_black else "red"
     for (p1, p2) in segments:
         pygame.draw.line(surface, colour, p1, p2, 3)
 
-
 def draw_grid(surface, color="green"):
-    w, h = surface.get_size()
-    s = pygame.Surface((w, h), pygame.SRCALPHA)
-    for x in range(0, w, SHG_CELL_SIZE):
-        pygame.draw.line(s, color, (x, 0), (x, h))
-    for y in range(0, h, SHG_CELL_SIZE):
-        pygame.draw.line(s, color, (0, y), (w, y))
-    surface.blit(s, (0, 0))
-
+    w,h = surface.get_size()
+    s = pygame.Surface((w,h), pygame.SRCALPHA)
+    for x in range(0, w, game_core.shg_cell_size):
+        pygame.draw.line(s, color, (x,0), (x,h))
+    for y in range(0, h, game_core.shg_cell_size):
+        pygame.draw.line(s, color, (0,y), (w,y))
+    surface.blit(s, (0,0))
 
 def get_line_segments_intersection(seg1, seg2):
     (x1, y1), (x2, y2) = seg1
     (x3, y3), (x4, y4) = seg2
 
-    # Trying to early reject intersection if AABB's do not intersect
+    #Trying to early reject intersection if AABB's do not intersect
     if (max(x1, x2) < min(x3, x4) or max(x3, x4) < min(x1, x2) or
             max(y1, y2) < min(y3, y4) or max(y3, y4) < min(y1, y2)):
         return None
@@ -159,8 +172,8 @@ def get_line_segments_intersection(seg1, seg2):
     alpha_numerator = (x3 - x1) * (y4 - y3) - (y3 - y1) * (x4 - x3)
     beta_numerator = (x3 - x1) * (y2 - y1) - (y3 - y1) * (x2 - x1)
 
-    if abs(denominator) < EPS:
-        if abs(alpha_numerator) < EPS and abs(beta_numerator) < EPS:
+    if abs(denominator) < game_core.eps:
+        if abs(alpha_numerator) < game_core.eps and abs(beta_numerator) < game_core.eps:
 
             dot_prod = (x2 - x1) * (x4 - x3) + (y2 - y1) * (y4 - y3)
 
@@ -182,8 +195,8 @@ def get_line_segments_intersection(seg1, seg2):
                     return p2
         return None
 
-    alpha = alpha_numerator / denominator
-    beta = beta_numerator / denominator
+    alpha = alpha_numerator/denominator
+    beta = beta_numerator/denominator
 
     if alpha >= 0 and 0 <= beta <= 1:
         x = x1 + alpha * (x2 - x1)
@@ -192,6 +205,5 @@ def get_line_segments_intersection(seg1, seg2):
     else:
         return None
 
-
 def transformed_sigmoid(x):
-    return (2.0 / (1.0 + exp(-x))) - 1
+    return (2.0 / (1.0 + exp(-x)))-1
