@@ -21,26 +21,11 @@ def game_loop():
                 run_track_maker()
             elif game_core.game_mode == "car simulation":
                 run_car_simulation()
-            check_events()
+            for event in pygame.event.get():
+                game_core.event_handle(event)
             game_core.game_sprites.update()
             game_core.gui_manager.update(1 / game_core.frame_rate / game_core.tick_speedup)
-        update_frame()
-
-# Handles user input in keystrokes and interaction with GUI.
-# The GUI manager processes events with respect to the GUI elements on screen
-# Keystrokes and pressed buttons are appended to respective hash sets
-def check_events():
-    for event in pygame.event.get():
-        game_core.event_handle(event)
-
-# Renders all game and GUI elements onto the screen
-# If debugger is on, then also renders hitboxes, rays, and gridlines
-
-# Handles updating frame and internal clock
-def update_frame():
-    game_core.render()
-    pygame.display.flip()
-    game_core.clock.tick(game_core.frame_rate)
+        game_core.render()
 
 game_loop()
 

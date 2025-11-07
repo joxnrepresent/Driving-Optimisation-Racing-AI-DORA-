@@ -16,15 +16,12 @@ functions/methods used throughout the project.
 class GameCore:
     def __init__(self):
         # Program constants
+        self.is_debugging = True
         self.frame_rate = 60
         self.tick_speedup = 1
         self.screen_dimensions = (1200, 750)
         self.screen_fill = "White"
-        self.is_debugging = True
         self.current_track = "testing_track"
-        self.shg_cell_size = 20
-        self.car_max_ray_cast = self.screen_dimensions[0]
-        self.ray_cast_angles = [5, 10, 20, 45, 60, 90]
         self.meter_pixel_conversion = 10
         self.eps = 1e-9
 
@@ -40,17 +37,7 @@ class GameCore:
         self.is_initialized = False
 
         # Car properties
-        self.car_mass = 800
-        self.max_steer = 1.7
-        self.max_speed = 500
-        self.driving_force = 60
-        self.braking_force = 150
-        self.starting_orientation = 270
-        self.starting_position = (550, 130)
-        self.steer_factor = self.max_steer / 10
-        self.throttle_factor = 0.08
-        self.brake_factor = 0.01
-        self.car_proportions = pygame.Vector2(2.718, 4.287) * self.meter_pixel_conversion
+
 
     def render(self):
         self.main_screen.fill(self.screen_fill)
@@ -67,14 +54,16 @@ class GameCore:
                                 pygame.draw.line(self.main_screen, "red", element[0], element[1])
                             except:
                                 print(element)
-                        elif element_type == "track spine":
-                            for i in range(len(element) - 1):
-                                draw_line(self.main_screen, "Blue", element[i], element[i + 1])
-                        if element_type == "grid lines":
-                            if element:
-                                draw_grid(self.main_screen)
+                        # elif element_type == "track spine":
+                        #     for i in range(len(element) - 1):
+                        #         draw_line(self.main_screen, "Blue", element[i], element[i + 1])
+                        # if element_type == "grid lines":
+                            # if element:
+                                # draw_grid(self.main_screen)
         self.game_sprites.draw(self.main_screen)
         self.gui_manager.draw_ui(self.main_screen)
+        pygame.display.flip()
+        self.clock.tick(game_core.frame_rate)
 
     def event_handle(self, event):
         self.gui_manager.process_events(event)
@@ -86,8 +75,6 @@ class GameCore:
             self.pressed_keys.remove(event.key)
         if event.type == pygame.USEREVENT and  event.user_type == pygame_gui.UI_BUTTON_PRESSED:
             self.pressed_buttons.add(event.ui_element)
-
-
 
 game_core = GameCore()
 

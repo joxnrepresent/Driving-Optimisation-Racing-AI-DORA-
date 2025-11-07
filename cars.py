@@ -1,13 +1,27 @@
 import math
 from multiprocessing.dummy import current_process
+
 from pygame import Vector2
+
+import resources as r
 import pygame
 from abc import ABC, abstractmethod
 from pygame_gui import elements
 from resources import game_core
-import resources as r
 
 from gui_custom_elements import UIGaugeMeter
+
+car_mass = 800
+max_steer = 1.7
+max_speed = 500
+driving_force = 60
+braking_force = 150
+starting_orientation = 270
+starting_position = (550, 130)
+steer_factor = max_steer / 10
+throttle_factor = 0.08
+brake_factor = 0.01
+car_proportions = pygame.Vector2(2.718, 4.287) * game_core.meter_pixel_conversion
 
 class Car(pygame.sprite.Sprite, ABC):
     """
@@ -24,7 +38,7 @@ class Car(pygame.sprite.Sprite, ABC):
         self.position = pygame.Vector2(starting_position)
         self.velocity = pygame.Vector2(0,0)
         self.acceleration = pygame.Vector2(0,0)
-        self.direction = game_core.starting_orientation
+        self.direction = starting_orientation
         self.progress = 0
 
         self.throttle = 0
@@ -35,7 +49,7 @@ class Car(pygame.sprite.Sprite, ABC):
         to an angle with respect to the natural orientation of the sprite on the screen.
         """
         self._original_car = r.set_image("Mclaren")
-        self._original_car = pygame.transform.scale(self._original_car, game_core.car_proportions)
+        self._original_car = pygame.transform.scale(self._original_car, car_proportions)
         self._original_car = pygame.transform.rotate(self._original_car, 180)
         game_core.debug_elements["AABB"].append(self.rect)
         self._update_car_sprite_position()
@@ -70,8 +84,8 @@ class Car(pygame.sprite.Sprite, ABC):
     # The steer_factor is the value by which steer is incremented (gradual changes rather than abrupt updates).
     # Direction of car updated.
     def _update_steer_value(self, steer_percentage):
-        steer_limit = game_core.max_steer * abs(steer_percentage) - game_core.steer_factor
-        self.steer += game_core.steer_factor * r.sign(steer_percentage)
+        steer_limit = max_steer * abs(steer_percentage) - steer_factor
+        self.steer += steer_factor * r.sign(steer_percentage)
         self.steer = r.clamp_value(self.steer, -steer_limit, steer_limit)
         self.direction += self.steer
         self.direction = r.wrap_value(self.direction, 0, 360)
@@ -79,9 +93,9 @@ class Car(pygame.sprite.Sprite, ABC):
     # Sets the throttle value as a percentage of the maximum driving force.
     def _update_throttle_and_braking_value(self, throttle_pedal_amount):
         if throttle_pedal_amount > 0:
-            self.throttle = game_core.driving_force * throttle_pedal_amount
+            self.throttle = driving_force * throttle_pedal_amount
         else:
-            self.throttle = game_core.braking_force * throttle_pedal_amount
+            self.throttle = braking_force * throttle_pedal_amount
 
     # Updates the acceleration, velocity and position vectors based on the throttle and direction of the car.
     # Velocity gradually decays when throttle = 0 (roughly emulates friction).
@@ -96,7 +110,7 @@ class Car(pygame.sprite.Sprite, ABC):
         else:
             self.velocity += self.acceleration * dt
         if self.velocity.length_squared() != 0:
-            self.velocity.clamp_magnitude_ip(game_core.max_speed)
+            self.velocity.clamp_magnitude_ip(max_speed)
         grip = 0.5
         speed = self.velocity.magnitude()
         self.velocity = self.velocity.lerp(direction_unit_vector * speed, grip)
@@ -105,7 +119,7 @@ class Car(pygame.sprite.Sprite, ABC):
     # Updates the coordinates of the corners of the hitbox w.r.t the position and orientation of the car
     def _update_hitboxes(self):
         center_x, center_y = self.rect.center
-        width, length = game_core.car_proportions / 2
+        width, length = car_proportions / 2
         width -= 5
         corners = [(-width, length), (width, length), (width, -length), (-width, -length)]
 
@@ -150,7 +164,6 @@ class Car(pygame.sprite.Sprite, ABC):
         self.rect = self.image.get_rect(center=(int(self.position.x), int(self.position.y)))
         game_core.debug_elements["AABB"].append(self.rect)
 
-
 class PlayerCar(Car):
     def __init__(self, starting_position = None):
         super().__init__(starting_position)
@@ -181,7 +194,7 @@ class PlayerCar(Car):
 
     # Updates the steer value when the steering slider is moved.
     def _handle_steering(self):
-        self.steering_wheel_amount = game_core.max_steer * self.steering_slider.get_current_value()/100
+        self.steering_wheel_amount = max_steer * self.steering_slider.get_current_value()/100
 
     # Increments the throttle or braking based on user input.
     # Value decays when there is no input to emulate release of throttle/brake.
@@ -194,10 +207,10 @@ class PlayerCar(Car):
     def _handle_throttle(self):
         if pygame.K_w in game_core.pressed_keys:
             self.throttle_and_braking_pedal_amount = r.clamp_value(self.throttle_and_braking_pedal_amount
-                                                                   + game_core.throttle_factor, 0, 1)
+                                                                   + throttle_factor, 0, 1)
         elif pygame.K_s in game_core.pressed_keys:
             self.throttle_and_braking_pedal_amount = r.clamp_value(self.throttle_and_braking_pedal_amount
-                                                                   - game_core.brake_factor, -1, 0)
+                                                                   - brake_factor, -1, 0)
         else:
             self.throttle_and_braking_pedal_amount *= 0.9
             if -0.01 < self.throttle_and_braking_pedal_amount < 0.01:
@@ -210,6 +223,8 @@ class PlayerCar(Car):
 class AICar(Car):
     def __init__(self, starting_position = None):
         super().__init__(starting_position)
+        self.ray_cast_angles = [5, 10, 20, 45, 60, 90]
+        self.car_max_ray_cast = game_core.screen_dimensions[0]
 
     def car_movement(self, actions):
         self._update_car_values(*actions)
@@ -221,9 +236,9 @@ class AICar(Car):
         center = pygame.Vector2(self.rect.center)
         rays = []
 
-        forward_ray = pygame.Vector2(0, 1).rotate(self.direction) * game_core.car_max_ray_cast
+        forward_ray = pygame.Vector2(0, 1).rotate(self.direction) * self.car_max_ray_cast
         rays.append((center, center + forward_ray))
-        for angle in game_core.ray_cast_angles:
+        for angle in self.ray_cast_angles:
             rays.append((center, center + forward_ray.rotate(angle)))
             rays.append((center, center + forward_ray.rotate(-angle)))
 
@@ -240,13 +255,16 @@ class AICar(Car):
         reward = 0
 
         if self.is_crashed:
-            reward -= 10
+            reward -= 30
         else:
             reward -= 0.0005
 
-            reward += (self.velocity.magnitude() / game_core.max_speed) * 0.6
-            reward += self.progress * 2
+            reward += (self.velocity.magnitude() / max_speed) * 0.6
 
+            if self.velocity.magnitude() > 2:
+                reward += self.progress * 4.5
+            else:
+                reward -= self.progress * 1.5
         return reward
 
 

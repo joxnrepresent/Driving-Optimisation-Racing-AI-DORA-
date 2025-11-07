@@ -67,12 +67,12 @@ class SpatialHashGrid:
     """
     def __init__(self):
         self.cells = defaultdict(list)
+        self.shg_cell_size = 20
         game_core.debug_elements["grid lines"].append(True)
 
-    @staticmethod
-    def get_cell_index_of_point(point):
+    def get_cell_index_of_point(self, point):
         x, y = point
-        return int(floor(x / game_core.shg_cell_size)), int(floor(y / game_core.shg_cell_size))
+        return int(floor(x / self.shg_cell_size)), int(floor(y / self.shg_cell_size))
 
     def _add_segment_to_cell(self, ix, iy, segment_index):
         self.cells[(ix, iy)].append(segment_index)
@@ -94,13 +94,13 @@ class SpatialHashGrid:
         ex, ey = self.get_cell_index_of_point((x2, y2))
 
         step_x = r.sign(dx)
-        t_delta_x = (game_core.shg_cell_size / abs(dx)) if dx != 0 else float('inf')
-        next_boundary_x = (ix + 1) * game_core.shg_cell_size if step_x == 1 else ix * game_core.shg_cell_size
+        t_delta_x = (self.shg_cell_size / abs(dx)) if dx != 0 else float('inf')
+        next_boundary_x = (ix + 1) * self.shg_cell_size if step_x == 1 else ix * self.shg_cell_size
         t_max_x = (next_boundary_x - x1) / dx if dx != 0 else float("inf")
 
         step_y = r.sign(dy)
-        t_delta_y = (game_core.shg_cell_size / abs(dy)) if dy != 0 else float('inf')
-        next_boundary_y = (iy + 1) * game_core.shg_cell_size if step_y == 1 else iy * game_core.shg_cell_size
+        t_delta_y = (self.shg_cell_size / abs(dy)) if dy != 0 else float('inf')
+        next_boundary_y = (iy + 1) * self.shg_cell_size if step_y == 1 else iy * self.shg_cell_size
         t_max_y = (next_boundary_y - y1) / dy if dy != 0 else float("inf")
 
         max_steps = (abs(ex - ix) + abs(ey - iy) + 10)
@@ -130,36 +130,36 @@ class SpatialHashGrid:
 
 
 
-grid = SpatialHashGrid()
-
-walls = [
-    ((0, 0), (200, 0)),
-    ((0, 0), (0, 200)),
-    ((0, 0), (200, 200)),
-    ((230, 20), (120, 175)),
-]
-
-for i, seg in enumerate(walls):
-    grid.hash_segment(seg, i)
-
-print()
-print("Testing ray intersection")
-print()
-
-print("Test 1: dx > dy")
-ray1 = ((100, 50), (250, 100))
-hit1 = grid.return_collision_point(ray1, walls)
-print("Collision point:", hit1)
-print()
-
-print("Test 2: dy > dx")
-ray2 = ((100, 20), (130, 250))
-hit2 = grid.return_collision_point(ray2, walls)
-print("Collision point:", hit2)
-print()
-
-print("Test 3: no collision")
-ray3 = ((250, 250), (400, 400))
-hit3 = grid.return_collision_point(ray3, walls)
-print(" Collision point:", hit3)
+# grid = SpatialHashGrid()
+#
+# walls = [
+#     ((0, 0), (200, 0)),
+#     ((0, 0), (0, 200)),
+#     ((0, 0), (200, 200)),
+#     ((230, 20), (120, 175)),
+# ]
+#
+# for i, seg in enumerate(walls):
+#     grid.hash_segment(seg, i)
+#
+# print()
+# print("Testing ray intersection")
+# print()
+#
+# print("Test 1: dx > dy")
+# ray1 = ((100, 50), (250, 100))
+# hit1 = grid.return_collision_point(ray1, walls)
+# print("Collision point:", hit1)
+# print()
+#
+# print("Test 2: dy > dx")
+# ray2 = ((100, 20), (130, 250))
+# hit2 = grid.return_collision_point(ray2, walls)
+# print("Collision point:", hit2)
+# print()
+#
+# print("Test 3: no collision")
+# ray3 = ((250, 250), (400, 400))
+# hit3 = grid.return_collision_point(ray3, walls)
+# print(" Collision point:", hit3)
 
