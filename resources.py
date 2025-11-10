@@ -27,17 +27,21 @@ class GameCore:
 
         # Core program components
         self.main_screen = pygame.display.set_mode(self.screen_dimensions)
-        self.gui_manager = None
         self.clock = pygame.time.Clock()
         self.pressed_keys = set()
         self.pressed_buttons = set()
+        self.game_mode = None
+
+        self.gui_manager = None
         self.game_sprites = pygame.sprite.Group()
         self.debug_elements = defaultdict(list)
-        self.game_mode = "track maker"
-        self.is_initialized = False
 
-        # Car properties
+    def set_game_mode(self, new_mode):
+        self.game_sprites.empty()
+        self.debug_elements.clear()
+        self.gui_manager.clear_and_reset()
 
+        self.game_mode = new_mode()
 
     def render(self):
         self.main_screen.fill(self.screen_fill)
@@ -47,8 +51,8 @@ class GameCore:
                     for element in elements:
                         if element_type == "hitboxes":
                             pygame.draw.polygon(self.main_screen, "red", element, 2)
-                        elif element_type == "AABB":
-                            pygame.draw.rect(self.main_screen, "red", element, 2)
+                        # elif element_type == "AABB":
+                        #     pygame.draw.rect(self.main_screen, "red", element, 2)
                         elif element_type == "rays":
                             try:
                                 pygame.draw.line(self.main_screen, "red", element[0], element[1])
@@ -57,24 +61,29 @@ class GameCore:
                         # elif element_type == "track spine":
                         #     for i in range(len(element) - 1):
                         #         draw_line(self.main_screen, "Blue", element[i], element[i + 1])
-                        # if element_type == "grid lines":
-                            # if element:
-                                # draw_grid(self.main_screen)
+                        if element_type == "grid lines":
+                            if element:
+                                draw_grid(self.main_screen)
         self.game_sprites.draw(self.main_screen)
         self.gui_manager.draw_ui(self.main_screen)
         pygame.display.flip()
         self.clock.tick(game_core.frame_rate)
 
-    def event_handle(self, event):
+    def cache_events(self, event):
         self.gui_manager.process_events(event)
         if event.type == pygame.QUIT:
             exit()
         if event.type == pygame.KEYDOWN:
             self.pressed_keys.add(event.key)
         if event.type == pygame.KEYUP:
-            self.pressed_keys.remove(event.key)
+            self.pressed_keys.discard(event.key)
         if event.type == pygame.USEREVENT and  event.user_type == pygame_gui.UI_BUTTON_PRESSED:
             self.pressed_buttons.add(event.ui_element)
+
+    def process_frame(self):
+        if self.game_mode:
+            self.game_mode.event_handle()
+            self.game_mode.update()
 
 game_core = GameCore()
 
@@ -132,17 +141,23 @@ def draw_track_outline(surface, strokes):
 def draw_line(surface, colour, p1, p2):
     pygame.draw.line(surface, colour, p1, p2, 2)
 
-def draw_alternating_line_segments(surface, segments, is_black):
-    colour = "black" if is_black else "red"
+def draw_alternating_line_segments(surface, segments):
+    colour = "black"
+    is_black = True
     for (p1, p2) in segments:
+        if is_black:
+            colour = "black"
+        else:
+            colour = "red"
         pygame.draw.line(surface, colour, p1, p2, 3)
+        is_black = not is_black
 
-def draw_grid(surface, color="green"):
+def draw_grid(surface, color="green", cell_size = 20):
     w,h = surface.get_size()
     s = pygame.Surface((w,h), pygame.SRCALPHA)
-    for x in range(0, w, game_core.shg_cell_size):
+    for x in range(0, w, cell_size):
         pygame.draw.line(s, color, (x,0), (x,h))
-    for y in range(0, h, game_core.shg_cell_size):
+    for y in range(0, h, cell_size):
         pygame.draw.line(s, color, (0,y), (w,y))
     surface.blit(s, (0,0))
 

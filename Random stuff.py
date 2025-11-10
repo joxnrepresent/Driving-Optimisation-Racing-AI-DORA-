@@ -20,9 +20,6 @@ def draw_semicircle(screen, center, radius, fill_colour, start_angle = 0, border
     pygame.draw.polygon(screen, border_colour, points, border_width)
 
 
-    DRAG_COEFFICIENT = 0.4257
-    ROLLING_RESISTANCE_COEFFICIENT = 12.8
-
 
 #
 # class Meter:

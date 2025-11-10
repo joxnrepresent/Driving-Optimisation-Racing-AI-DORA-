@@ -51,12 +51,10 @@ class Track(Sprite):
     # Colour alternates between black and red
     def draw_track(self):
         self.image.fill((0, 0, 0, 0))
-        is_black = True
         for cell_segments in self.grid.cells.values():
             wall_segments = [self.wall_segments[i] for i in cell_segments]
-            r.draw_alternating_line_segments(self.image, wall_segments, is_black)
-            is_black = not is_black
-        game_core.debug_elements["track spine"] = [self.track_spine]
+            r.draw_alternating_line_segments(self.image, wall_segments)
+        game_core.game_mode.debug_elements["track spine"] = [self.track_spine]
 
 
 class SpatialHashGrid:
@@ -68,7 +66,7 @@ class SpatialHashGrid:
     def __init__(self):
         self.cells = defaultdict(list)
         self.shg_cell_size = 20
-        game_core.debug_elements["grid lines"].append(True)
+        game_core.game_mode.debug_elements["grid lines"].append(True)
 
     def get_cell_index_of_point(self, point):
         x, y = point
@@ -111,8 +109,6 @@ class SpatialHashGrid:
 
             if ix == ex and iy == ey:
                 break
-
-            print(f"cell x: {ix}, cell y: {iy}")
 
             if t_max_x < t_max_y:
                 ix += step_x

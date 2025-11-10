@@ -51,7 +51,7 @@ class Car(pygame.sprite.Sprite, ABC):
         self._original_car = r.set_image("Mclaren")
         self._original_car = pygame.transform.scale(self._original_car, car_proportions)
         self._original_car = pygame.transform.rotate(self._original_car, 180)
-        game_core.debug_elements["AABB"].append(self.rect)
+        game_core.game_mode.debug_elements["AABB"].append(self.rect)
         self._update_car_sprite_position()
 
         """
@@ -62,7 +62,7 @@ class Car(pygame.sprite.Sprite, ABC):
 
 
     @abstractmethod
-    def car_movement(self, *args, **kwargs):
+    def update(self, *args, **kwargs):
         pass
 
     # Changes the state of the car to indicate it has crashed and stop its movement
@@ -73,7 +73,7 @@ class Car(pygame.sprite.Sprite, ABC):
 
 
     # Calls procedures which handle the movement of the car sprite and update its parameters
-    def _update_car_values(self, steer_input, throttle_and_braking_input):
+    def _car_movement(self, steer_input, throttle_and_braking_input):
         self._update_steer_value(steer_input)
         self._update_throttle_and_braking_value(throttle_and_braking_input)
         self._update_car_vector_values()
@@ -160,9 +160,9 @@ class Car(pygame.sprite.Sprite, ABC):
     # Updates position (rect) of the car sprite
     def _update_car_sprite_position(self):
         self.image = pygame.transform.rotate(self._original_car, -self.direction)
-        game_core.debug_elements["AABB"].remove(self.rect)
+        # game_core.game_mode.debug_elements["AABB"].remove(self.rect)
         self.rect = self.image.get_rect(center=(int(self.position.x), int(self.position.y)))
-        game_core.debug_elements["AABB"].append(self.rect)
+        game_core.game_mode.debug_elements["AABB"].append(self.rect)
 
 class PlayerCar(Car):
     def __init__(self, starting_position = None):
@@ -186,10 +186,10 @@ class PlayerCar(Car):
             manager=game_core.gui_manager
         )
 
-    def car_movement(self):
+    def update(self):
         self._handle_steering()
         self._handle_throttle()
-        self._update_car_values(self.steering_wheel_amount, self.throttle_and_braking_pedal_amount)
+        self._car_movement(self.steering_wheel_amount, self.throttle_and_braking_pedal_amount)
 
 
     # Updates the steer value when the steering slider is moved.
@@ -226,8 +226,8 @@ class AICar(Car):
         self.ray_cast_angles = [5, 10, 20, 45, 60, 90]
         self.car_max_ray_cast = game_core.screen_dimensions[0]
 
-    def car_movement(self, actions):
-        self._update_car_values(*actions)
+    def update(self, actions):
+        self._car_movement(*actions)
 
     # Calls ray cast method of track to get point of collision and normalised distance (w.r.t max ray length)
     # Stores distances as sensor data
@@ -248,7 +248,7 @@ class AICar(Car):
             hit_point, normalised_collision_distance = track.ray_cast(ray)
             collided_rays.append((center, hit_point))
             sensors.append(normalised_collision_distance)
-        game_core.debug_elements["rays"] = collided_rays
+        game_core.game_mode.debug_elements["rays"] = collided_rays
         return sensors
 
     def compute_reward(self):

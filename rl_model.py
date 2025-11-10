@@ -12,7 +12,7 @@ class RLModel(ABC):
 
        self.actor = NeuralNetwork(layer_sizes, activations)
        # Learning rate
-       self.gamma = 0.95
+       self.gamma = 0.99
 
     def get_actions(self, state_vector):
         # x: input vector
@@ -29,7 +29,7 @@ class RLModel(ABC):
         self.actions.append(actions)
         return actions
 
-    def append_return(self, reward):
+    def append_reward(self, reward):
         self.rewards.append(reward)
 
     @abstractmethod
@@ -85,7 +85,7 @@ class A2CModel(RLModel):
     def __init__(self, input_size, output_size = 2, actor_hidden_layers = [64, 64],
                  critic_hidden_layers = [64, 64], seed=None):
         actor_layers = [input_size] + actor_hidden_layers + [output_size]
-        actor_activations = ['tanh'] * len(hidden_layer_sizes) + ['tanh']
+        actor_activations = ['tanh'] * len(actor_hidden_layers) + ['tanh']
         super().__init__(actor_layers, actor_activations)
 
         critic_layer_sizes = [input_size] + critic_hidden_layers + [1]
@@ -93,7 +93,7 @@ class A2CModel(RLModel):
         self.critic = NeuralNetwork(critic_layer_sizes, critic_activations, seed=seed)
 
         self.actor_grad_scale = 1
-        self.critic_grad_scale = 3
+        self.critic_grad_scale = 1
 
     def compute_return(self):
         n = len(self.rewards)
@@ -126,9 +126,6 @@ class A2CModel(RLModel):
         self.states.clear()
         self.actions.clear()
         self.rewards = []
-
-
-
 
 
 
