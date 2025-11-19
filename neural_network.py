@@ -30,8 +30,6 @@ class Layer:
             return z
         elif self.activation_name == "tanh":
             return np.tanh(z)
-        elif self.activation_name == "sigmoid":
-            return transformed_sigmoid(z)
 
     def activation_derivative(self, z):
         if self.activation_name == 'relu':
@@ -40,9 +38,6 @@ class Layer:
             return np.ones_like(z)
         elif self.activation_name == "tanh":
             return 1 - np.tanh(z) ** 2
-        elif self.activation_name == "sigmoid":
-            return 0.5 * (1 - transformed_sigmoid(z) ** 2)
-
 
     def layer_forward_pass(self, x):
         z = x.dot(self.weights) + self.biases
@@ -52,15 +47,15 @@ class Layer:
         self.last_a = a
         return a
 
-    def layer_backward_pass(self, d_mu):
-        batch_size = d_mu.shape[0]                           #d_mu is dL/d_mu
-        d_z = d_mu * self.activation_derivative(self.last_z) #dL/d_z = dL/d_mu * d_mu/d_z
-        d_W = self.last_x.T.dot(d_z) / batch_size                      #dL/d_W = x.T * dL/d_z
+    def layer_backward_pass(self, d_a):
+        batch_size = d_a.shape[0]                           #d_a is dA/d_a
+        d_z = d_a * self.activation_derivative(self.last_z) #dA/d_z = dA/d_a * d_a/d_z
+        d_W = self.last_x.T.dot(d_z) / batch_size                      #dA/d_W = x.T * dA/d_z
         """x.t has shape (input_size, batch_size)
         d_z has shape (batch_size, output_size) 
         So x.T.dot(d_z) will have shape (input_size, output_size), same as weights"""
-        d_b = d_z.mean(axis=0)                               #dL/d_b = mean of dL/d_z
-        d_x = d_z.dot(self.weights.T)                        #dL/d_x = dL/d_z * W.t
+        d_b = d_z.mean(axis=0)                               #dA/d_b = mean of dA/d_z
+        d_x = d_z.dot(self.weights.T)                        #dA/d_x = dA/d_z * W.t
 
         return d_W, d_b, d_x
 
@@ -73,7 +68,7 @@ class Layer:
 
 
 class NeuralNetwork:
-    def __init__(self, layer_sizes, activations, init_log_std= 0, seed=None):
+    def __init__(self, layer_sizes, activations, init_log_std= -0.8, seed=None):
         if seed is not None:
             np.random.seed(seed)
 
@@ -147,5 +142,5 @@ class NeuralNetwork:
         v = beta2 * v + (1 - beta2) * grad * grad
         m_hat = m / (1 - beta1 ** t)
         v_hat = v / (1 - beta2 ** t)
-        update_value = alpha * m_hat / (np.sqrt(v_hat) + eps)
+        update_value = -alpha * m_hat / (np.sqrt(v_hat) + eps)
         return (m, v), update_value

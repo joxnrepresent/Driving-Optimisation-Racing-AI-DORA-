@@ -1,23 +1,27 @@
 import math
-from logging import setLogRecordFactory
+import pickle
+
+import numpy
+import numpy as np
 import pygame
+import pygame_gui
 import resources as r
-from pygame_gui import elements
+from resources import game_core
 from gui_custom_elements import UIGaugeMeter, UITrackCanvas
 from track import Track
 from cars import PlayerCar, AICar
 from rl_model import A2CModel, REINFORCEModel
 from numpy import clip, exp
 from abc import ABC, abstractmethod
-from resources import game_core
 from collections import defaultdict
-import pygame_gui
+from cars import max_speed
+
 
 """This module contains classes """
 #---------------------------------------------------------------------------------------------------------------------#
 
 class GameMode(ABC):
-    def __init__(self, ui_dimensions = game_core.screen_dimensions):
+    def __init__(self):
         self.game_sprites = game_core.game_sprites
         self.debug_elements = game_core.debug_elements
         self.gui_manager = game_core.gui_manager
@@ -32,37 +36,20 @@ class GameMode(ABC):
     def event_handle(self):
         pass
 
-
-
-# car_simulation = None
-# def run_car_simulation():
-#     global car_simulation
-#     if not game_core.is_initialized:
-#         # car_simulation = RacingSim()
-#         car_simulation = AICarSim()
-#         game_core.is_initialized= True
-#     car_simulation.update_car_simulation()
-
 class CarSimulation(GameMode):
-    """
-    This module is for running a program that creates an instance of the Car class that can be controlled by the user.
-    A slider controls the  steering, 'W' for throttle and 'S' for braking. The meter in the bottom left corner represents
-    the magnitude of throttle/braking (max throttle = 100, max braking = 0, neutral - 0). The speedometer represents the
-    magnitude of the velocity
-    """
     """Class stores the variables, objects and methods needed to run the car simulation."""
     def __init__(self):
         super().__init__()
         self.track = Track(game_core.current_track)
         self.game_sprites.add(self.track)
         game_core.starting_position = self.track.track_spine[0]
-        self.reset_button = elements.UIButton(
+        self.reset_button = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect((300, 600), (100, 30)),
             text="Click to reset",
             manager=self.gui_manager
         )
         self.car = None
-        self._reset_cars()
+
 
     def update(self, *args):
         if self.car.is_crashed:
@@ -75,7 +62,7 @@ class CarSimulation(GameMode):
 
     def _reset_gui(self):
         self.gui_manager.clear_and_reset()
-        self.reset_button = elements.UIButton(
+        self.reset_button = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect((300, 600), (100, 30)),
             text="Click to reset",
             manager=self.gui_manager
@@ -83,11 +70,9 @@ class CarSimulation(GameMode):
 
     def event_handle(self):
         if self.reset_button in game_core.pressed_buttons:
-            self._reinitialise_car_simulation()
+            self.car.is_crashed = True
 
     def _reinitialise_car_simulation(self):
-        self.game_sprites.remove(self.car)
-        self.debug_elements.clear()
         self._reset_gui()
         self._reset_cars()
 
@@ -95,16 +80,17 @@ class CarSimulation(GameMode):
 class RacingSim(CarSimulation):
     def __init__(self):
         super().__init__()
+        self._reset_cars()
+        self.debug_elements["AABB"].append(self.car)
 
     def _reset_cars(self):
+        self.game_sprites.remove(self.car)
         self.car = PlayerCar(game_core.starting_position)
         self.game_sprites.add(self.car)
         self.debug_elements["hitboxes"].append(self.car.hitbox)
-        self.debug_elements["AABB"].append(self.car)
 
     def _drive_car(self):
         if not self.car.is_crashed:
-            progress = self.car.get_progress(self.track.track_spine)
             self.car.update()
             self.car.collision_detection(self.track)
 
@@ -114,101 +100,140 @@ class RacingSim(CarSimulation):
 
 
 class AICarSim(CarSimulation):
-    def __init__(self, simulation_size = 10, num_of_inputs = 16):
+    def __init__(self, simulation_size = 1, state_size = 13):
         super().__init__()
         """
         VPG model testing variables
         """
-        self.rl_model = A2CModel(16)
-        self.actions = (0.0,0.0)
-        self.sensors = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        self.total_reward = 0
-        self.tick_speedup = elements.UIButton(
+        self.sim_size = simulation_size
+        self.state_size = state_size
+        self.cars = []
+        self.rl_model = A2CModel(self.state_size)
+        # self.rl_model = REINFORCEModel(self.state_size)
+        if game_core.load_model:
+            params = np.load("Model_weights/testing_weights1.npy", allow_pickle=True)
+            self.rl_model.actor.set_network_params(params)
+        self.actions = np.zeros([self.sim_size, 2], np.float32)
+        self.is_crashed = [False] * self.sim_size
+        self.stuck_timer = [0] * self.sim_size
+        self.prev_progress = [0.0] * self.sim_size
+        self.stuck_limit = 900
+        self.tick_speedup = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect((400, 600), (100, 30)),
             text="Click to slow",
             manager=self.gui_manager
         )
-        self.save_ai = elements.UIButton(
+        self.save_ai = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect((400, 650), (100, 30)),
             text="Click to save",
             manager=self.gui_manager
         )
+        game_core.debug_elements["rays"] = [0] * simulation_size
+        self._reset_cars()
 
-    def _reset_cars(self):
-        self.car = AICar(game_core.starting_position)
-        self.game_sprites.add(self.car)
-        self.debug_elements["hitboxes"].append(self.car.hitbox)
-        self.debug_elements["AABB"].append(self.car)
-        self.throttle_and_braking_meter = elements.UIProgressBar(
-            relative_rect=pygame.Rect((game_core.screen_dimensions[0] / 4 - 300, 700), (500, 30)),
-            manager=self.gui_manager
-        )
-        self.speedometer = UIGaugeMeter(
-            relative_rect=pygame.Rect((game_core.screen_dimensions[0] / 4 - 300, 600), (200, 100)),
-            manager=self.gui_manager
-        )
-        
     def update(self):
-        if not self.car.is_crashed:
-            self._model_drive_car()
-            self.car.collision_detection(self.track)
-            reward = self.car.compute_reward()
-            self.total_reward += reward
-            self.rl_model.append_reward(reward)
-            """
-            update testing meters
-            """
-            self.throttle_and_braking_meter.set_current_progress(self.actions[1])
-            self.speedometer.update_value(self.car.velocity.magnitude())
-            
-            super().update(self.actions)
-            
-            
+        if all(self.is_crashed):
+            if len(self.rl_model.rewards) > 0:
+                self._reinitialise_car_simulation()
+                return
 
-    def _model_drive_car(self):
-        state_vector = [*self.actions]
-        progress = self.car.get_progress(self.track.track_spine)
-        if progress >= 0.9:
+        states = np.zeros((self.sim_size, self.state_size), np.float32)
+        rewards = np.zeros(self.sim_size, np.float32)
+        for i, car in enumerate(self.cars):
+            if not self.is_crashed[i]:
+                car.collision_detection(self.track)
+                progress = car.get_progress(self.track.track_spine)
+                rewards[i] = car.compute_reward(self.prev_progress[i])
+
+                if progress - self.prev_progress[i] < 0.001:
+                    self.stuck_timer[i] += 1
+                else:
+                    self.stuck_timer[i] = 0
+                self.prev_progress[i] = progress
+
+                if self.stuck_timer[i] > self.stuck_limit:
+                    car.is_crashed = True
+
+                if car.is_crashed:
+                    self.is_crashed[i] = True
+
+                states[i] = self.get_state_vector(progress, i)
+
+        self.actions, pre_squash = self.rl_model.get_stochastic_actions(states)
+
+        self.rl_model.update_trajectory(states, pre_squash, rewards)
+        for i, car in enumerate(self.cars):
+            if not self.is_crashed[i]:
+                car.update(self.actions[i])
+        self.gui_manager.update(1/game_core.frame_rate)
+
+    def get_state_vector(self, progress, index):
+        car = self.cars[index]
+        state_vector = [self.actions[index][0], (car.velocity.magnitude()/max_speed)]
+
+        # state_vector.append(progress)
+        sensors = car.ray_cast(self.track, index)
+        state_vector.extend(sensors)
+
+        if progress >= 0.999:
             game_core.screen_fill = "green"
-        state_vector.append(progress)
-        self.sensors = self.car.ray_cast(self.track)
-        state_vector.extend(self.sensors)
-        self.actions = clip(self.rl_model.get_actions(state_vector)[0], -1, 1)
 
-    def _reinitialise_car_simulation(self):
-        expected_return = self.rl_model.update_params()
-        print(self.total_reward, expected_return, exp(self.rl_model.actor.log_std))
-        self.total_reward = 0
-        super()._reinitialise_car_simulation()
+        return state_vector
 
     def event_handle(self):
         if self.reset_button in game_core.pressed_buttons:
             self._reinitialise_car_simulation()
         if self.tick_speedup in game_core.pressed_buttons:
             if game_core.tick_speedup == 1:
-                game_core.tick_speedup = 250
-            elif game_core.tick_speedup == 250:
-                game_core.tick_speedup = 550
+                game_core.tick_speedup = 30
+            elif game_core.tick_speedup == 30:
+                game_core.tick_speedup = 60
             else:
                 game_core.tick_speedup = 1
+            self.tick_speedup.set_text(f"speed: {game_core.tick_speedup}")
+
+
         if self.save_ai in game_core.pressed_buttons:
-            with open("Model_weights/" + "testing_weights" + "1" + ".txt", "w") as file:
-                file.write(self.rl_model.neural_net.get_params())
-            print("saved")
+            params = self.rl_model.actor.get_network_params()
+            np.save("Model_weights/testing_weights1.npy", np.array(params, dtype=object), allow_pickle=True)
+            print(params)
         game_core.pressed_buttons.clear()
+
+
+
+    def _reset_cars(self):
+        self.cars.clear()
+        self.game_sprites.empty()
+        self.game_sprites.add(self.track)
+
+        self.is_crashed = [False] * self.sim_size
+        self.stuck_timer = [0] * self.sim_size
+        self.prev_progress = [0.0] * self.sim_size
+
+        for i in range(self.sim_size):
+            car = AICar(game_core.starting_position)
+            self.cars.append(car)
+            self.debug_elements["hitboxes"].append(car.hitbox)
+            self.debug_elements["AABB"].append(car)
+            self.game_sprites.add(car)
 
     def _reset_gui(self):
         super()._reset_gui()
-        self.tick_speedup = elements.UIButton(
+        self.tick_speedup = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect((400, 600), (100, 30)),
-            text="Click to slow",
+            text=f"Speed:{game_core.tick_speedup}",
             manager=self.gui_manager
         )
-        self.save_ai = elements.UIButton(
+        self.save_ai = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect((400, 650), (100, 30)),
             text="Click to save",
             manager=self.gui_manager
         )
+
+    def _reinitialise_car_simulation(self):
+        self.rl_model.update_params()
+        super()._reinitialise_car_simulation()
+
 
 """
 Creates an interface that allows the user to create, save and draw custom tracks.
@@ -231,42 +256,36 @@ class TrackMakerUI(GameMode):
     def __init__(self):
         super().__init__()
 
-        self.instructions_label = elements.UILabel(
-            relative_rect= pygame.Rect((game_core.screen_dimensions[0] // 2 - 250, 100), (500, 30)),
-            text="Click to add control points. Hold SPACE to draw a straight",
-            manager= self.gui_manager,
-        )
-
         self.canvas = UITrackCanvas(
             relative_rect= pygame.Rect((0, 0), (game_core.screen_dimensions[0], game_core.screen_dimensions[1])),
             manager=self.gui_manager
         )
 
-        self.start_drawing_button = elements.UIButton(
+        self.start_drawing_button = pygame_gui.elements.UIButton(
             relative_rect= pygame.Rect((0, 100), (100, 30)),
             text="Click to draw",
             manager=self.gui_manager
         )
 
-        self.save_button = elements.UIButton(
+        self.save_button = pygame_gui.elements.UIButton(
             relative_rect= pygame.Rect((100, 100), (100, 30)),
             text="Click to save",
             manager=self.gui_manager
         )
 
-        self.load_button = elements.UIButton(
+        self.load_button = pygame_gui.elements.UIButton(
             relative_rect= pygame.Rect((200, 100), (100, 30)),
             text="Click to load",
             manager=self.gui_manager
         )
 
-        self.clear_button = elements.UIButton(
+        self.clear_button = pygame_gui.elements.UIButton(
             relative_rect= pygame.Rect((300, 100), (100, 30)),
             text="Click to clear",
             manager=self.gui_manager
         )
 
-        self.start_car_sim_button = elements.UIButton(
+        self.start_car_sim_button = pygame_gui.elements.UIButton(
             relative_rect= pygame.Rect((300, 200), (100, 30)),
             text="Click to start sim",
             manager=self.gui_manager

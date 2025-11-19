@@ -1,14 +1,10 @@
 import math
-from multiprocessing.dummy import current_process
-
 from pygame import Vector2
-
 import resources as r
 import pygame
 from abc import ABC, abstractmethod
 from pygame_gui import elements
 from resources import game_core
-
 from gui_custom_elements import UIGaugeMeter
 
 car_mass = 800
@@ -51,9 +47,7 @@ class Car(pygame.sprite.Sprite, ABC):
         self._original_car = r.set_image("Mclaren")
         self._original_car = pygame.transform.scale(self._original_car, car_proportions)
         self._original_car = pygame.transform.rotate(self._original_car, 180)
-        game_core.game_mode.debug_elements["AABB"].append(self.rect)
         self._update_car_sprite_position()
-
         """
         hitbox -> Stores coordinates of 4 corners of hitbox
         """
@@ -160,9 +154,7 @@ class Car(pygame.sprite.Sprite, ABC):
     # Updates position (rect) of the car sprite
     def _update_car_sprite_position(self):
         self.image = pygame.transform.rotate(self._original_car, -self.direction)
-        # game_core.game_mode.debug_elements["AABB"].remove(self.rect)
         self.rect = self.image.get_rect(center=(int(self.position.x), int(self.position.y)))
-        game_core.game_mode.debug_elements["AABB"].append(self.rect)
 
 class PlayerCar(Car):
     def __init__(self, starting_position = None):
@@ -223,7 +215,7 @@ class PlayerCar(Car):
 class AICar(Car):
     def __init__(self, starting_position = None):
         super().__init__(starting_position)
-        self.ray_cast_angles = [5, 10, 20, 45, 60, 90]
+        self.ray_cast_angles = [10, 20, 45, 60, 90]
         self.car_max_ray_cast = game_core.screen_dimensions[0]
 
     def update(self, actions):
@@ -232,7 +224,7 @@ class AICar(Car):
     # Calls ray cast method of track to get point of collision and normalised distance (w.r.t max ray length)
     # Stores distances as sensor data
     # Adds coordinates of start and end point of each ray to debugger
-    def ray_cast(self, track):
+    def ray_cast(self, track, index):
         center = pygame.Vector2(self.rect.center)
         rays = []
 
@@ -248,23 +240,18 @@ class AICar(Car):
             hit_point, normalised_collision_distance = track.ray_cast(ray)
             collided_rays.append((center, hit_point))
             sensors.append(normalised_collision_distance)
-        game_core.game_mode.debug_elements["rays"] = collided_rays
+        game_core.game_mode.debug_elements["rays"][index] = collided_rays
         return sensors
 
-    def compute_reward(self):
+    def compute_reward(self, prev_progress):
         reward = 0
-
         if self.is_crashed:
-            reward -= 30
+            reward -= 10
         else:
-            reward -= 0.0005
-
-            reward += (self.velocity.magnitude() / max_speed) * 0.6
-
-            if self.velocity.magnitude() > 2:
-                reward += self.progress * 4.5
+            distance_moved = r.clamp_value((self.progress - prev_progress), 0, 0.01)
+            if distance_moved > 0.00005:
+                reward += 0.001
+                reward += distance_moved * 50
             else:
-                reward -= self.progress * 1.5
+                reward -= 0.005
         return reward
-
-

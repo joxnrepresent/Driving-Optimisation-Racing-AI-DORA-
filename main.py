@@ -4,7 +4,6 @@ import resources as r
 from game_modes import TrackMakerUI
 from resources import game_core
 
-
 """
 Main module for running the program. This handles input, updates, and rendering
 """
@@ -15,7 +14,6 @@ pygame.init()
 game_core.gui_manager = pygame_gui.UIManager(game_core.screen_dimensions)
 game_core.set_game_mode(TrackMakerUI)
 
-
 # Game loop which runs indefinitely till program is closed
 def game_loop():
     while True:
@@ -24,6 +22,5 @@ def game_loop():
                 game_core.cache_events(event)
             game_core.process_frame()
         game_core.render()
-
 game_loop()
 

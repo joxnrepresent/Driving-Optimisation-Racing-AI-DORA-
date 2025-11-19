@@ -75,6 +75,9 @@ class UITrackCanvas(UIElement):
         self.anchor_points = []
         self.control_points = []
         self.point_size = 5
+        self.track_spine = []
+        self.walls = []
+        self.max_handle_length = 100
         self.image = pygame.Surface((relative_rect.width, relative_rect.height))
         self.is_dragging = False
         self.is_click_buffer = False
@@ -115,40 +118,48 @@ class UITrackCanvas(UIElement):
                             p3 = relative_mouse_pos
                             self.control_points.extend(self.get_bezier_points(p0, p1, p2, p3))
                             if len(self.anchor_points) > 2:
-                                p0 = self.anchor_points[-4] if len(self.anchor_points) > 3 else self.anchor_points[-3]
-                                p1 = self.anchor_points[-3]
-                                p2 = self.anchor_points[-2]
-                                p3 = self.anchor_points[-1]
-                                self.control_points[-4], self.control_points[-3] = self.get_bezier_points(p0, p1,
-                                                                                                          p2, p3)
+                                anchor = self.anchor_points[-2]
+                                handle_length = (self.control_points[-2] - anchor).length()
+                                direction = (self.control_points[-2] - anchor).normalize()
+
+                                updated_handle_point = anchor - handle_length * direction
+                                self.control_points[-3] = updated_handle_point
 
                 if event.type == pygame.MOUSEMOTION:
                     if self.is_dragging:
+                        point_index = self.drag_point[0]
                         if self.is_anchor_point_selected:
-                            self.anchor_points[self.drag_point[0]] = relative_mouse_pos
+                            translate_vector = relative_mouse_pos - self.anchor_points[point_index]
+                            self.anchor_points[point_index] = relative_mouse_pos
+                            if point_index*2 < len(self.control_points):
+                                self.control_points[point_index * 2] += translate_vector
+                            if point_index != 0:
+                                self.control_points[point_index * 2 - 1] += translate_vector
+
                         else:
-                            translate_vector = relative_mouse_pos - self.control_points[self.drag_point[0]]
-                            self.control_points[self.drag_point[0]] = relative_mouse_pos
+                            corresponding_anchor_index = point_index//2 if point_index % 2 == 0 else point_index //2+1
+                            anchor_point = self.anchor_points[corresponding_anchor_index]
+                            clamped_translation = (relative_mouse_pos - anchor_point).clamp_magnitude(self.max_handle_length)
+                            moved_point = anchor_point + clamped_translation
+                            self.control_points[point_index] = moved_point
                             mirror_point_index = None
-                            if (self.drag_point[0] % 2 == 0
-                                    and self.drag_point[0] != 0
-                                    and self.drag_point[0] != len(self.control_points) - 1):
-                                mirror_point_index = self.drag_point[0] - 1
-                            elif (self.drag_point[0] != 0
-                                    and self.drag_point[0] != len(self.control_points) - 1):
-                                mirror_point_index = self.drag_point[0] + 1
+                            if (point_index % 2 == 0
+                                    and point_index != 0
+                                    and point_index != len(self.control_points) - 1):
+                                mirror_point_index = point_index - 1
+                            elif (point_index != 0
+                                    and point_index != len(self.control_points) - 1):
+                                mirror_point_index = point_index + 1
                             if mirror_point_index:
-                                self.control_points[mirror_point_index] -= translate_vector
+                                self.control_points[mirror_point_index] = anchor_point - clamped_translation
                         self.mouse_pos = None
                     else:
                         self.mouse_pos = relative_mouse_pos
-
 
                 if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                     self.is_click_buffer = False
                     self.is_dragging = False
                     self.drag_point = None
-
 
             self.rebuild()
 
@@ -167,14 +178,14 @@ class UITrackCanvas(UIElement):
             if i == len(self.control_points) - 1:
                 pygame.draw.line(self.image, "green", handle, self.anchor_points[-1], 2)
 
-        for i in range(len(self.anchor_points)-1):
-            p1, p2 = self.anchor_points[i], self.anchor_points[i+1]
-            b1, b2 = self.control_points[2*i], self.control_points[2*i + 1]
-            curve_segments = self.evaluate_curve(p1, b1, b2, p2)
-            r.draw_alternating_line_segments(self.image, curve_segments)
+        self.track_spine = r.generate_track_spine(self.anchor_points, self.control_points)
+        r.draw_alternating_line_segments(self.image, self.track_spine)
+        outer_walls, inner_walls = r.generate_track(self.anchor_points, self.control_points)
+        self.walls = outer_walls + inner_walls
 
 
-    def catmull_rom(self, p0, p1, p2, p3, resolution = 50):
+    @staticmethod
+    def catmull_rom(p0, p1, p2, p3, resolution = 100):
         # Caching coefficients of cubic in terms of t (at^3 + bt^2 + ct + d)
         a = -p0 + 3*p1 - 3*p2 + p3
         b = 2*p0 - 5*p1 + 4*p2 - p3
@@ -191,32 +202,17 @@ class UITrackCanvas(UIElement):
 
         return curve_points
 
-    def get_bezier_points(self, p0, p1, p2, p3):
+    @staticmethod
+    def get_bezier_points(p0, p1, p2, p3):
         b1 = p1 + (p2 - p0) / 6
         b2 = p2 - (p3 - p1) / 6
-        return (b1, b2)
+        return b1, b2
 
-    def evaluate_curve(self, p1, b1,b2,p2, resolution = 50):
-        curve_segments = []
-        for i in range(resolution + 1):
-            t = i/resolution
-            points = [p1, b1, b2, p2]
-            curve_point = self.de_casteljau(points, t)
-            if t != 0:
-                curve_segments.append((cache_point, curve_point))
-            cache_point = curve_point
-        return curve_segments
 
-    def de_casteljau(self, points, t):
-        if len(points) == 1:
-            # Base case
-            return points[0]
 
-        # Recursive case
-        new_points = []
-        for i in range(len(points) - 1):
-            new_points.append((1 - t) * points[i] + t * points[i + 1])
-        return self.de_casteljau(new_points, t)
+
+
+
 
 #
 # class UITrackCanvas(UIElement):

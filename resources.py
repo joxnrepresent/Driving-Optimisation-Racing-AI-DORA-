@@ -1,9 +1,9 @@
 import math
 import pygame
 import pygame_gui
-from pygame_gui import UIManager
 from collections import defaultdict
 from numpy import exp
+from pygame import Vector2
 
 """
 This module contains shared resources like constants, game-state variables (singletons), and utility 
@@ -11,12 +11,11 @@ functions/methods used throughout the project.
 """
 #---------------------------------------------------------------------------------------------------------------------#
 
-"""Singletons"""
-
 class GameCore:
     def __init__(self):
         # Program constants
-        self.is_debugging = True
+        self.is_debugging = False
+        self.load_model = False
         self.frame_rate = 60
         self.tick_speedup = 1
         self.screen_dimensions = (1200, 750)
@@ -45,25 +44,30 @@ class GameCore:
 
     def render(self):
         self.main_screen.fill(self.screen_fill)
+
+        # Debug graphics
         if self.is_debugging:
             if self.debug_elements:
                 for element_type, elements in self.debug_elements.items():
                     for element in elements:
                         if element_type == "hitboxes":
                             pygame.draw.polygon(self.main_screen, "red", element, 2)
-                        # elif element_type == "AABB":
-                        #     pygame.draw.rect(self.main_screen, "red", element, 2)
+                        elif element_type == "AABB":
+                            pygame.draw.rect(self.main_screen, "red", element.rect, 2)
                         elif element_type == "rays":
                             try:
-                                pygame.draw.line(self.main_screen, "red", element[0], element[1])
+                                for ray in element:
+                                    pygame.draw.line(self.main_screen, "red", ray[0], ray[1])
                             except:
                                 print(element)
-                        # elif element_type == "track spine":
-                        #     for i in range(len(element) - 1):
-                        #         draw_line(self.main_screen, "Blue", element[i], element[i + 1])
+                        elif element_type == "track spine":
+                            for i in range(len(element) - 1):
+                                draw_line(self.main_screen, "Blue", element[i], element[i + 1])
                         if element_type == "grid lines":
                             if element:
                                 draw_grid(self.main_screen)
+
+        # Main game rendering
         self.game_sprites.draw(self.main_screen)
         self.gui_manager.draw_ui(self.main_screen)
         pygame.display.flip()
@@ -89,7 +93,6 @@ game_core = GameCore()
 
 
 """Utility functions"""
-
 
 # Loads an image using the file name (png only)
 def set_image(image):
@@ -139,7 +142,12 @@ def draw_track_outline(surface, strokes):
             pygame.draw.line(surface, colour, stroke[i], stroke[i + 1], 3)
 
 def draw_line(surface, colour, p1, p2):
-    pygame.draw.line(surface, colour, p1, p2, 2)
+    pygame.draw.line(surface, colour, p1, p2, 3)
+
+def plot_line(surface, colour, p1, p2):
+    pygame.draw.circle(surface, colour, p1, 2)
+    pygame.draw.circle(surface, colour, p2, 2)
+
 
 def draw_alternating_line_segments(surface, segments):
     colour = "black"
@@ -149,7 +157,7 @@ def draw_alternating_line_segments(surface, segments):
             colour = "black"
         else:
             colour = "red"
-        pygame.draw.line(surface, colour, p1, p2, 3)
+        pygame.draw.line(surface, colour, p1, p2, 4)
         is_black = not is_black
 
 def draw_grid(surface, color="green", cell_size = 20):
@@ -209,3 +217,54 @@ def get_line_segments_intersection(seg1, seg2):
 
 def transformed_sigmoid(x):
     return (2.0 / (1.0 + exp(-x)))-1
+
+def generate_track_spine(anchor_points, control_points):
+    track_spine = []
+    for i in range(len(anchor_points) - 1):
+        p1, p2 = anchor_points[i], anchor_points[i + 1]
+        b1, b2 = control_points[2 * i], control_points[2 * i + 1]
+        track_spine.extend(generate_spine_segments(p1, b1, b2, p2))
+    return track_spine
+
+def generate_spine_segments(p1, b1,b2,p2, resolution = 50):
+    curve_segments = []
+    for i in range(resolution + 1):
+        t = i/resolution
+        points = [p1, b1, b2, p2]
+        curve_point = de_casteljau(points, t)
+        if t != 0:
+            curve_segments.append((cache_point, curve_point))
+        cache_point = curve_point
+    return curve_segments
+
+def de_casteljau(points, t):
+    if len(points) == 1:
+        # Base case
+        return points[0]
+
+    # Recursive case
+    new_points = []
+    for i in range(len(points) - 1):
+        new_points.append((1 - t) * points[i] + t * points[i + 1])
+    return de_casteljau(new_points, t)
+
+def generate_track(anchor_points, control_points, width = 50):
+    track_spine = generate_track_spine(anchor_points, control_points)
+    outer_walls = []
+    inner_walls = []
+    for segment in track_spine:
+        start_point, end_point = Vector2(segment[0]), Vector2(segment[1])
+        direction_vector = end_point - start_point
+        normal_vector = direction_vector.rotate(90).normalize()
+        outer_wall = (start_point + normal_vector * width,
+                      end_point + normal_vector * width)
+        inner_wall = (start_point - normal_vector * width,
+                      end_point - normal_vector * width)
+        if outer_walls:
+            outer_walls.append((outer_walls[-1][1], outer_wall[0]))
+        outer_walls.append(outer_wall)
+        if inner_walls:
+            inner_walls.append((inner_walls[-1][1], inner_wall[0]))
+        inner_walls.append(inner_wall)
+    return outer_walls, inner_walls
+
