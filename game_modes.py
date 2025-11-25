@@ -100,11 +100,8 @@ class RacingSim(CarSimulation):
 
 
 class AICarSim(CarSimulation):
-    def __init__(self, simulation_size = 1, state_size = 13):
+    def __init__(self, simulation_size = 10, state_size = 13):
         super().__init__()
-        """
-        VPG model testing variables
-        """
         self.sim_size = simulation_size
         self.state_size = state_size
         self.cars = []

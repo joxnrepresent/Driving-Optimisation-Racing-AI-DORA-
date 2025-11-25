@@ -77,7 +77,7 @@ class RLModel(ABC):
 
 
 class REINFORCEModel(RLModel):
-    def __init__(self, input_size, output_size = 2, hidden_layer_sizes=[128, 128, 128,128,128,128], seed=None):
+    def __init__(self, input_size, output_size = 2, hidden_layer_sizes=[64, 64], seed=None):
         # Initialising neural network (actor for A2C)
         layer_sizes = [input_size] + hidden_layer_sizes + [output_size]
         activations = ['tanh'] * len(hidden_layer_sizes) + ['custom linear']
@@ -91,7 +91,7 @@ class REINFORCEModel(RLModel):
         self.clear_trajectory()
 
 class A2CModel(RLModel):
-    def __init__(self, input_size, output_size = 2, actor_hidden_layers = [64, 64],
+    def __init__(self, input_size, output_size = 2, actor_hidden_layers = [16, 32, 32, 16],
                  critic_hidden_layers = [64, 64], num_of_steps = 100, seed=None):
         actor_layers = [input_size] + actor_hidden_layers + [output_size]
         actor_activations = ['tanh'] * len(actor_hidden_layers) + ['tanh']

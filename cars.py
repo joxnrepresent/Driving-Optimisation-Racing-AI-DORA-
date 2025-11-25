@@ -253,5 +253,5 @@ class AICar(Car):
                 reward += 0.001
                 reward += distance_moved * 50
             else:
-                reward -= 0.005
+                reward -= 0.002
         return reward

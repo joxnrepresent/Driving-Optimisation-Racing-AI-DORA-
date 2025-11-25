@@ -45,6 +45,12 @@ class GameCore:
     def render(self):
         self.main_screen.fill(self.screen_fill)
 
+
+        # Main game rendering
+        self.game_sprites.draw(self.main_screen)
+        self.gui_manager.draw_ui(self.main_screen)
+
+
         # Debug graphics
         if self.is_debugging:
             if self.debug_elements:
@@ -66,10 +72,6 @@ class GameCore:
                         if element_type == "grid lines":
                             if element:
                                 draw_grid(self.main_screen)
-
-        # Main game rendering
-        self.game_sprites.draw(self.main_screen)
-        self.gui_manager.draw_ui(self.main_screen)
         pygame.display.flip()
         self.clock.tick(game_core.frame_rate)
 
@@ -149,16 +151,16 @@ def plot_line(surface, colour, p1, p2):
     pygame.draw.circle(surface, colour, p2, 2)
 
 
-def draw_alternating_line_segments(surface, segments):
-    colour = "black"
+def draw_alternating_line_segments(surface, points):
     is_black = True
-    for (p1, p2) in segments:
-        if is_black:
-            colour = "black"
-        else:
-            colour = "red"
-        pygame.draw.line(surface, colour, p1, p2, 4)
-        is_black = not is_black
+    if points:
+        for i in range(len(points)-1):
+            if is_black:
+                colour = "black"
+            else:
+                colour = "red"
+            pygame.draw.line(surface, colour, points[i], points[i+1], 4)
+            is_black = not is_black
 
 def draw_grid(surface, color="green", cell_size = 20):
     w,h = surface.get_size()
@@ -208,7 +210,7 @@ def get_line_segments_intersection(seg1, seg2):
     alpha = alpha_numerator/denominator
     beta = beta_numerator/denominator
 
-    if alpha >= 0 and 0 <= beta <= 1:
+    if 0 <= alpha <= 1 and 0 <= beta <= 1:
         x = x1 + alpha * (x2 - x1)
         y = y1 + alpha * (y2 - y1)
         return x, y
@@ -223,19 +225,22 @@ def generate_track_spine(anchor_points, control_points):
     for i in range(len(anchor_points) - 1):
         p1, p2 = anchor_points[i], anchor_points[i + 1]
         b1, b2 = control_points[2 * i], control_points[2 * i + 1]
-        track_spine.extend(generate_spine_segments(p1, b1, b2, p2))
-    return track_spine
+        track_spine.extend(generate_spine_points(p1, b1, b2, p2))
 
-def generate_spine_segments(p1, b1,b2,p2, resolution = 50):
-    curve_segments = []
+    cleaned_track_spine = []
+    for point in track_spine:
+        if not cleaned_track_spine or (point - cleaned_track_spine[-1]).length_squared() > 0.001:
+            cleaned_track_spine.append(point)
+    return cleaned_track_spine
+
+def generate_spine_points(p1, b1,b2,p2, resolution = 50):
+    spine_points = []
     for i in range(resolution + 1):
         t = i/resolution
-        points = [p1, b1, b2, p2]
-        curve_point = de_casteljau(points, t)
-        if t != 0:
-            curve_segments.append((cache_point, curve_point))
-        cache_point = curve_point
-    return curve_segments
+        anchor_points = [p1, b1, b2, p2]
+        spine_point = de_casteljau(anchor_points, t)
+        spine_points.append(spine_point)
+    return spine_points
 
 def de_casteljau(points, t):
     if len(points) == 1:
@@ -250,21 +255,38 @@ def de_casteljau(points, t):
 
 def generate_track(anchor_points, control_points, width = 50):
     track_spine = generate_track_spine(anchor_points, control_points)
-    outer_walls = []
-    inner_walls = []
-    for segment in track_spine:
-        start_point, end_point = Vector2(segment[0]), Vector2(segment[1])
-        direction_vector = end_point - start_point
-        normal_vector = direction_vector.rotate(90).normalize()
-        outer_wall = (start_point + normal_vector * width,
-                      end_point + normal_vector * width)
-        inner_wall = (start_point - normal_vector * width,
-                      end_point - normal_vector * width)
-        if outer_walls:
-            outer_walls.append((outer_walls[-1][1], outer_wall[0]))
-        outer_walls.append(outer_wall)
-        if inner_walls:
-            inner_walls.append((inner_walls[-1][1], inner_wall[0]))
-        inner_walls.append(inner_wall)
-    return outer_walls, inner_walls
+    outer_wall_points = []
+    inner_wall_points = []
+    for i in range(len(track_spine)-1):
+        spine_point, next_point = track_spine[i], track_spine[i+1]
+        forward = (next_point - spine_point).normalize()
+        if i > 0:
+            backward = (spine_point - track_spine[i - 1]).normalize()
+        else:
+            backward = forward  # first point
+
+        tangent = (forward + backward)
+        if tangent.length_squared() == 0:
+            tangent = forward
+
+        normal_vector = tangent.rotate(90).normalize()
+        outer_wall_point = spine_point - normal_vector * width
+        inner_wall_point = spine_point + normal_vector * width
+        is_outer_wall_valid = True
+        is_inner_wall_valid = True
+        valid_distance = width ** 2 -1
+        for j in range(i-40, i+40):
+            if (outer_wall_point - track_spine[j % len(track_spine)]).length_squared() < valid_distance:
+                is_outer_wall_valid = False
+                break
+        for j in range(i - 40, i + 40):
+            if (inner_wall_point - track_spine[j % len(track_spine)]).length_squared() < valid_distance:
+                is_inner_wall_valid = False
+                break
+
+        if is_outer_wall_valid:
+            outer_wall_points.append(outer_wall_point)
+        if is_inner_wall_valid:
+            inner_wall_points.append(inner_wall_point)
+    return outer_wall_points, inner_wall_points
 

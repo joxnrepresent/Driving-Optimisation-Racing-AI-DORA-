@@ -1,5 +1,5 @@
 import resources as r
-from math import floor, hypot
+from math import floor,sqrt
 from pygame.sprite import Sprite
 from pygame import Surface, Rect, SRCALPHA, Vector2
 from collections import defaultdict
@@ -37,8 +37,8 @@ class Track(Sprite):
         ray_start = Vector2(ray[0])
         ray_end = Vector2(ray[1])
         hit_point = Vector2(self.grid.return_collision_point(ray, self.wall_segments))
-        normalised_distance = ((hit_point - ray_start).magnitude() / (ray_end-ray_start).magnitude())
-        return hit_point, normalised_distance
+        normalised_distance = ((hit_point - ray_start).length_squared() / (ray_end-ray_start).length_squared())
+        return hit_point, sqrt(normalised_distance)
 
     # Checks each border of the hitbox for collision with track segments in the cells it passes through
     def hitbox_collision_detection(self, hitbox):
@@ -53,9 +53,11 @@ class Track(Sprite):
     # Colour alternates between black and red
     def draw_track(self):
         self.image.fill((0, 0, 0, 0))
-        for cell_segments in self.grid.cells.values():
-            wall_segments = [self.wall_segments[i] for i in cell_segments]
-            r.draw_alternating_line_segments(self.image, wall_segments)
+        wall_points =[]
+        wall_indices = self.grid.get_wall_segment_indices()
+        for index in wall_indices:
+            wall_points.extend(self.wall_segments[index])
+        r.draw_alternating_line_segments(self.image, wall_points)
         game_core.game_mode.debug_elements["track spine"] = [self.track_spine]
 
 
@@ -65,14 +67,14 @@ class SpatialHashGrid:
     wall segments in that cell as the value. Also includes dda travelsal method and helper methods to hash and query
     cells.
     """
-    def __init__(self):
+    def __init__(self, cell_size = 10):
         self.cells = defaultdict(list)
-        self.shg_cell_size = 20
-        game_core.game_mode.debug_elements["grid lines"].append(True)
+        self.cell_size = cell_size
+        game_core.debug_elements["grid lines"] = [True]
 
     def get_cell_index_of_point(self, point):
         x, y = point
-        return int(floor(x / self.shg_cell_size)), int(floor(y / self.shg_cell_size))
+        return int(floor(x / self.cell_size)), int(floor(y / self.cell_size))
 
     def _add_segment_to_cell(self, ix, iy, segment_index):
         self.cells[(ix, iy)].append(segment_index)
@@ -86,6 +88,17 @@ class SpatialHashGrid:
                     return hit_point
         return None
 
+    def get_all_collision_indices(self, ix, iy, check_segment, points_list):
+        collisions = []
+        if (ix, iy) in self.cells:
+            for seg_index in self.cells[(ix, iy)]:
+                seg = (points_list[seg_index], points_list[seg_index+1])
+                hit_point = r.get_line_segments_intersection(check_segment, seg)
+                if hit_point:
+                   collisions.append(seg_index)
+        return collisions
+
+
     def dda_grid_traverse(self, segment, on_visit):
         (x1, y1), (x2, y2) = segment
         dx = x2 - x1
@@ -94,13 +107,13 @@ class SpatialHashGrid:
         ex, ey = self.get_cell_index_of_point((x2, y2))
 
         step_x = r.sign(dx)
-        t_delta_x = (self.shg_cell_size / abs(dx)) if dx != 0 else float('inf')
-        next_boundary_x = (ix + 1) * self.shg_cell_size if step_x == 1 else ix * self.shg_cell_size
+        t_delta_x = (self.cell_size / abs(dx)) if dx != 0 else float('inf')
+        next_boundary_x = (ix + 1) * self.cell_size if step_x == 1 else ix * self.cell_size
         t_max_x = (next_boundary_x - x1) / dx if dx != 0 else float("inf")
 
         step_y = r.sign(dy)
-        t_delta_y = (self.shg_cell_size / abs(dy)) if dy != 0 else float('inf')
-        next_boundary_y = (iy + 1) * self.shg_cell_size if step_y == 1 else iy * self.shg_cell_size
+        t_delta_y = (self.cell_size / abs(dy)) if dy != 0 else float('inf')
+        next_boundary_y = (iy + 1) * self.cell_size if step_y == 1 else iy * self.cell_size
         t_max_y = (next_boundary_y - y1) / dy if dy != 0 else float("inf")
 
         max_steps = (abs(ex - ix) + abs(ey - iy) + 10)
@@ -124,7 +137,21 @@ class SpatialHashGrid:
 
     def return_collision_point(self, ray, wall_segments):
         return self.dda_grid_traverse(ray, on_visit=lambda ix, iy:
-                                                    self._check_cell_for_collision(ix, iy, ray, wall_segments))
+        self._check_cell_for_collision(ix, iy, ray, wall_segments))
+
+    def return_all_collisions(self, check_segment, points_list):
+        return self.dda_grid_traverse(check_segment, on_visit=lambda ix, iy:
+        self.get_all_collision_indices(ix, iy, check_segment, points_list))
+
+    def clear_grid(self):
+        self.cells = defaultdict(list)
+
+    def get_wall_segment_indices(self):
+        cell_elements = self.cells.values()
+        indices = []
+        for element in cell_elements:
+            indices.extend(element)
+        return indices
 
 
 
