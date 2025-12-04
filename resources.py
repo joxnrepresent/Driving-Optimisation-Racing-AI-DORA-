@@ -143,8 +143,8 @@ def draw_track_outline(surface, strokes):
             is_black = not is_black
             pygame.draw.line(surface, colour, stroke[i], stroke[i + 1], 3)
 
-def draw_line(surface, colour, p1, p2):
-    pygame.draw.line(surface, colour, p1, p2, 3)
+def draw_line(surface, colour, p1, p2, width = 3):
+    pygame.draw.line(surface, colour, p1, p2, width)
 
 def plot_line(surface, colour, p1, p2):
     pygame.draw.circle(surface, colour, p1, 2)
@@ -229,7 +229,7 @@ def generate_track_spine(anchor_points, control_points):
 
     cleaned_track_spine = []
     for point in track_spine:
-        if not cleaned_track_spine or (point - cleaned_track_spine[-1]).length_squared() > 0.001:
+        if not cleaned_track_spine or (point - cleaned_track_spine[-1]).length_squared() > 5:
             cleaned_track_spine.append(point)
     return cleaned_track_spine
 
@@ -274,7 +274,7 @@ def generate_track(anchor_points, control_points, width = 50):
         inner_wall_point = spine_point + normal_vector * width
         is_outer_wall_valid = True
         is_inner_wall_valid = True
-        valid_distance = width ** 2 -1
+        valid_distance = width ** 2 -10
         for j in range(i-40, i+40):
             if (outer_wall_point - track_spine[j % len(track_spine)]).length_squared() < valid_distance:
                 is_outer_wall_valid = False

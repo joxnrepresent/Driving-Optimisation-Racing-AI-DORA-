@@ -216,10 +216,10 @@ class AICar(Car):
     def __init__(self, starting_position = None):
         super().__init__(starting_position)
         self.ray_cast_angles = [10, 20, 45, 60, 90]
-        self.car_max_ray_cast = game_core.screen_dimensions[0]
+        self.car_max_ray_cast = game_core.screen_dimensions[0] * 0.8
 
-    def update(self, actions):
-        self._car_movement(*actions)
+    def update(self, target_actions):
+        self._car_movement(*target_actions)
 
     # Calls ray cast method of track to get point of collision and normalised distance (w.r.t max ray length)
     # Stores distances as sensor data
@@ -243,15 +243,12 @@ class AICar(Car):
         game_core.game_mode.debug_elements["rays"][index] = collided_rays
         return sensors
 
-    def compute_reward(self, prev_progress):
+    def compute_reward(self, prev_progress, max_progress):
         reward = 0
         if self.is_crashed:
             reward -= 10
         else:
             distance_moved = r.clamp_value((self.progress - prev_progress), 0, 0.01)
-            if distance_moved > 0.00005:
-                reward += 0.001
-                reward += distance_moved * 50
-            else:
-                reward -= 0.002
+            reward += distance_moved * 50
+            reward += 0.0005
         return reward

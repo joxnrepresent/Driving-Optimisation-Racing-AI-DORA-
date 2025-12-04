@@ -36,7 +36,9 @@ class Track(Sprite):
     def ray_cast(self, ray):
         ray_start = Vector2(ray[0])
         ray_end = Vector2(ray[1])
-        hit_point = Vector2(self.grid.return_collision_point(ray, self.wall_segments))
+        hit_point = self.grid.return_collision_point(ray, self.wall_segments)
+        if not hit_point:
+            hit_point = ray_end
         normalised_distance = ((hit_point - ray_start).length_squared() / (ray_end-ray_start).length_squared())
         return hit_point, sqrt(normalised_distance)
 

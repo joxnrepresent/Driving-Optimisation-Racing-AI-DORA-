@@ -100,7 +100,7 @@ class RacingSim(CarSimulation):
 
 
 class AICarSim(CarSimulation):
-    def __init__(self, simulation_size = 10, state_size = 13):
+    def __init__(self, simulation_size = 6, state_size = 11):
         super().__init__()
         self.sim_size = simulation_size
         self.state_size = state_size
@@ -114,7 +114,8 @@ class AICarSim(CarSimulation):
         self.is_crashed = [False] * self.sim_size
         self.stuck_timer = [0] * self.sim_size
         self.prev_progress = [0.0] * self.sim_size
-        self.stuck_limit = 900
+        self.max_progress = [0.0] * self.sim_size
+        self.stuck_limit = 500
         self.tick_speedup = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect((400, 600), (100, 30)),
             text="Click to slow",
@@ -140,13 +141,14 @@ class AICarSim(CarSimulation):
             if not self.is_crashed[i]:
                 car.collision_detection(self.track)
                 progress = car.get_progress(self.track.track_spine)
-                rewards[i] = car.compute_reward(self.prev_progress[i])
+                rewards[i] = car.compute_reward(self.prev_progress[i], self.max_progress[i])
 
                 if progress - self.prev_progress[i] < 0.001:
                     self.stuck_timer[i] += 1
                 else:
                     self.stuck_timer[i] = 0
                 self.prev_progress[i] = progress
+                self.max_progress[i] = max(progress, self.max_progress[i])
 
                 if self.stuck_timer[i] > self.stuck_limit:
                     car.is_crashed = True
@@ -166,8 +168,8 @@ class AICarSim(CarSimulation):
 
     def get_state_vector(self, progress, index):
         car = self.cars[index]
-        state_vector = [self.actions[index][0], (car.velocity.magnitude()/max_speed)]
-
+        # state_vector = [self.actions[index][0], (car.velocity.magnitude()/max_speed)]
+        state_vector = []
         # state_vector.append(progress)
         sensors = car.ray_cast(self.track, index)
         state_vector.extend(sensors)
@@ -182,9 +184,9 @@ class AICarSim(CarSimulation):
             self._reinitialise_car_simulation()
         if self.tick_speedup in game_core.pressed_buttons:
             if game_core.tick_speedup == 1:
-                game_core.tick_speedup = 30
-            elif game_core.tick_speedup == 30:
-                game_core.tick_speedup = 60
+                game_core.tick_speedup = 50
+            elif game_core.tick_speedup == 50:
+                game_core.tick_speedup = 100
             else:
                 game_core.tick_speedup = 1
             self.tick_speedup.set_text(f"speed: {game_core.tick_speedup}")

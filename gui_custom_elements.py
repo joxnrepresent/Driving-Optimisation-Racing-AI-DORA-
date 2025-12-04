@@ -76,6 +76,7 @@ class UITrackCanvas(UIElement):
         self.track_spine = []
         self.outer_wall_points = []
         self.inner_wall_points = []
+        self.invalid_points = []
         self.max_handle_length = 100
         self.image = pygame.Surface((relative_rect.width, relative_rect.height))
         self.is_dragging = False
@@ -87,8 +88,6 @@ class UITrackCanvas(UIElement):
         self.rebuild()
 
     def process_event(self, event):
-        anchors_copy = [v.copy() for v in self.anchor_points]
-        controls_copy = [v.copy() for v in self.control_points]
         if event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP, pygame.MOUSEMOTION):
             if self.rect.collidepoint(event.pos):
                 relative_mouse_pos = Vector2(event.pos[0] - self.rect.x, event.pos[1] - self.rect.y)
@@ -96,13 +95,13 @@ class UITrackCanvas(UIElement):
                     self.is_click_buffer = True
                     is_point_clicked = False
                     clicked_point = None
-                    for i, point in enumerate(anchors_copy):
+                    for i, point in enumerate(self.anchor_points):
                         if (relative_mouse_pos - point).length() <= self.point_size:
                             is_point_clicked = True
                             self.is_anchor_point_selected = True
                             clicked_point = (i, point)
 
-                    for i, point in enumerate(controls_copy):
+                    for i, point in enumerate(self.control_points):
                         if (relative_mouse_pos - point).length() <= self.point_size:
                             is_point_clicked = True
                             self.is_anchor_point_selected = False
@@ -112,48 +111,48 @@ class UITrackCanvas(UIElement):
                         self.is_dragging = True
                         self.drag_point = clicked_point
                     else:
-                        anchors_copy.append(relative_mouse_pos)
-                        if len(anchors_copy) > 1:
-                            p0 = anchors_copy[-3] if len(anchors_copy) >2 else anchors_copy[-2]
-                            p1 = anchors_copy[-2]
-                            p2 = anchors_copy[-1]
+                        self.anchor_points.append(relative_mouse_pos)
+                        if len(self.anchor_points) > 1:
+                            p0 = self.anchor_points[-3] if len(self.anchor_points) >2 else self.anchor_points[-2]
+                            p1 = self.anchor_points[-2]
+                            p2 = self.anchor_points[-1]
                             p3 = relative_mouse_pos
-                            controls_copy.extend(self.get_bezier_points(p0, p1, p2, p3))
-                            if len(anchors_copy) > 2:
-                                anchor = anchors_copy[-2]
-                                handle_length = (controls_copy[-2] - anchor).length()
-                                direction = (controls_copy[-2] - anchor).normalize()
+                            self.control_points.extend(self.get_bezier_points(p0, p1, p2, p3))
+                            if len(self.anchor_points) > 2:
+                                anchor = self.anchor_points[-2]
+                                handle_length = (self.control_points[-2] - anchor).length()
+                                direction = (self.control_points[-2] - anchor).normalize()
 
                                 updated_handle_point = anchor - handle_length * direction
-                                controls_copy[-3] = updated_handle_point
+                                self.control_points[-3] = updated_handle_point
 
                 if event.type == pygame.MOUSEMOTION:
                     if self.is_dragging:
                         point_index = self.drag_point[0]
                         if self.is_anchor_point_selected:
-                            translate_vector = relative_mouse_pos - anchors_copy[point_index]
-                            anchors_copy[point_index] = relative_mouse_pos
-                            if point_index*2 < len(controls_copy):
-                                controls_copy[point_index * 2] += translate_vector
+                            translate_vector = relative_mouse_pos - self.anchor_points[point_index]
+                            self.anchor_points[point_index] = relative_mouse_pos
+                            if point_index*2 < len(self.control_points):
+                                self.control_points[point_index * 2] += translate_vector
                             if point_index != 0:
-                                controls_copy[point_index * 2 - 1] += translate_vector
+                                self.control_points[point_index * 2 - 1] += translate_vector
 
                         else:
                             corresponding_anchor_index = point_index//2 if point_index % 2 == 0 else point_index //2+1
-                            anchor_point = anchors_copy[corresponding_anchor_index]
+                            anchor_point = self.anchor_points[corresponding_anchor_index]
                             clamped_translation = (relative_mouse_pos - anchor_point).clamp_magnitude(self.max_handle_length)
                             moved_point = anchor_point + clamped_translation
-                            controls_copy[point_index] = moved_point
+                            self.control_points[point_index] = moved_point
                             mirror_point_index = None
                             if (point_index % 2 == 0
                                     and point_index != 0
-                                    and point_index != len(controls_copy) - 1):
+                                    and point_index != len(self.control_points) - 1):
                                 mirror_point_index = point_index - 1
                             elif (point_index != 0
-                                    and point_index != len(controls_copy) - 1):
+                                    and point_index != len(self.control_points) - 1):
                                 mirror_point_index = point_index + 1
                             if mirror_point_index:
-                                controls_copy[mirror_point_index] = anchor_point - clamped_translation
+                                self.control_points[mirror_point_index] = anchor_point - clamped_translation
                         self.mouse_pos = None
                     else:
                         self.mouse_pos = relative_mouse_pos
@@ -162,20 +161,14 @@ class UITrackCanvas(UIElement):
                     self.is_click_buffer = False
                     self.is_dragging = False
                     self.drag_point = None
-            outer_wall_points, inner_wall_points = r.generate_track(anchors_copy, controls_copy)
+
+            outer_wall_points, inner_wall_points = r.generate_track(self.anchor_points, self.control_points)
             self.hash_grid(outer_wall_points, inner_wall_points)
-            is_valid = self.check_validity(outer_wall_points, inner_wall_points)
-            if is_valid:
-                self.anchor_points = anchors_copy
-                self.control_points = controls_copy
-                self.track_spine = r.generate_track_spine(self.anchor_points, self.control_points)
-                self.outer_wall_points, self.inner_wall_points = outer_wall_points, inner_wall_points
-            else:
-                self.is_dragging = False
-                self.is_click_buffer = False
-                self.is_anchor_point_selected = False
-                self.drag_point = None
-                self.mouse_pos = None
+            self.check_validity(self.anchor_points, outer_wall_points, inner_wall_points)
+            self.track_spine = r.generate_track_spine(self.anchor_points, self.control_points)
+            self.outer_wall_points, self.inner_wall_points = outer_wall_points, inner_wall_points
+            print(len(self.outer_wall_points), len(self.inner_wall_points), len(self.track_spine))
+
             self.rebuild()
 
     def rebuild(self):
@@ -206,10 +199,17 @@ class UITrackCanvas(UIElement):
         #         r.draw_line(self.image, colour, self.track_spine[spine_index], self.track_spine[spine_index+1])
 
         r.draw_alternating_line_segments(self.image, self.track_spine)
+
         for i in range(len(self.outer_wall_points)-1):
             r.draw_line(self.image, "orange", self.outer_wall_points[i], self.outer_wall_points[i+1])
         for i in range(len(self.inner_wall_points)-1):
             r.draw_line(self.image, "purple", self.inner_wall_points[i], self.inner_wall_points[i+1])
+
+        for i in range(len(self.invalid_points)-1):
+            r.draw_line(self.image, "Red", self.invalid_points[i], self.invalid_points[i+1], width=10)
+
+
+
 
     def hash_grid(self, outer_wall_points, inner_wall_points):
         self.shg_grid.clear_grid()
@@ -242,14 +242,21 @@ class UITrackCanvas(UIElement):
         b2 = p2 - (p3 - p1) / 6
         return b1, b2
 
-    def check_validity(self, outer_wall_points, inner_wall_points):
+    def check_validity(self, anchor_points, outer_wall_points, inner_wall_points):
+        # for i in range(len(anchor_points)):
+        #
+        #     for anchor in anchor_points:
+        #         if anchor != anchor_points[i] and (anchor - anchor_points[i]).length() <  0.5* self.max_handle_length:
+        #             return False
+
+        self.invalid_points.clear()
         wall_points = outer_wall_points + inner_wall_points
         for i in range(len(outer_wall_points)-1):
             segment = (outer_wall_points[i], outer_wall_points[i+1])
             collisions = self.shg_grid.return_all_collisions(segment, wall_points)
             for collision_index in collisions:
                 if collision_index > i+1 or collision_index< i-1:
-                    return False
+                    self.invalid_points.extend([wall_points[collision_index], wall_points[collision_index+1]])
 
         for i in range(len(inner_wall_points)-1):
             segment = (inner_wall_points[i], inner_wall_points[i+1])
@@ -258,9 +265,7 @@ class UITrackCanvas(UIElement):
             current_segment_index = len(outer_wall_points) + i
             for collision_index in collisions:
                 if collision_index > current_segment_index+1 or collision_index< current_segment_index-1:
-                    return False
-
-        return True
+                    self.invalid_points.extend([wall_points[collision_index], wall_points[collision_index+1]])
 
 
 

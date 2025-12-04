@@ -13,7 +13,7 @@ class RLModel(ABC):
 
        self.actor = NeuralNetwork(layer_sizes, activations)
        # Learning rate
-       self.gamma = 0.99
+       self.gamma = 0.9
 
     def get_stochastic_actions(self, state_vector):
         # x: input vector
@@ -91,8 +91,8 @@ class REINFORCEModel(RLModel):
         self.clear_trajectory()
 
 class A2CModel(RLModel):
-    def __init__(self, input_size, output_size = 2, actor_hidden_layers = [16, 32, 32, 16],
-                 critic_hidden_layers = [64, 64], num_of_steps = 100, seed=None):
+    def __init__(self, input_size, output_size = 2, actor_hidden_layers = [8, 8, 8, 8, 8],
+                 critic_hidden_layers = [16,16], num_of_steps = 100, seed=None):
         actor_layers = [input_size] + actor_hidden_layers + [output_size]
         actor_activations = ['tanh'] * len(actor_hidden_layers) + ['tanh']
         super().__init__(actor_layers, actor_activations)

@@ -24,3 +24,4 @@ def game_loop():
         game_core.render()
 game_loop()
 
+
