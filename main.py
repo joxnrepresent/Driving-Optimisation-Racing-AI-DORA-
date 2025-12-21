@@ -1,7 +1,7 @@
 import pygame
 import pygame_gui
 import resources as r
-from game_modes import TrackMakerUI
+from game_modes import TrackMakerUI, RacingSim, AICarSim
 from resources import game_core
 
 """

@@ -14,9 +14,8 @@ from rl_model import A2CModel, REINFORCEModel
 from numpy import clip, exp
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from cars import max_speed
 
-
+episode_num = 0
 """This module contains classes """
 #---------------------------------------------------------------------------------------------------------------------#
 
@@ -100,8 +99,10 @@ class RacingSim(CarSimulation):
 
 
 class AICarSim(CarSimulation):
-    def __init__(self, simulation_size = 6, state_size = 11):
+    def __init__(self, simulation_size = 5, state_size = 11):
         super().__init__()
+        self.reward_size = 9
+
         self.sim_size = simulation_size
         self.state_size = state_size
         self.cars = []
@@ -128,10 +129,23 @@ class AICarSim(CarSimulation):
         )
         game_core.debug_elements["rays"] = [0] * simulation_size
         self._reset_cars()
+        self.time_step_rewards_breakdown = []
+        self.epoch_rewards_breakdown = np.zeros([self.sim_size, self.reward_size], float)
 
     def update(self):
         if all(self.is_crashed):
             if len(self.rl_model.rewards) > 0:
+                global episode_num
+                episode_num += 1
+                print(f"Episode:{episode_num}")
+                avg_epoch_rewards = np.round(self.epoch_rewards_breakdown.mean(axis=0), 3)
+                self.time_step_rewards_breakdown = np.array(self.time_step_rewards_breakdown)
+                avg_time_step_rewards = np.round(self.time_step_rewards_breakdown.mean(axis=0), 3)
+                print(f"Epoch rewards: {avg_epoch_rewards.tolist()}")
+                print(f"Time step rewards: {avg_time_step_rewards.tolist()}")
+                print()
+                self.epoch_rewards_breakdown = np.zeros([self.sim_size, self.reward_size], float)
+                self.time_step_rewards_breakdown = []
                 self._reinitialise_car_simulation()
                 return
 
@@ -140,15 +154,24 @@ class AICarSim(CarSimulation):
         for i, car in enumerate(self.cars):
             if not self.is_crashed[i]:
                 car.collision_detection(self.track)
-                progress = car.get_progress(self.track.track_spine)
-                rewards[i] = car.compute_reward(self.prev_progress[i], self.max_progress[i])
+                sensors = car.ray_cast(self.track, i)
+
+                progress = car.update_and_get_progress(self.track.track_spine)
+                rewards[i], rewards_array = car.compute_reward(self.prev_progress[i], self.max_progress[i], sensors, self.actions[i])
+
+                reward_breakdown = np.array(rewards_array)
+                self.epoch_rewards_breakdown[i] += reward_breakdown
+                self.time_step_rewards_breakdown.append(reward_breakdown)
+                self.max_progress[i] = max(progress, self.max_progress[i])
+
 
                 if progress - self.prev_progress[i] < 0.001:
                     self.stuck_timer[i] += 1
                 else:
                     self.stuck_timer[i] = 0
+
                 self.prev_progress[i] = progress
-                self.max_progress[i] = max(progress, self.max_progress[i])
+
 
                 if self.stuck_timer[i] > self.stuck_limit:
                     car.is_crashed = True
@@ -156,7 +179,7 @@ class AICarSim(CarSimulation):
                 if car.is_crashed:
                     self.is_crashed[i] = True
 
-                states[i] = self.get_state_vector(progress, i)
+                states[i] = sensors
 
         self.actions, pre_squash = self.rl_model.get_stochastic_actions(states)
 
@@ -166,18 +189,6 @@ class AICarSim(CarSimulation):
                 car.update(self.actions[i])
         self.gui_manager.update(1/game_core.frame_rate)
 
-    def get_state_vector(self, progress, index):
-        car = self.cars[index]
-        # state_vector = [self.actions[index][0], (car.velocity.magnitude()/max_speed)]
-        state_vector = []
-        # state_vector.append(progress)
-        sensors = car.ray_cast(self.track, index)
-        state_vector.extend(sensors)
-
-        if progress >= 0.999:
-            game_core.screen_fill = "green"
-
-        return state_vector
 
     def event_handle(self):
         if self.reset_button in game_core.pressed_buttons:

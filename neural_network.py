@@ -26,6 +26,8 @@ class Layer:
     def activation(self, z):
         if self.activation_name == 'relu':
             return np.maximum(0, z)
+        if self.activation_name == "elu":
+            return np.where(z > 0, z, np.exp(z) - 1)
         elif self.activation_name == 'linear':
             return z
         elif self.activation_name == "tanh":
@@ -34,6 +36,8 @@ class Layer:
     def activation_derivative(self, z):
         if self.activation_name == 'relu':
             return (z>0).astype(float)
+        elif self.activation_name == 'elu':
+            return np.where(z > 0, 1, np.exp(z))
         elif self.activation_name == 'linear':
             return np.ones_like(z)
         elif self.activation_name == "tanh":
@@ -68,7 +72,7 @@ class Layer:
 
 
 class NeuralNetwork:
-    def __init__(self, layer_sizes, activations, init_log_std= -0.5, seed=None):
+    def __init__(self, layer_sizes, activations, init_log_std= 0.5, seed=None):
         if seed is not None:
             np.random.seed(seed)
 
@@ -137,7 +141,7 @@ class NeuralNetwork:
             self.log_std = np.clip(self.log_std, -3, 1)
 
     @staticmethod
-    def adam_estimation(m, v, grad, t, alpha = 3e-4, beta1 = 0.9, beta2 = 0.999, eps = 1e-8):
+    def adam_estimation(m, v, grad, t, alpha = 3e-3, beta1 = 0.9, beta2 = 0.999, eps = 1e-8):
         m = beta1 * m + (1 - beta1) * grad
         v = beta2 * v + (1 - beta2) * grad * grad
         m_hat = m / (1 - beta1 ** t)

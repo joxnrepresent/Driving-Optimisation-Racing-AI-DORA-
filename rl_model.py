@@ -13,7 +13,8 @@ class RLModel(ABC):
 
        self.actor = NeuralNetwork(layer_sizes, activations)
        # Learning rate
-       self.gamma = 0.9
+       self.gamma = 0.99
+       self.entropy = 0.02
 
     def get_stochastic_actions(self, state_vector):
         # x: input vector
@@ -67,7 +68,7 @@ class RLModel(ABC):
         sigma = np.exp(self.actor.log_std)
 
         d_mu =  -((actions - mu) / (sigma ** 2 + game_core.eps)) * advantage[:, None]
-        d_log_std = np.mean(-(((actions - mu) ** 2) / (sigma ** 2) - 1) * advantage[:, None], axis = 0) - 0.1
+        d_log_std = np.mean(-(((actions - mu) ** 2) / (sigma ** 2) - 1) * advantage[:, None], axis = 0) + self.entropy
         self.actor.update_params(d_mu, d_log_std)
 
     def clear_trajectory(self):
@@ -77,31 +78,34 @@ class RLModel(ABC):
 
 
 class REINFORCEModel(RLModel):
-    def __init__(self, input_size, output_size = 2, hidden_layer_sizes=[64, 64], seed=None):
-        # Initialising neural network (actor for A2C)
+    def __init__(self, input_size, output_size = 2, hidden_layer_sizes=[ 32, 64, 64, 32, ], seed=None):
         layer_sizes = [input_size] + hidden_layer_sizes + [output_size]
-        activations = ['tanh'] * len(hidden_layer_sizes) + ['custom linear']
+        activations = ['elu'] * len(hidden_layer_sizes) + ['tanh']
         super().__init__(layer_sizes, activations)
 
     def update_params(self):
+        states = np.vstack(self.states)
+        actions = np.vstack(self.pre_squash_actions)
         returns = self.compute_return()
         advantage = returns - returns.mean()
-        self.update_actor(advantage)
+        advantage = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
+        self.update_actor(advantage, states, actions)
+
 
         self.clear_trajectory()
 
 class A2CModel(RLModel):
-    def __init__(self, input_size, output_size = 2, actor_hidden_layers = [8, 8, 8, 8, 8],
+    def __init__(self, input_size, output_size = 2, actor_hidden_layers = [ 32, 64, 64, 32, ],
                  critic_hidden_layers = [16,16], num_of_steps = 100, seed=None):
         actor_layers = [input_size] + actor_hidden_layers + [output_size]
-        actor_activations = ['tanh'] * len(actor_hidden_layers) + ['tanh']
+        actor_activations = ['elu'] * len(actor_hidden_layers) + ['tanh']
         super().__init__(actor_layers, actor_activations)
 
         critic_layer_sizes = [input_size] + critic_hidden_layers + [1]
         critic_activations = ['tanh'] * len(critic_hidden_layers) + ['linear']
         self.critic = NeuralNetwork(critic_layer_sizes, critic_activations, seed=seed)
 
-        self.entropy = 0.01
+
         self.gae_lambda = 0.95
 
     def compute_gae_advantages(self, values):
@@ -127,58 +131,17 @@ class A2CModel(RLModel):
         values = self.critic.forward_propagation(states).reshape(-1)
         returns = self.compute_return()
         advantage = returns - values
-        advantage = np.where(advantage > advantage.mean() , advantage *2, advantage)
         advantage = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
 
         self.update_actor(advantage, states, actions)
         d_value = (values - returns).reshape(-1, 1)
         self.critic.update_params(d_value)
 
-        print(f"Returns:{returns.mean(axis=0)} Value:{values.mean(axis=0)} Critic Loss:{np.sqrt(np.mean((values - returns) ** 2))}")
-
+        avg_rewards = np.array(self.rewards).mean()
+        avg_returns = np.array(returns).mean()
+        avg_value = np.array(values).mean()
+        avg_critic_loss = np.sqrt(np.mean((values - returns) ** 2))
+        avg_std = np.exp(self.actor.log_std).mean()
+        # print(f"Reward:{avg_rewards:.3f} Returns:{avg_returns:.3f} Value:{avg_value:.3f} Critic Loss:{avg_critic_loss:.3f} Std:{avg_std:.3f}")
+        # print(f"Value range: [{values.min():.2f}, {values.max():.2f}] | Return range: [{returns.min():.2f}, {returns.max():.2f}]")
         self.clear_trajectory()
-
-# class DDPGModel(RLModel):
-#     def __init__(self, input_size, output_size = 2, actor_hidden_layers = [64, 64],
-#                  critic_hidden_layers = [64, 64], seed=None):
-#         actor_layers = [input_size] + actor_hidden_layers + [output_size]
-#         actor_activations = ['tanh'] * len(actor_hidden_layers) + ['linear']
-#         super().__init__(actor_layers, actor_activations)
-#
-#         critic_layer_sizes = [input_size] + critic_hidden_layers + [1]
-#         critic_activations = ['tanh'] * len(critic_hidden_layers) + ['linear']
-#         self.critic = NeuralNetwork(critic_layer_sizes, critic_activations, seed=seed)
-#
-#         self.next_states = []
-#         self.dones = []
-#         self.exploration_std = 0.1
-#
-#     def compute_targets(self):
-#         states = np.vstack(self.states)
-#         actions = np.vstack(self.actions)
-#         next_states = np.vstack(self.next_states)
-#         rewards = np.array(self.rewards, np.float32).reshape(-1, 1)
-#         dones = np.array(self.dones, np.float32).reshape(-1, 1)
-#
-#         next_actions = np.tanh(self.actor.forward_propagation(next_states))
-#         target_Q = self.critic.forward_propagation(np.hstack([next_states, next_actions]))
-#         y = rewards + self.gamma * (1 - dones) * target_Q
-#         return np.vstack(states), np.vstack(actions), y
-#
-#     def update_params(self):
-#         returns = self.compute_return()
-#         states = np.vstack(self.states)
-#         values = self.critic.forward_propagation(states).reshape(-1)
-#         advantage = returns - values
-#         advantage = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
-#
-#         self.update_actor(advantage)
-#
-#         d_value = (values - returns).reshape(-1, 1)
-#         self.critic.update_params(d_value)
-#
-#         print(f"Returns:{returns.mean(axis=0)} Value:{values.mean(axis=0)} Critic Loss:{np.sqrt(np.mean((values - returns) ** 2))} "
-#               f"Pre-squash:{np.array(self.pre_squash_actions).mean(axis = 0).mean(axis=0)} std:{np.exp(self.actor.log_std)}")
-#
-#         self.clear_trajectory()
-
