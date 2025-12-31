@@ -4,6 +4,7 @@ import pygame_gui
 from collections import defaultdict
 from numpy import exp
 from pygame import Vector2
+import json
 
 """
 This module contains shared resources like constants, game-state variables (singletons), and utility 
@@ -14,14 +15,14 @@ functions/methods used throughout the project.
 class GameCore:
     def __init__(self):
         # Program constants
-        self.is_debugging = False
+        self.is_debugging = True
         self.load_model = False
         self.frame_rate = 60
         self.tick_speedup = 1
         self.screen_dimensions = (1200, 750)
         self.screen_fill = "White"
-        self.current_track = "testing_track"
-        self.meter_pixel_conversion = 10
+        self.current_track = "Test Track 1"
+        self.meter_pixel_conversion = 8
         self.eps = 1e-9
 
         # Core program components
@@ -56,11 +57,11 @@ class GameCore:
             if self.debug_elements:
                 for element_type, elements in self.debug_elements.items():
                     for element in elements:
-                        if element_type == "hitboxes":
-                            pygame.draw.polygon(self.main_screen, "red", element, 2)
-                        elif element_type == "AABB":
-                            pygame.draw.rect(self.main_screen, "red", element.rect, 2)
-                        elif element_type == "rays":
+                        # if element_type == "hitboxes":
+                        #     pygame.draw.polygon(self.main_screen, "red", element, 2)
+                        # elif element_type == "AABB":
+                        #     pygame.draw.rect(self.main_screen, "red", element.rect, 2)
+                        if element_type == "rays":
                             try:
                                 for ray in element:
                                     pygame.draw.line(self.main_screen, "red", ray[0], ray[1])
@@ -69,9 +70,9 @@ class GameCore:
                         elif element_type == "track spine":
                             for i in range(len(element) - 1):
                                 draw_line(self.main_screen, "Blue", element[i], element[i + 1])
-                        if element_type == "grid lines":
-                            if element:
-                                draw_grid(self.main_screen)
+                        # if element_type == "grid lines":
+                        #     if element:
+                        #         draw_grid(self.main_screen)
         pygame.display.flip()
         self.clock.tick(game_core.frame_rate)
 
@@ -120,7 +121,6 @@ def wrap_value(value, lower_limit, upper_limit):
 def load_track_from_file(filename):
     try:
         with open("Tracks/"+filename + ".txt", "r") as file:
-            strokes = []
             for line in file:
                 coordinates = line.split(',')
                 points = []
@@ -128,6 +128,22 @@ def load_track_from_file(filename):
                     points.append((float(coordinates[i]), float(coordinates[i + 1])))
                 strokes.append(points)
             return strokes
+    except FileNotFoundError:
+        print("File not found")
+        return None
+
+def load_bezier_track(filename):
+    try:
+        with open(f"Tracks/{filename}.json", "r") as f:
+            data = json.load(f)
+
+        anchor_points = [Vector2(point[0], point[1]) for point in data["anchors"]]
+        control_points = [Vector2(point[0], point[1]) for point in data["controls"]]
+        widths_dict = {float(k): v for k, v in data["widths"].items()}
+
+
+        return anchor_points, control_points, widths_dict
+
     except FileNotFoundError:
         print("File not found")
         return None
@@ -217,6 +233,19 @@ def get_line_segments_intersection(seg1, seg2):
     else:
         return None
 
+
+def point_segment_distance(point, segment):
+    a, b = segment
+    ap = point - a
+    ab = a - b
+
+    seg_len_sq = ab.length_squared()
+
+    t = max(0, min(1, ap.dot(ab) / seg_len_sq))
+    closest_point = a + ab * t
+    return (point - closest_point).length()
+
+
 def transformed_sigmoid(x):
     return (2.0 / (1.0 + exp(-x)))-1
 
@@ -229,11 +258,11 @@ def generate_track_spine(anchor_points, control_points):
 
     cleaned_track_spine = []
     for point in track_spine:
-        if not cleaned_track_spine or (point - cleaned_track_spine[-1]).length_squared() > 5:
+        if not cleaned_track_spine or (point - cleaned_track_spine[-1]).length_squared() > 15:
             cleaned_track_spine.append(point)
     return cleaned_track_spine
 
-def generate_spine_points(p1, b1,b2,p2, resolution = 50):
+def generate_spine_points(p1, b1,b2,p2, resolution = 100):
     spine_points = []
     for i in range(resolution + 1):
         t = i/resolution
@@ -253,40 +282,71 @@ def de_casteljau(points, t):
         new_points.append((1 - t) * points[i] + t * points[i + 1])
     return de_casteljau(new_points, t)
 
-def generate_track(anchor_points, control_points, width = 50):
-    track_spine = generate_track_spine(anchor_points, control_points)
+def generate_track_walls(track_spine, widths_dict, is_track_complete = False):
     outer_wall_points = []
     inner_wall_points = []
-    for i in range(len(track_spine)-1):
-        spine_point, next_point = track_spine[i], track_spine[i+1]
-        forward = (next_point - spine_point).normalize()
-        if i > 0:
-            backward = (spine_point - track_spine[i - 1]).normalize()
-        else:
-            backward = forward  # first point
+    width_point_locations = list(widths_dict.keys())
+    width_point_locations.sort()
+    width_indices = []
+    for location in width_point_locations:
+        width_indices.append(math.floor(location * (len(track_spine)-1)))
 
-        tangent = (forward + backward)
-        if tangent.length_squared() == 0:
-            tangent = forward
 
-        normal_vector = tangent.rotate(90).normalize()
-        outer_wall_point = spine_point - normal_vector * width
-        inner_wall_point = spine_point + normal_vector * width
-        is_outer_wall_valid = True
-        is_inner_wall_valid = True
-        valid_distance = width ** 2 -10
-        for j in range(i-40, i+40):
-            if (outer_wall_point - track_spine[j % len(track_spine)]).length_squared() < valid_distance:
-                is_outer_wall_valid = False
-                break
-        for j in range(i - 40, i + 40):
-            if (inner_wall_point - track_spine[j % len(track_spine)]).length_squared() < valid_distance:
-                is_inner_wall_valid = False
-                break
+    for i in range(1, len(width_indices)):
+        start_width_index, end_width_index = width_point_locations[i - 1], width_point_locations[i]
+        start_track_index, end_track_index = width_indices[i - 1], width_indices[i]
+        start_width = widths_dict[start_width_index]
+        d_width = widths_dict[end_width_index] - widths_dict[start_width_index]
 
-        if is_outer_wall_valid:
-            outer_wall_points.append(outer_wall_point)
-        if is_inner_wall_valid:
-            inner_wall_points.append(inner_wall_point)
+        for t in range(start_track_index, end_track_index):
+            segment_width = start_width + (t - start_track_index) / (end_track_index - start_track_index) * d_width
+
+            spine_point, next_point = track_spine[t], track_spine[t+1]
+            forward = (next_point - spine_point).normalize()
+            if t > 0:
+                backward = (spine_point - track_spine[t - 1]).normalize()
+            else:                                           # Getting vectors to next and prev points
+                backward = forward
+
+            tangent = (forward + backward)
+            if tangent.length_squared() == 0:              # Getting the tangent vector
+                tangent = forward
+
+            # Getting normal to be able to generate 2 pairs of equidistant parallel points
+            normal_vector = tangent.rotate(90).normalize()
+            outer_wall_point = spine_point - normal_vector * segment_width
+            inner_wall_point = spine_point + normal_vector * segment_width
+            # Getting squared valid distance to avoid expensive sqrt operation
+
+
+            def check_wall_point_validity(wall_point):
+                valid_distance = (segment_width - 3) ** 2  # Included padding
+                tollerence_limit = 80
+                for j in range(t - tollerence_limit, t + tollerence_limit):
+
+                    if is_track_complete:
+                        spine_index = j % len(track_spine)
+                    else:
+                        spine_index = max(0, min(j, len(track_spine) - 1))
+
+                    if(wall_point - track_spine[spine_index]).length_squared() < valid_distance:
+                        if is_track_complete:
+                            index_distance = abs(spine_index - t)
+                            wrapped_index_distance = min(index_distance, len(track_spine) - index_distance)
+                        else:
+                            wrapped_index_distance = abs(spine_index - t)
+                        if wrapped_index_distance <= 1:
+                            continue
+                        return False
+                return True
+
+            is_outer_wall_valid= check_wall_point_validity(outer_wall_point)
+            is_inner_wall_valid = check_wall_point_validity(inner_wall_point)
+
+            if is_outer_wall_valid:
+                outer_wall_points.append(outer_wall_point)
+            if is_inner_wall_valid:
+                inner_wall_points.append(inner_wall_point)
+
     return outer_wall_points, inner_wall_points
 

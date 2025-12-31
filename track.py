@@ -14,18 +14,35 @@ class Track(Sprite):
     def __init__(self, track_name, position = ((0,0), game_core.screen_dimensions)):
         super().__init__()
         self.grid = SpatialHashGrid()
-        track_data = r.load_track_from_file(track_name)
-        track_spine = track_data.pop(0)
-        self.track_spine = [Vector2(point) for point in track_spine]
-        walls = track_data
+        anchors, controls, widths = r.load_bezier_track(track_name)
+        self.track_spine = r.generate_track_spine(anchors, controls)
+        if 1.0 not in widths:
+            widths[1.0] = widths[0.0]
+        outer_wall_points, inner_wall_points = r.generate_track_walls(self.track_spine, widths)
+        if outer_wall_points[0] != outer_wall_points[-1]:
+            outer_wall_points.append(outer_wall_points[0])
+        if inner_wall_points[0] != inner_wall_points[-1]:
+            inner_wall_points.append(inner_wall_points[0])
         self.wall_segments = []
-        segment_index = 0
-        for wall in walls:
-            for i in range(len(wall)):
-                segment = (wall[i], wall[(i + 1) % len(wall)])
-                self.wall_segments.append(segment)
-                self.grid.hash_segment(segment, segment_index)
-                segment_index += 1
+        for i in range(len(outer_wall_points) - 1):
+            segment = (outer_wall_points[i], outer_wall_points[i+1])
+            self.wall_segments.append(segment)
+        for i in range(len(inner_wall_points) - 1):
+            segment = (inner_wall_points[i], inner_wall_points[i+1])
+            self.wall_segments.append(segment)
+        for i, segment in enumerate(self.wall_segments):
+            self.grid.hash_segment(segment, i)
+
+
+        # walls
+        # self.wall_segments = []
+        # segment_index = 0
+        # for wall in walls:
+        #     for i in range(len(wall)):
+        #         segment = (wall[i], wall[(i + 1) % len(wall)])
+        #         self.wall_segments.append(segment)
+        #         self.grid.hash_segment(segment, segment_index)
+        #         segment_index += 1
 
         self.rect = Rect(position)
         self.image = Surface((self.rect.width, self.rect.height), SRCALPHA)

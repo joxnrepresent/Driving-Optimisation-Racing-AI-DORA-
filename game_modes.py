@@ -1,10 +1,13 @@
 import math
 import pickle
+import json
 
 import numpy
 import numpy as np
 import pygame
 import pygame_gui
+from pygame_gui.core.colour_parser import is_float_str
+
 import resources as r
 from resources import game_core
 from gui_custom_elements import UIGaugeMeter, UITrackCanvas
@@ -88,6 +91,10 @@ class RacingSim(CarSimulation):
         self.game_sprites.add(self.car)
         self.debug_elements["hitboxes"].append(self.car.hitbox)
 
+    def update(self, *args):
+        super().update(*args)
+        self._drive_car()
+
     def _drive_car(self):
         if not self.car.is_crashed:
             self.car.update()
@@ -99,15 +106,15 @@ class RacingSim(CarSimulation):
 
 
 class AICarSim(CarSimulation):
-    def __init__(self, simulation_size = 5, state_size = 11):
+    def __init__(self, simulation_size = 5, state_size = 9):
         super().__init__()
         self.reward_size = 9
 
         self.sim_size = simulation_size
         self.state_size = state_size
         self.cars = []
-        self.rl_model = A2CModel(self.state_size)
-        # self.rl_model = REINFORCEModel(self.state_size)
+        # self.rl_model = A2CModel(self.state_size)
+        self.rl_model = REINFORCEModel(self.state_size)
         if game_core.load_model:
             params = np.load("Model_weights/testing_weights1.npy", allow_pickle=True)
             self.rl_model.actor.set_network_params(params)
@@ -267,63 +274,118 @@ class TrackMakerUI(GameMode):
         super().__init__()
 
         self.canvas = UITrackCanvas(
-            relative_rect= pygame.Rect((0, 0), (game_core.screen_dimensions[0], game_core.screen_dimensions[1])),
+            relative_rect=pygame.Rect((0, 50), (game_core.screen_dimensions[0], game_core.screen_dimensions[1] - 50) ),
             manager=self.gui_manager
         )
 
-        self.start_drawing_button = pygame_gui.elements.UIButton(
-            relative_rect= pygame.Rect((0, 100), (100, 30)),
-            text="Click to draw",
+        self.anchor_toggle_button = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect((10, 10), (50, 40)),
+            text="A",
             manager=self.gui_manager
         )
 
+        self.width_toggle_button = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect((10, 60), (50, 40)),
+            text="W",
+            manager=self.gui_manager
+        )
+        self.width_slider = None
+        self.width_label = None
         self.save_button = pygame_gui.elements.UIButton(
-            relative_rect= pygame.Rect((100, 100), (100, 30)),
+            relative_rect=pygame.Rect((100, 100), (100, 30)),
             text="Click to save",
             manager=self.gui_manager
         )
 
         self.load_button = pygame_gui.elements.UIButton(
-            relative_rect= pygame.Rect((200, 100), (100, 30)),
+            relative_rect=pygame.Rect((200, 100), (100, 30)),
             text="Click to load",
             manager=self.gui_manager
         )
 
         self.clear_button = pygame_gui.elements.UIButton(
-            relative_rect= pygame.Rect((300, 100), (100, 30)),
+            relative_rect=pygame.Rect((300, 100), (100, 30)),
             text="Click to clear",
             manager=self.gui_manager
         )
 
         self.start_car_sim_button = pygame_gui.elements.UIButton(
-            relative_rect= pygame.Rect((300, 200), (100, 30)),
+            relative_rect=pygame.Rect((300, 200), (100, 30)),
             text="Click to start sim",
             manager=self.gui_manager
         )
 
+        self.canvas.anchor_mode = False
+        self.canvas.width_mode = False
+
+    def update(self):
+        self.gui_manager.update(1 / game_core.frame_rate / game_core.tick_speedup)
+        if self.canvas.mode == "width":
+            self.changing_widths()
+
+    def changing_widths(self):
+        if self.canvas.selected_point and self.canvas.selected_point[0] == 'w':
+            width_point_index = self.canvas.selected_point[1]
+            if self.width_slider is None:
+                start_val = self.canvas.widths_dict[width_point_index]
+                self.width_slider = pygame_gui.elements.UIHorizontalSlider(
+                    relative_rect=pygame.Rect((100, 10), (300, 30)),
+                    start_value=start_val,
+                    value_range=(50, 200),
+                    manager=self.gui_manager
+                )
+                self.width_label = pygame_gui.elements.UILabel(
+                    relative_rect=pygame.Rect((410, 10), (60, 30)),
+                    text=str(int(start_val)),
+                    manager=self.gui_manager
+                )
+            else:
+                val = int(round(self.width_slider.get_current_value()))
+                self.canvas.widths_dict[width_point_index] = val
+                self.width_label.set_text(str(val))
+        else:
+            if self.width_slider and self.width_label:
+                self.width_slider.kill()
+                self.width_label.kill()
+            self.width_slider = None
+            self.width_label = None
+
 
     # Handles button presses:
     def event_handle(self):
-        if self.start_drawing_button in game_core.pressed_buttons:
-            self.canvas.is_drawing = not self.canvas.is_drawing
-            if self.canvas.is_drawing:
-                self.start_drawing_button.set_text("Click to stop")
-            else:
-                self.start_drawing_button.set_text("Click to draw")
+        if self.anchor_toggle_button in game_core.pressed_buttons:
+            self.canvas.mode = "anchor"
+            self.anchor_toggle_button.disable()
+            self.width_toggle_button.enable()
+
+        if self.width_toggle_button in game_core.pressed_buttons:
+            self.canvas.mode = "width"
+            self.width_toggle_button.disable()
+            self.anchor_toggle_button.enable()
 
         if self.save_button in game_core.pressed_buttons:
-            self.canvas.save_drawing("testing_track")
+            self.save_track()
 
         if self.load_button in game_core.pressed_buttons:
-            self.canvas.load_drawing("testing_track")
+            self.load_track()
 
         if self.clear_button in game_core.pressed_buttons:
-            self.canvas.clear()
+            self.canvas.clear_canvas()
 
         if self.start_car_sim_button in game_core.pressed_buttons:
             game_core.set_game_mode(AICarSim)
 
         game_core.pressed_buttons.clear()
 
-    def update(self):
-        self.gui_manager.update(1 / game_core.frame_rate / game_core.tick_speedup)
+    def save_track(self, filename="Test Track 1"):
+        data = {
+            "anchors": [(point.x, point.y) for point in self.canvas.anchor_points],
+            "controls": [(point.x, point.y) for point in self.canvas.control_points],
+            "widths": {str(k): v for k, v in self.canvas.widths_dict.items()}
+        }
+        with open(f"Tracks/{filename}.json", "w") as file:
+            json.dump(data, file, indent=2)
+
+    def load_track(self, filename="Test Track 1"):
+        self.canvas.anchor_points, self.canvas.control_points, self.canvas.widths_dict = r.load_bezier_track(filename)
+

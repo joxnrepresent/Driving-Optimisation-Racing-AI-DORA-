@@ -2,6 +2,8 @@ import math
 from operator import index
 from typing import Union
 import random
+import json
+from fontTools.varLib.errors import NotANone
 
 import resources as r
 import pygame
@@ -70,153 +72,327 @@ class UIGaugeMeter(UIElement):
 class UITrackCanvas(UIElement):
     def __init__(self, relative_rect, manager):
         super().__init__(relative_rect, manager, container=None, starting_height=0, layer_thickness=1)
+        self.image = pygame.Surface((relative_rect.width + 10, relative_rect.height + 10))
+        self.shg_grid = SpatialHashGrid(20)
+        self.border_width = 20
         self.anchor_points = []
         self.control_points = []
-        self.point_size = 5
+        self.widths_dict = {0.0:50}
         self.track_spine = []
-        self.outer_wall_points = []
-        self.inner_wall_points = []
-        self.invalid_points = []
+
+        self.point_size = 5
         self.max_handle_length = 100
-        self.image = pygame.Surface((relative_rect.width, relative_rect.height))
+
+        self.mode = "anchor"
+        self.is_handles_enabled = True
         self.is_dragging = False
+        self.is_track_complete = False
+        self.is_track_valid = False
         self.is_click_buffer = False
-        self.is_anchor_point_selected = False
-        self.drag_point = None
-        self.mouse_pos = None
-        self.shg_grid = SpatialHashGrid(20)
-        self.rebuild()
+        self.selected_point = None
+
+        self.rebuild([],[])
 
     def process_event(self, event):
-        if event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP, pygame.MOUSEMOTION):
-            if self.rect.collidepoint(event.pos):
+
+
+        if (event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP, pygame.MOUSEMOTION)):
+            relative_x, relative_y = event.pos[0] - self.rect.x, event.pos[1] - self.rect.y
+            if (self.rect.collidepoint(event.pos) and
+                self.border_width <= relative_x <= self.rect.width - self.border_width  and
+                self.border_width  <= relative_y <= self.rect.height - self.border_width):
+
                 relative_mouse_pos = Vector2(event.pos[0] - self.rect.x, event.pos[1] - self.rect.y)
+
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     self.is_click_buffer = True
-                    is_point_clicked = False
-                    clicked_point = None
-                    for i, point in enumerate(self.anchor_points):
-                        if (relative_mouse_pos - point).length() <= self.point_size:
-                            is_point_clicked = True
-                            self.is_anchor_point_selected = True
-                            clicked_point = (i, point)
 
-                    for i, point in enumerate(self.control_points):
-                        if (relative_mouse_pos - point).length() <= self.point_size:
-                            is_point_clicked = True
-                            self.is_anchor_point_selected = False
-                            clicked_point = (i, point)
+                    is_point_selected = self.point_selection_handling(relative_mouse_pos)
 
-                    if is_point_clicked:
-                        self.is_dragging = True
-                        self.drag_point = clicked_point
+                    if is_point_selected:
+                        if self.selected_point:
+                            self.is_dragging = True
                     else:
-                        self.anchor_points.append(relative_mouse_pos)
-                        if len(self.anchor_points) > 1:
-                            p0 = self.anchor_points[-3] if len(self.anchor_points) >2 else self.anchor_points[-2]
-                            p1 = self.anchor_points[-2]
-                            p2 = self.anchor_points[-1]
-                            p3 = relative_mouse_pos
-                            self.control_points.extend(self.get_bezier_points(p0, p1, p2, p3))
-                            if len(self.anchor_points) > 2:
-                                anchor = self.anchor_points[-2]
-                                handle_length = (self.control_points[-2] - anchor).length()
-                                direction = (self.control_points[-2] - anchor).normalize()
-
-                                updated_handle_point = anchor - handle_length * direction
-                                self.control_points[-3] = updated_handle_point
+                        if self.mode == "anchor":
+                            insertion_index = self.check_anchor_insertion(relative_mouse_pos)
+                            if insertion_index is not None:
+                                insertion_index += 1
+                                self.insert_anchor(relative_mouse_pos, insertion_index)
+                            else:
+                                self.create_new_anchor(relative_mouse_pos)
+                            self.check_track_completion()
+                        if self.mode == "width":
+                           self.create_width_point(relative_mouse_pos)
 
                 if event.type == pygame.MOUSEMOTION:
                     if self.is_dragging:
-                        point_index = self.drag_point[0]
-                        if self.is_anchor_point_selected:
-                            translate_vector = relative_mouse_pos - self.anchor_points[point_index]
-                            self.anchor_points[point_index] = relative_mouse_pos
-                            if point_index*2 < len(self.control_points):
-                                self.control_points[point_index * 2] += translate_vector
-                            if point_index != 0:
-                                self.control_points[point_index * 2 - 1] += translate_vector
-
-                        else:
-                            corresponding_anchor_index = point_index//2 if point_index % 2 == 0 else point_index //2+1
-                            anchor_point = self.anchor_points[corresponding_anchor_index]
-                            clamped_translation = (relative_mouse_pos - anchor_point).clamp_magnitude(self.max_handle_length)
-                            moved_point = anchor_point + clamped_translation
-                            self.control_points[point_index] = moved_point
-                            mirror_point_index = None
-                            if (point_index % 2 == 0
-                                    and point_index != 0
-                                    and point_index != len(self.control_points) - 1):
-                                mirror_point_index = point_index - 1
-                            elif (point_index != 0
-                                    and point_index != len(self.control_points) - 1):
-                                mirror_point_index = point_index + 1
-                            if mirror_point_index:
-                                self.control_points[mirror_point_index] = anchor_point - clamped_translation
-                        self.mouse_pos = None
-                    else:
-                        self.mouse_pos = relative_mouse_pos
-
+                        point_index = self.selected_point[1]
+                        if self.selected_point[0] == 'a':
+                            self.handle_anchor_point_movement(relative_mouse_pos, point_index)
+                            self.check_track_completion(point_index)
+                        elif self.selected_point[0] == 'c':
+                            self.handle_control_point_movement(relative_mouse_pos, point_index)
+                        # else:
+                        #     self.handle_width_point_movement(relative_mouse_pos, point_index)
                 if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                     self.is_click_buffer = False
                     self.is_dragging = False
-                    self.drag_point = None
 
-            outer_wall_points, inner_wall_points = r.generate_track(self.anchor_points, self.control_points)
-            self.hash_grid(outer_wall_points, inner_wall_points)
-            self.check_validity(self.anchor_points, outer_wall_points, inner_wall_points)
-            self.track_spine = r.generate_track_spine(self.anchor_points, self.control_points)
-            self.outer_wall_points, self.inner_wall_points = outer_wall_points, inner_wall_points
-            print(len(self.outer_wall_points), len(self.inner_wall_points), len(self.track_spine))
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_BACKSPACE:
+            if not self.selected_point or self.selected_point[0] == 'c' or len(self.anchor_points) <= 2:
+                return
 
-            self.rebuild()
+            i = self.selected_point[1]
 
-    def rebuild(self):
-        self.image.fill("White")
+            if self.selected_point[0] == 'a':
+                if 0 < i < len(self.anchor_points)-1:
+                    self.control_points.pop(2*i)
+                    self.control_points.pop(2*i-1)
+                else:
+                    if i == 0:
+                        self.control_points.pop(0)
+                        self.control_points.pop(0)
+                    else:
+                        self.control_points.pop(-1)
+                        self.control_points.pop(-1)
+                self.anchor_points.pop(i)
+                self.selected_point = None
+            else:
+                self.widths_dict.pop(i)
 
-        for anchor in self.anchor_points:
-            pygame.draw.circle(self.image, color= "Red", center = anchor, radius = self.point_size)
+        if self.track_spine and not self.widths_dict.__contains__(1.0):
+            self.widths_dict[1.0] = self.widths_dict[0.0]
 
-        for i, handle in enumerate(self.control_points):
-            pygame.draw.circle(self.image, color="Blue", center=handle, radius=self.point_size)
-            if i%2 == 0 and i != 0:
-                pygame.draw.line(self.image, "green", handle, self.control_points[i-1], 2)
-            if i == 0:
-                pygame.draw.line(self.image, "green", handle, self.anchor_points[0], 2)
-            if i == len(self.control_points) - 1:
-                pygame.draw.line(self.image, "green", handle, self.anchor_points[-1], 2)
+        outer_wall_points, inner_wall_points = r.generate_track_walls(self.track_spine, self.widths_dict)
+        if self.is_track_complete and outer_wall_points and inner_wall_points:
+            outer_wall_points.append(outer_wall_points[0])
+            inner_wall_points.append(inner_wall_points[0])
+            self.widths_dict.pop(1.0)
 
-        # cell_elements = self.shg_grid.get_cell_elements()
-        # is_black = True
-        # for cell in cell_elements:
-        #     if is_black:
-        #         colour = "black"
-        #     else:
-        #         colour = "red"
-        # #     is_black = not is_black
-        #
-        #     for spine_index in cell:
-        #         r.draw_line(self.image, colour, self.track_spine[spine_index], self.track_spine[spine_index+1])
+        self.track_spine = r.generate_track_spine(self.anchor_points, self.control_points)
+        self.rebuild(outer_wall_points, inner_wall_points)
 
+    def point_selection_handling(self, mouse_pos):
+        if self.mode == "anchor":
+            for i, point in enumerate(self.anchor_points):
+                if (mouse_pos - point).length() <= self.point_size:
+                    self.selected_point = ('a', i)
+                    self.is_point_selected = True
+                    return True
+
+            for i, point in enumerate(self.control_points):
+                if (mouse_pos - point).length() <= self.point_size:
+                    self.selected_point = ('c', i)
+                    self.is_point_selected = True
+                    return True
+
+        elif self.mode == "width":
+            if not self.track_spine:
+                return False
+            width_point_positions = list(self.widths_dict.keys())
+            for position in width_point_positions:
+                width_point_index = max(min(math.floor(position * len(self.track_spine)), len(self.track_spine)-1),0)
+                point = self.track_spine[width_point_index]
+                if (mouse_pos - point).length() <= self.point_size:
+                    self.selected_point = ('w', position)
+                    self.is_point_selected = True
+                    return True
+
+        if self.selected_point:
+            self.selected_point = None
+            return True
+        return False
+
+    def check_anchor_insertion(self, mouse_pos):
+        for i in range(len(self.anchor_points) - 1):
+            a1, a2 = self.anchor_points[i], self.anchor_points[i + 1]
+            c1, c2 = self.control_points[2 * i], self.control_points[2 * i + 1]
+
+            spine_points = r.generate_track_spine([a1, a2], [c1, c2])
+
+            for j in range(len(spine_points) - 1):
+                segment = (spine_points[j], spine_points[j + 1])
+
+                dist = r.point_segment_distance(mouse_pos, segment)
+                if dist <= 5:
+                    return i
+        return None
+
+    def create_new_anchor(self, mouse_pos):
+        self.anchor_points.append(mouse_pos)
+        if len(self.anchor_points) > 1:
+            p0 = self.anchor_points[-3] if len(self.anchor_points) > 2 else self.anchor_points[-2]
+            p1 = self.anchor_points[-2]
+            p2 = self.anchor_points[-1]
+            p3 = mouse_pos
+            if self.is_handles_enabled:
+                self.control_points.extend(self.get_bezier_points(p0, p1, p2, p3))
+                if len(self.anchor_points) > 2:
+                    anchor = self.anchor_points[-2]
+                    handle_length = (self.control_points[-2] - anchor).length()
+                    direction = (self.control_points[-2] - anchor).normalize()
+
+                    updated_handle_point = anchor - handle_length * direction
+                    self.control_points[-3] = updated_handle_point
+
+    def insert_anchor(self, mouse_pos, insert_index):
+        self.anchor_points.insert(insert_index, mouse_pos)
+        if not self.is_handles_enabled:
+            return
+        self.control_points = []
+        for i in range(len(self.anchor_points) - 1):
+            p1 = self.anchor_points[i]
+            p2 = self.anchor_points[i + 1]
+            p0 = self.anchor_points[i - 1] if i - 1 >= 0 else p1
+            p3 = self.anchor_points[i + 2] if i + 2 < len(self.anchor_points) else p2
+
+            b1, b2 = self.get_bezier_points(p0, p1, p2, p3)
+            self.control_points.append(b1)
+            self.control_points.append(b2)
+
+        if self.is_track_complete and len(self.control_points) >= 2:
+            handle_point = self.anchor_points[0]
+            mirror_handle_translation = self.control_points[0] - handle_point
+            self.control_points[-1] = handle_point - mirror_handle_translation
+
+    def create_width_point(self, mouse_pos):
+        if len(self.track_spine) > 1:
+            for i in range(len(self.track_spine) - 1):
+                segment = (self.track_spine[i], self.track_spine[i+1])
+                dist = r.point_segment_distance(mouse_pos, segment)
+                if dist <= 2:
+                    track_proportion = i/(len(self.track_spine)-1)
+                    self.widths_dict[track_proportion] = 50
+                    self.selected_point = ('w', track_proportion)
+                    break
+
+    def handle_anchor_point_movement(self, mouse_pos, point_index):
+        if self.anchor_points[0] != self.anchor_points[-1]:
+            self.is_track_complete = False
+        translate_vector = mouse_pos - self.anchor_points[point_index]
+        self.anchor_points[point_index] = mouse_pos
+        if point_index * 2 < len(self.control_points):
+            self.control_points[point_index * 2] += translate_vector
+        if point_index != 0:
+            self.control_points[point_index * 2 - 1] += translate_vector
+
+    def handle_control_point_movement(self, mouse_pos, point_index):
+        corresponding_anchor_index = point_index // 2 if point_index % 2 == 0 else point_index // 2 + 1
+        anchor_point = self.anchor_points[corresponding_anchor_index]
+        clamped_translation = (mouse_pos - anchor_point).clamp_magnitude(self.max_handle_length)
+        if clamped_translation.length_squared() < (2*self.point_size) ** 2:
+            return
+        moved_point = anchor_point + clamped_translation
+        self.control_points[point_index] = moved_point
+        mirror_point_index = None
+        if point_index != 0 and point_index != len(self.control_points) - 1:
+            if point_index % 2 == 0:
+                mirror_point_index = point_index - 1
+            else:
+                mirror_point_index = point_index + 1
+        if self.is_track_complete:
+            if point_index == 0:
+                self.control_points[-1] = anchor_point - clamped_translation
+            elif point_index == len(self.control_points) - 1:
+                self.control_points[0] = anchor_point - clamped_translation
+
+        if mirror_point_index:
+            self.control_points[mirror_point_index] = anchor_point - clamped_translation
+
+    def handle_width_point_movement(self, mouse_pos, point_position):
+        width_point_index = math.floor(max(min(point_position * len(self.track_spine), len(self.track_spine) - 1), 0))
+        min_distance = 100000
+        closest_index = width_point_index
+        for i in range(width_point_index-20, width_point_index+20):
+            mouse_distance = (mouse_pos - self.track_spine[i]).length_squared()
+            if mouse_distance < min_distance:
+                closest_index = i
+                min_distance = mouse_distance
+        new_position = closest_index/(len(self.track_spine)-1)
+        self.widths_dict[new_position] = self.widths_dict[point_position]
+        self.widths_dict.pop(point_position)
+
+    def check_track_completion(self, moving_anchor_index = -1):
+
+        if len(self.anchor_points) < 3:
+            return False
+
+        first_point = self.anchor_points[0]
+        last_point = self.anchor_points[-1]
+        moving_anchor = self.anchor_points[moving_anchor_index]
+
+        if (moving_anchor != last_point and moving_anchor != first_point
+            or (last_point - first_point).length() > self.point_size * 5):
+            return False
+
+        self.anchor_points[-1] = first_point
+        self.is_track_complete = True
+
+        mirror_handle_translation = self.control_points[0] - first_point
+        self.control_points[-1] = first_point - mirror_handle_translation
+
+        return True
+
+    def rebuild(self, outer_wall_points, inner_wall_points):
+        width_point_positions = list(self.widths_dict.keys())
+        self.image.fill((152, 152, 152))
         r.draw_alternating_line_segments(self.image, self.track_spine)
 
-        for i in range(len(self.outer_wall_points)-1):
-            r.draw_line(self.image, "orange", self.outer_wall_points[i], self.outer_wall_points[i+1])
-        for i in range(len(self.inner_wall_points)-1):
-            r.draw_line(self.image, "purple", self.inner_wall_points[i], self.inner_wall_points[i+1])
+        if self.mode == "anchor":
+            for anchor in self.anchor_points:
+                if anchor == self.anchor_points[0]:
+                    pygame.draw.circle(self.image, color="Red", center=anchor, radius=self.point_size + 1)
+                elif anchor == self.anchor_points[-1]:
+                    pygame.draw.circle(self.image, color="black", center=anchor, radius=self.point_size + 1)
+                else:
+                    pygame.draw.circle(self.image, color= "green", center = anchor, radius = self.point_size)
 
-        for i in range(len(self.invalid_points)-1):
-            r.draw_line(self.image, "Red", self.invalid_points[i], self.invalid_points[i+1], width=10)
+            for i, handle in enumerate(self.control_points):
+                if i%2 == 0 and i != 0:
+                    pygame.draw.line(self.image, "dark grey", handle, self.control_points[i-1], 2)
+                if i == 0:
+                    pygame.draw.line(self.image, "dark grey", handle, self.anchor_points[0], 2)
+                if i == len(self.control_points) - 1:
+                    pygame.draw.line(self.image, "dark grey", handle, self.anchor_points[-1], 2)
 
+                pygame.draw.circle(self.image, color="orange", center=handle, radius=self.point_size)
+        else:
+            for width_point_position in width_point_positions:
+                width_point_index = math.floor(max(min(width_point_position * len(self.track_spine), len(self.track_spine) - 1), 0))
+                pygame.draw.circle(self.image, color="pink", center=self.track_spine[int(width_point_index)], radius=self.point_size)
 
+        for i in range(len(outer_wall_points)-1):
+            r.draw_line(self.image, "purple", outer_wall_points[i], outer_wall_points[i+1])
+        for i in range(len(inner_wall_points)-1):
+            r.draw_line(self.image, "purple", inner_wall_points[i], inner_wall_points[i+1])
 
+        overlay = pygame.Surface(self.image.get_size(), pygame.SRCALPHA)
+        if self.selected_point:
+            point_index = self.selected_point[1]
+            point_type = self.selected_point[0]
+            if point_type == 'a':
+                point = self.anchor_points[point_index]
+            elif point_type == 'c':
+                point = self.control_points[point_index]
+            else:
+                width_point_index = math.floor(max(min(point_index * len(self.track_spine), len(self.track_spine) - 1), 0))
+                point = self.track_spine[int(width_point_index)]
+            pygame.draw.circle(overlay, color=(137, 207, 240, 200), center=point, radius= self.point_size + 2)
+
+        invalid_walls = self.check_validity(outer_wall_points, inner_wall_points)
+        for wall in invalid_walls:
+            r.draw_line(overlay, (255, 0, 0, 150), wall[0], wall[1], 15)
+        self.image.blit(overlay, (0, 0))
+
+        pygame.draw.rect(self.image, "black", pygame.Rect((0, 0), (
+        self.image.get_width() - self.border_width/2, self.image.get_height() - self.border_width/2)), width=self.border_width)
 
     def hash_grid(self, outer_wall_points, inner_wall_points):
         self.shg_grid.clear_grid()
-        wall_points = outer_wall_points + inner_wall_points
-        for i in range(len(wall_points) - 1):
+        hash_points = outer_wall_points + inner_wall_points
+        for i in range(len(hash_points) - 1):
             if i != len(outer_wall_points) - 1:
-                self.shg_grid.hash_segment((wall_points[i], wall_points[i + 1]), i)
+                self.shg_grid.hash_segment((hash_points[i], hash_points[i + 1]), i)
 
     @staticmethod
     def catmull_rom(p0, p1, p2, p3, resolution = 100):
@@ -242,36 +418,46 @@ class UITrackCanvas(UIElement):
         b2 = p2 - (p3 - p1) / 6
         return b1, b2
 
-    def check_validity(self, anchor_points, outer_wall_points, inner_wall_points):
-        # for i in range(len(anchor_points)):
-        #
-        #     for anchor in anchor_points:
-        #         if anchor != anchor_points[i] and (anchor - anchor_points[i]).length() <  0.5* self.max_handle_length:
-        #             return False
+    def check_validity(self, outer_wall_points, inner_wall_points):
+        self.hash_grid(outer_wall_points, inner_wall_points)
 
-        self.invalid_points.clear()
-        wall_points = outer_wall_points + inner_wall_points
-        for i in range(len(outer_wall_points)-1):
-            segment = (outer_wall_points[i], outer_wall_points[i+1])
-            collisions = self.shg_grid.return_all_collisions(segment, wall_points)
-            for collision_index in collisions:
-                if collision_index > i+1 or collision_index< i-1:
-                    self.invalid_points.extend([wall_points[collision_index], wall_points[collision_index+1]])
+        def check_wall_validity(wall_points, wall_start_index):
+            hashed_points = outer_wall_points + inner_wall_points
+            invalid_segments = []
+            for i in range(len(wall_points) - 1):
+                segment = (wall_points[i], wall_points[i + 1])
+                collisions = self.shg_grid.return_all_collisions(segment, hashed_points)
 
-        for i in range(len(inner_wall_points)-1):
-            segment = (inner_wall_points[i], inner_wall_points[i+1])
-            collisions = self.shg_grid.return_all_collisions(segment, wall_points)
+                actual_segment_index = wall_start_index + i
 
-            current_segment_index = len(outer_wall_points) + i
-            for collision_index in collisions:
-                if collision_index > current_segment_index+1 or collision_index< current_segment_index-1:
-                    self.invalid_points.extend([wall_points[collision_index], wall_points[collision_index+1]])
+                for collision_index in collisions:
+                    distance = min(abs(collision_index - actual_segment_index), len(wall_points) - 1 - abs(collision_index - actual_segment_index))
+                    if ((0< collision_index < len(hashed_points)-1 and 0< i < len(hashed_points)-1)and
+                            (distance > 6)):
+                        invalid_segments.append((hashed_points[collision_index], hashed_points[collision_index + 1]))
+
+                if Vector2(segment[0] - segment[1]).length_squared() > 2500:
+                    invalid_segments.append(segment)
+            return invalid_segments
+
+        invalid_outer_walls = check_wall_validity(outer_wall_points, 0)
+        invalid_inner_walls = check_wall_validity(inner_wall_points, len(outer_wall_points))
+
+        if len(invalid_inner_walls + invalid_outer_walls) == 0 and self.is_track_complete:
+            self.is_track_valid = True
+        else:
+            self.is_track_valid = False
+        return invalid_outer_walls + invalid_inner_walls
+
+    def clear_canvas(self):
+        self.selected_point = None
+        self.anchor_points.clear()
+        self.control_points.clear()
+        self.track_spine.clear()
+        self.widths_dict.clear()
 
 
 
-
-
-#
 # class UITrackCanvas(UIElement):
 #     def __init__(self, relative_rect, manager, bg_colour = "White"):
 #         super().__init__(relative_rect, manager, container=None, starting_height=0, layer_thickness=1)
