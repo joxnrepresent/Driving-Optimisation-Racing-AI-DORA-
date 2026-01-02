@@ -1,17 +1,18 @@
 import  numpy as np
 
-mydict = {1:[0,1,2,3], 5:[6,7,8,9]}
-mydict[90] = "alphabet"
-if mydict.__contains__('c'):
-    print(True)
-else:
-    print(False)
-
-mydict.pop(90)
-print(mydict)
-# my_list = [1,2,3,5,6]
-# my_list.insert(3, 4)
-# print(my_list)
+# mydict = {1:[0,1,2,3], 5:[6,7,8,9]}
+# mydict[90] = "alphabet"
+# if mydict.__contains__('c'):
+#     print(True)
+# else:
+#     print(False)
+#
+# mydict.pop(90)
+# print(mydict)
+my_list = [1,2,3,5,6]
+my_list = my_list[3:]
+mean = np.mean(my_list)
+print(mean)
 
 
 

@@ -72,7 +72,7 @@ class Layer:
 
 
 class NeuralNetwork:
-    def __init__(self, layer_sizes, activations, init_log_std= 0.5, seed=None):
+    def __init__(self, layer_sizes, activations, init_log_std= 0.2, seed=None):
         if seed is not None:
             np.random.seed(seed)
 
@@ -95,7 +95,32 @@ class NeuralNetwork:
             self.adam_moments['b'].append((np.zeros_like(layer.biases), np.zeros_like(layer.biases)))
 
     def get_params(self):
-        print()
+        params = {
+            'weights': [layer.weights.copy() for layer in self.layers],
+            'biases': [layer.biases.copy() for layer in self.layers],
+            'log_std': self.log_std.copy(),
+            'adam_moments': {
+                'w': [(m.copy(), v.copy()) for m, v in self.adam_moments['w']],
+                'b': [(m.copy(), v.copy()) for m, v in self.adam_moments['b']],
+                'log_std': (self.adam_moments['log_std'][0].copy(),
+                            self.adam_moments['log_std'][1].copy()),
+                't': self.adam_moments['t']
+            }
+        }
+        return params
+
+    def set_params(self, params):
+        for i, layer in enumerate(self.layers):
+            layer.weights = params['weights'][i].copy()
+            layer.biases = params['biases'][i].copy()
+
+        self.log_std = params['log_std'].copy()
+        self.adam_moments['w'] = [(m.copy(), v.copy()) for m, v in params['adam_moments']['w']]
+        self.adam_moments['b'] = [(m.copy(), v.copy()) for m, v in params['adam_moments']['b']]
+        self.adam_moments['log_std'] = (params['adam_moments']['log_std'][0].copy(),
+                                        params['adam_moments']['log_std'][1].copy())
+        self.adam_moments['t'] = params['adam_moments']['t']
+
 
     def forward_propagation(self, a):
         # a -> input to next layer

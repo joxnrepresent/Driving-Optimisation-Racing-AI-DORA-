@@ -18,7 +18,7 @@ from numpy import clip, exp
 from abc import ABC, abstractmethod
 from collections import defaultdict
 
-episode_num = 0
+
 """This module contains classes """
 #---------------------------------------------------------------------------------------------------------------------#
 
@@ -106,9 +106,10 @@ class RacingSim(CarSimulation):
 
 
 class AICarSim(CarSimulation):
-    def __init__(self, simulation_size = 5, state_size = 9):
+    def __init__(self, simulation_size = 5, state_size =11):
         super().__init__()
-        self.reward_size = 9
+        self.reward_size = 8
+        self.episode_num = 0
 
         self.sim_size = simulation_size
         self.state_size = state_size
@@ -116,24 +117,34 @@ class AICarSim(CarSimulation):
         # self.rl_model = A2CModel(self.state_size)
         self.rl_model = REINFORCEModel(self.state_size)
         if game_core.load_model:
-            params = np.load("Model_weights/testing_weights1.npy", allow_pickle=True)
-            self.rl_model.actor.set_network_params(params)
+            self.load_model()
         self.actions = np.zeros([self.sim_size, 2], np.float32)
         self.is_crashed = [False] * self.sim_size
         self.stuck_timer = [0] * self.sim_size
         self.prev_progress = [0.0] * self.sim_size
         self.max_progress = [0.0] * self.sim_size
-        self.stuck_limit = 500
+        self.stuck_limit = 1000
         self.tick_speedup = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect((400, 600), (100, 30)),
             text="Click to slow",
             manager=self.gui_manager
         )
-        self.save_ai = pygame_gui.elements.UIButton(
+        self.save_ai_button = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect((400, 650), (100, 30)),
             text="Click to save",
             manager=self.gui_manager
         )
+
+        # Rollback mechanism attributes
+        self.performance_history = []  # Track recent episode performance
+        self.history_window = 10  # Compare against last N episodes
+        self.rollback_threshold = 0.7  # Rollback if avg reward drops by this factor
+        self.best_hist_avg = 0
+        self.best_model_params = {'actor': self.rl_model.actor.get_params()}
+        if hasattr(self.rl_model, 'critic'):
+            self.best_model_params['critic'] = self.rl_model.critic.get_params()
+
+
         game_core.debug_elements["rays"] = [0] * simulation_size
         self._reset_cars()
         self.time_step_rewards_breakdown = []
@@ -142,15 +153,20 @@ class AICarSim(CarSimulation):
     def update(self):
         if all(self.is_crashed):
             if len(self.rl_model.rewards) > 0:
-                global episode_num
-                episode_num += 1
-                print(f"Episode:{episode_num}")
+                self.episode_num += 1
+                print(f"Episode:{self.episode_num}")
                 avg_epoch_rewards = np.round(self.epoch_rewards_breakdown.mean(axis=0), 3)
                 self.time_step_rewards_breakdown = np.array(self.time_step_rewards_breakdown)
                 avg_time_step_rewards = np.round(self.time_step_rewards_breakdown.mean(axis=0), 3)
                 print(f"Epoch rewards: {avg_epoch_rewards.tolist()}")
                 print(f"Time step rewards: {avg_time_step_rewards.tolist()}")
                 print()
+
+                avg_total_reward = np.sum(avg_epoch_rewards)
+                self.cache_performance(avg_total_reward)
+                self.check_rollback()
+
+
                 self.epoch_rewards_breakdown = np.zeros([self.sim_size, self.reward_size], float)
                 self.time_step_rewards_breakdown = []
                 self._reinitialise_car_simulation()
@@ -165,8 +181,8 @@ class AICarSim(CarSimulation):
 
                 progress = car.update_and_get_progress(self.track.track_spine)
                 rewards[i], rewards_array = car.compute_reward(self.prev_progress[i], self.max_progress[i], sensors, self.actions[i])
-
                 reward_breakdown = np.array(rewards_array)
+                rewards[i] = np.clip(rewards[i], -10, 100)
                 self.epoch_rewards_breakdown[i] += reward_breakdown
                 self.time_step_rewards_breakdown.append(reward_breakdown)
                 self.max_progress[i] = max(progress, self.max_progress[i])
@@ -186,7 +202,7 @@ class AICarSim(CarSimulation):
                 if car.is_crashed:
                     self.is_crashed[i] = True
 
-                states[i] = sensors
+                states[i] = self.get_state_vector(sensors, car)
 
         self.actions, pre_squash = self.rl_model.get_stochastic_actions(states)
 
@@ -195,6 +211,9 @@ class AICarSim(CarSimulation):
             if not self.is_crashed[i]:
                 car.update(self.actions[i])
         self.gui_manager.update(1/game_core.frame_rate)
+
+    def get_state_vector(self, sensors, car):
+        return sensors + [car.velocity.magnitude()/car.max_speed, car.steer/car.max_steer]
 
 
     def event_handle(self):
@@ -210,11 +229,40 @@ class AICarSim(CarSimulation):
             self.tick_speedup.set_text(f"speed: {game_core.tick_speedup}")
 
 
-        if self.save_ai in game_core.pressed_buttons:
-            params = self.rl_model.actor.get_network_params()
-            np.save("Model_weights/testing_weights1.npy", np.array(params, dtype=object), allow_pickle=True)
-            print(params)
+        if self.save_ai_button in game_core.pressed_buttons:
+            self.save_model()
         game_core.pressed_buttons.clear()
+
+
+    def check_rollback(self):
+        if len(self.performance_history) < self.history_window:
+            return
+        recent_performance = np.mean(self.performance_history[-self.history_window:])
+        if recent_performance < self.rollback_threshold * self.best_hist_avg:
+            self.rl_model.actor.set_params(self.best_model_params['actor'])
+            if hasattr(self.rl_model, 'critic'):
+                self.rl_model.critic.set_params(self.best_model_params['critic'])
+            # print()
+            # print("----xx--------xx--------xx--------xx--------xx--------xx--------xx--------xx----")
+            # print("Model Rolled Back")
+            # print("----xx--------xx--------xx--------xx--------xx--------xx--------xx--------xx----")
+            # print()
+            self.performance_history = self.performance_history[-self.history_window:]
+    def cache_performance(self, avg_total):
+        self.performance_history.append(avg_total)
+        if len(self.performance_history) > 2* self.history_window:
+            self.performance_history.pop(0)
+        if len(self.performance_history) >= self.history_window:
+            relevant_hist = self.performance_history[-self.history_window:]
+        else:
+            relevant_hist = self.performance_history
+        historic_avg = np.mean(relevant_hist)
+        if historic_avg > self.best_hist_avg:
+            self.best_hist_avg = historic_avg
+            cache_params = {'actor': self.rl_model.actor.get_params()}
+            if hasattr(self.rl_model, 'critic'):
+                cache_params['critic'] = self.rl_model.critic.get_params()
+            self.best_model_params = cache_params
 
 
 
@@ -241,11 +289,35 @@ class AICarSim(CarSimulation):
             text=f"Speed:{game_core.tick_speedup}",
             manager=self.gui_manager
         )
-        self.save_ai = pygame_gui.elements.UIButton(
+        self.save_ai_button = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect((400, 650), (100, 30)),
             text="Click to save",
             manager=self.gui_manager
         )
+
+    def save_model(self, filename = "Test REINFORCE model"):
+
+        save_data = {
+            'model_type': 'A2C' if hasattr(self.rl_model, 'critic') else 'REINFORCE',
+            'actor_params': self.rl_model.actor.get_params(),
+            'episode_num': self.episode_num,
+            'best_model_params': self.best_model_params
+        }
+
+        if save_data['model_type'] == 'A2C':
+            save_data['critic_params'] = self.rl_model.critic.get_params()
+
+        np.save(f"Saved Models/{filename}.npy", save_data, allow_pickle=True)
+
+    def load_model(self, filename= "Test REINFORCE model"):
+        save_data = np.load(f"Saved Models/{filename}.npy", allow_pickle=True).item()
+
+        self.rl_model.actor.set_params(save_data['actor_params'])
+        if hasattr(self.rl_model, 'critic') and 'critic_params' in save_data:
+            self.rl_model.critic.set_params(save_data['critic_params'])
+        self.best_model_params = save_data['best_model_params']
+        self.episode_num = save_data['episode_num']
+
 
     def _reinitialise_car_simulation(self):
         self.rl_model.update_params()

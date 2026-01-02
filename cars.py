@@ -239,8 +239,9 @@ class AICar(Car):
 
         # 1) Crash penalty
         if self.is_crashed:
-            rewards_breakdown = [-3.5*(2-self.progress), 0, 0 ,0 ,0 ,0 ,0,0, 0]
-            return -3.5*(2-self.progress), rewards_breakdown
+            crash_penalty = -1.0 - (1.0 - self.progress) * 2.0
+            rewards_breakdown = [crash_penalty, 0, 0 ,0 ,0 ,0 ,0,0]
+            return crash_penalty, rewards_breakdown
         else:
             rewards_breakdown.append(0)
         # --------------------------------------------------- #
@@ -250,66 +251,69 @@ class AICar(Car):
 
         if distance_moved < -0.5:
             distance_moved += 1.0
-        if distance_moved > 1e-5:
+
+        if distance_moved > 1e-7:
             speed = self.velocity.magnitude()
             normalized_speed = speed / self.max_speed
-            efficiency_reward = distance_moved * 120 * (0.5+ 0.5* normalized_speed)
+            efficiency_reward = distance_moved * 200 * (0.3+ 0.7* normalized_speed)
             rewards_breakdown.append(efficiency_reward)
             reward += efficiency_reward
         else:
-            rewards_breakdown.append(-0.00)
-            reward-= 0.00
+            rewards_breakdown.append(-0.001)
+            reward-= 0.001
         # --------------------------------------------------- #
 
         # 3) Imbalance reward
         left_sensors = [sensors[2], sensors[4], sensors[6], sensors[8]]
-        avg_left = sum(left_sensors) / 5
+        avg_left = sum(left_sensors) / 4
         right_sensors = [sensors[1], sensors[3], sensors[5], sensors[7]]
-        avg_right = sum(right_sensors) / 5
+        avg_right = sum(right_sensors) / 4
         imbalance = abs(avg_left - avg_right)
-        reward -= imbalance * 0.2
-        rewards_breakdown.append(-imbalance * 0.2)
+        imbalance_reward = (-imbalance * 0.02)
+        reward += imbalance_reward
+        rewards_breakdown.append(imbalance_reward)
         # --------------------------------------------------- #
 
-        # 4) Speed reward
-        speed = self.velocity.magnitude()
-        normalized_speed = speed / self.max_speed
+        # # 4) Speed reward
+        # speed = self.velocity.magnitude()
+        # normalized_speed = speed / self.max_speed
+        #
+        # rewards_breakdown.append(normalized_speed * 0.0)
+        # reward += normalized_speed * 0.0
+        # # --------------------------------------------------- #
 
-        rewards_breakdown.append(normalized_speed * 0.0)
-        reward += normalized_speed * 0.0
-        # --------------------------------------------------- #
-
-        # 5) Max progress reward/penalty
+        # 4) Max progress reward/penalty
         progress_change = self.progress - max_progress
-        reward += 0 * progress_change
-        rewards_breakdown.append(0 * progress_change)
+        exploration_reward = 0 * progress_change
+        reward += exploration_reward
+        rewards_breakdown.append(exploration_reward)
         # --------------------------------------------------- #
 
-        # 6) Wall hugging penalty
+        # 5) Wall hugging penalty
         min_sensor = min(sensors) if sensors else 0
         if min_sensor < 0.02:
-            reward -= (0.02 - min_sensor) * 0.1
-            rewards_breakdown.append(-(0.02 - min_sensor) * 0.1)
+            reward -= (0.02 - min_sensor) * 1.5
+            rewards_breakdown.append(-(0.02 - min_sensor) * 1.5)
         else:
-            rewards_breakdown.append(-(0.02 - min_sensor) * 0.1)
+            rewards_breakdown.append(0)
         # --------------------------------------------------- #
         steer, throttle = actions
 
-        # 7) Jittery steering penalty
+        # 6) Jittery steering penalty
         steer_change = abs(self.current_steer_input - steer)
-        reward -= steer_change * 0.005
-        rewards_breakdown.append(-steer_change * 0.005)
+        reward -= steer_change * 0.01
+        rewards_breakdown.append(-steer_change * 0.01)
 
         # --------------------------------------------------- #
-        # 8) Jittery acceleration penalty
+        # 7) Jittery acceleration penalty
         throttle_change = abs(self.current_throttle_input - throttle)
-        reward -= throttle_change * 0.015
-        rewards_breakdown.append(-throttle_change * 0.015)
+        reward -= throttle_change * 0.02
+        rewards_breakdown.append(-throttle_change * 0.02)
         # --------------------------------------------------- #
 
-        # 9) Time penalty
-        reward += 0.005
-        rewards_breakdown.append(0.005)
+        # 8) Time penalty
+        reward += 0.001
+        rewards_breakdown.append(0.001)
         # --------------------------------------------------- #
 
         return reward, rewards_breakdown

@@ -27,7 +27,7 @@ class RLModel(ABC):
         sigma = np.exp(self.actor.log_std)
         noise = np.random.randn(*mu.shape) * sigma
         pre_squash = mu + noise
-        actions = np.clip(pre_squash, -1, 1)
+        actions = np.tanh(pre_squash)
         return actions, pre_squash
 
     def get_deterministic_actions(self, state_vector):
@@ -63,12 +63,12 @@ class RLModel(ABC):
     def update_params(self):
         pass
 
-    def update_actor(self, advantage, states, actions):
+    def update_actor(self, advantage, states, pre_squash_actions):
         mu = self.actor.forward_propagation(states)
         sigma = np.exp(self.actor.log_std)
 
-        d_mu =  -((actions - mu) / (sigma ** 2 + game_core.eps)) * advantage[:, None]
-        d_log_std = np.mean(-(((actions - mu) ** 2) / (sigma ** 2) - 1) * advantage[:, None], axis = 0) + self.entropy
+        d_mu = -((pre_squash_actions - mu) / (sigma ** 2 + game_core.eps)) * advantage[:, None]
+        d_log_std = np.mean(-(((pre_squash_actions - mu) ** 2) / (sigma ** 2) - 1) * advantage[:, None], axis = 0) + self.entropy
         self.actor.update_params(d_mu, d_log_std)
 
     def clear_trajectory(self):
@@ -78,19 +78,19 @@ class RLModel(ABC):
 
 
 class REINFORCEModel(RLModel):
-    def __init__(self, input_size, output_size = 2, hidden_layer_sizes=[ 32, 64, 64, 32, ], seed=None):
+    def __init__(self, input_size, output_size = 2, hidden_layer_sizes=[ 32, 64, 64, 32 ], seed=None):
         layer_sizes = [input_size] + hidden_layer_sizes + [output_size]
-        activations = ['elu'] * len(hidden_layer_sizes) + ['tanh']
+        activations = ['elu'] * len(hidden_layer_sizes) + ['linear']
         super().__init__(layer_sizes, activations)
 
     def update_params(self):
         states = np.vstack(self.states)
-        actions = np.vstack(self.pre_squash_actions)
+        pre_squash_actions = np.vstack(self.pre_squash_actions)
         returns = self.compute_return()
-        advantage = returns - returns.mean()
-        advantage = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
-        self.update_actor(advantage, states, actions)
-
+        advantage = (returns - returns.mean()) / (returns.std() + 1e-8)
+        self.update_actor(advantage, states, pre_squash_actions)
+        avg_rewards = np.array(self.rewards).mean()
+        avg_returns = np.array(returns).mean()
 
         self.clear_trajectory()
 
@@ -98,7 +98,7 @@ class A2CModel(RLModel):
     def __init__(self, input_size, output_size = 2, actor_hidden_layers = [ 32, 64, 64, 32, ],
                  critic_hidden_layers = [16,16], num_of_steps = 100, seed=None):
         actor_layers = [input_size] + actor_hidden_layers + [output_size]
-        actor_activations = ['elu'] * len(actor_hidden_layers) + ['tanh']
+        actor_activations = ['elu'] * len(actor_hidden_layers) + ['linear']
         super().__init__(actor_layers, actor_activations)
 
         critic_layer_sizes = [input_size] + critic_hidden_layers + [1]
