@@ -15,6 +15,132 @@ This module contains custom GUI elements not included in the pygame_gui library
 """
 #---------------------------------------------------------------------------------------------------------------------#
 
+class UIFileInputOverlay(UIElement):
+    def __init__(self, relative_rect, manager, directory, mode="load"):
+        super().__init__(relative_rect, manager, container=None,
+                         starting_height=999, layer_thickness=1)
+
+        self.directory = directory
+        self.mode = mode
+        self.is_confirmed = False
+        self.is_cancelled = False
+
+        self.image = pygame.Surface(relative_rect.size, pygame.SRCALPHA)
+        self.image.fill((50, 50, 50, 200))
+
+        center_x = relative_rect.width // 2
+        center_y = relative_rect.height // 2
+        panel_width = 500
+        panel_height = 250
+
+
+        self.panel = pygame_gui.elements.UIPanel(
+            relative_rect=pygame.Rect(
+                (center_x - panel_width // 2, center_y - panel_height // 2),
+                (panel_width, panel_height)
+            ),
+            manager=manager,
+            starting_height=1000
+        )
+
+        self.label = pygame_gui.elements.UILabel(
+            relative_rect=pygame.Rect((20, 20), (panel_width - 40, 40)),
+            text=prompt_text,
+            manager=manager,
+            container=self.panel
+        )
+
+        self.text_entry = pygame_gui.elements.UITextEntryLine(
+            relative_rect=pygame.Rect((20, 80), (panel_width - 40, 45)),
+            manager=manager,
+            container=self.panel
+        )
+        self.text_entry.set_text(default_value)
+        self.text_entry.focus()
+
+
+        self.error_label = pygame_gui.elements.UILabel(
+            relative_rect=pygame.Rect((20, 135), (panel_width - 40, 30)),
+            text="",
+            manager=manager,
+            container=self.panel
+        )
+
+        button_y = 180
+        button_width = 200
+
+        self.ok_button = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect((20, button_y), (button_width, 45)),
+            text="OK" if mode == "load" else "Save",
+            manager=manager,
+            container=self.panel
+        )
+
+        self.cancel_button = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect((panel_width - button_width - 20, button_y),
+                                      (button_width, 45)),
+            text="Cancel",
+            manager=manager,
+            container=self.panel
+        )
+
+    def get_file(self, filename):
+        filepath =  f"{self.directory}/{filename}"
+        filepath += ".json" if self.directory == "Track" else ".npy"
+        try:
+            f = open(filepath)
+            f.close()
+            return filepath
+        except:
+            return None
+
+    def process_event(self, event):
+        """Handle button presses"""
+        handled = super().process_event(event)
+
+        if event.type == pygame_gui.UI_BUTTON_PRESSED:
+            if event.ui_element == self.ok_button:
+                filename = self.text_entry.get_text().strip()
+
+                if not filename:
+                    self.error_label.set_text("Please enter a filename!")
+                    return True
+
+                # Check file existence based on mode
+                if self.mode == "load":
+                    if self.get_file(filename):
+                        self.is_confirmed = True
+                        if self.callback:
+                            self.callback(filename)
+                    else:
+                        self.error_label.set_text(self.not_found_message)
+                else:  # save mode
+                    self.is_confirmed = True
+                    if self.callback:
+                        self.callback(filename)
+                return True
+
+            elif event.ui_element == self.cancel_button:
+                self.is_cancelled = True
+                return True
+
+        return handled
+
+    def set_callback(self, callback):
+        """Set the callback function to be called when OK is pressed"""
+        self.callback = callback
+
+    def kill(self):
+        """Clean up all UI elements"""
+        self.panel.kill()
+        self.label.kill()
+        self.text_entry.kill()
+        self.error_label.kill()
+        self.ok_button.kill()
+        self.cancel_button.kill()
+        super().kill()
+
+
 class UIGaugeMeter(UIElement):
     """
     This class is for a meter that displays values as a gauge needle rotating (like a speedometer/rpm meter)
@@ -77,7 +203,7 @@ class UITrackCanvas(UIElement):
         self.border_width = 20
         self.anchor_points = []
         self.control_points = []
-        self.widths_dict = {0.0:50}
+        self.widths_dict = {0.0:60}
         self.track_spine = []
 
         self.point_size = 5
@@ -262,7 +388,7 @@ class UITrackCanvas(UIElement):
                 dist = r.point_segment_distance(mouse_pos, segment)
                 if dist <= 2:
                     track_proportion = i/(len(self.track_spine)-1)
-                    self.widths_dict[track_proportion] = 50
+                    self.widths_dict[track_proportion] = 60
                     self.selected_point = ('w', track_proportion)
                     break
 
@@ -449,13 +575,18 @@ class UITrackCanvas(UIElement):
             self.is_track_valid = False
         return invalid_outer_walls + invalid_inner_walls
 
-    def clear_canvas(self):
-        self.selected_point = None
+    def kill(self):
         self.anchor_points.clear()
         self.control_points.clear()
         self.track_spine.clear()
         self.widths_dict.clear()
+        self.shg_grid.clear_grid()
+        self.selected_point = None
+        self.is_dragging = False
+        self.is_track_complete = False
+        self.is_track_valid = False
 
+        super().kill()
 
 
 # class UITrackCanvas(UIElement):
@@ -494,7 +625,7 @@ class UITrackCanvas(UIElement):
 #                 pygame.draw.line(self.image, "Red", self.current_stroke[i], self.current_stroke[i+1], 3)
 #
 #     def save_drawing(self, filename):
-#         with open("Tracks/"+ filename + ".txt", "w") as file:
+#         with open("Track/"+ filename + ".txt", "w") as file:
 #             for stroke in self.strokes:
 #                 for point in stroke:
 #                     file.write(str(point[0]) + "," + str(point[1]) + ",")

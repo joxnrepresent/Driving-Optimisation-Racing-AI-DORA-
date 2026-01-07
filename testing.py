@@ -12,9 +12,9 @@ import  numpy as np
 my_list = [1,2,3,5,6]
 my_list = my_list[3:]
 mean = np.mean(my_list)
-print(mean)
+print(max(my_list))
 
-
+print(65.3436 % 1)
 
 
 

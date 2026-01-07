@@ -15,13 +15,14 @@ functions/methods used throughout the project.
 class GameCore:
     def __init__(self):
         # Program constants
-        self.is_debugging = True
-        self.load_model = False
+        self.is_debugging = False
+        self.load_model = True
         self.frame_rate = 60
         self.tick_speedup = 1
         self.screen_dimensions = (1200, 750)
         self.screen_fill = "White"
-        self.current_track = "Test Track 1"
+        self.current_model = "WORKING Test A2C model"
+        self.current_track = "Patrick"
         self.meter_pixel_conversion = 8
         self.eps = 1e-9
 
@@ -120,7 +121,7 @@ def wrap_value(value, lower_limit, upper_limit):
 
 def load_track_from_file(filename):
     try:
-        with open("Tracks/"+filename + ".txt", "r") as file:
+        with open("Track/"+filename + ".txt", "r") as file:
             for line in file:
                 coordinates = line.split(',')
                 points = []
@@ -134,7 +135,7 @@ def load_track_from_file(filename):
 
 def load_bezier_track(filename):
     try:
-        with open(f"Tracks/{filename}.json", "r") as f:
+        with open(f"Track/{filename}.json", "r") as f:
             data = json.load(f)
 
         anchor_points = [Vector2(point[0], point[1]) for point in data["anchors"]]

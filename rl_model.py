@@ -27,18 +27,17 @@ class RLModel(ABC):
         sigma = np.exp(self.actor.log_std)
         noise = np.random.randn(*mu.shape) * sigma
         pre_squash = mu + noise
-        actions = np.tanh(pre_squash)
+        actions = np.clip(pre_squash, -1, 1)
         return actions, pre_squash
 
     def get_deterministic_actions(self, state_vector):
+        # x: input vector
         x = np.array(state_vector, np.float32)
         if x.ndim == 1:
             x = np.expand_dims(x, axis=0)
-
         mu = self.actor.forward_propagation(x)
-        actions = np.tanh(mu) # Use tanh to squash to [-1, 1]
-        return actions
-
+        actions = np.clip(mu, -1, 1)
+        return actions, mu
 
     def update_trajectory(self, state, action, reward):
         self.states.append(state)
@@ -68,6 +67,10 @@ class RLModel(ABC):
         sigma = np.exp(self.actor.log_std)
 
         d_mu = -((pre_squash_actions - mu) / (sigma ** 2 + game_core.eps)) * advantage[:, None]
+        l2_lamda = 0.01
+        d_mu += l2_lamda * mu
+        d_mu = np.clip(d_mu, -1, 1)
+
         d_log_std = np.mean(-(((pre_squash_actions - mu) ** 2) / (sigma ** 2) - 1) * advantage[:, None], axis = 0) + self.entropy
         self.actor.update_params(d_mu, d_log_std)
 
@@ -78,7 +81,7 @@ class RLModel(ABC):
 
 
 class REINFORCEModel(RLModel):
-    def __init__(self, input_size, output_size = 2, hidden_layer_sizes=[ 32, 64, 64, 32 ], seed=None):
+    def __init__(self, input_size, output_size = 2, hidden_layer_sizes=[ 8, 8, 8, 8, 8 ], seed=None):
         layer_sizes = [input_size] + hidden_layer_sizes + [output_size]
         activations = ['elu'] * len(hidden_layer_sizes) + ['linear']
         super().__init__(layer_sizes, activations)

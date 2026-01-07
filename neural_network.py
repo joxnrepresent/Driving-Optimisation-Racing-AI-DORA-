@@ -72,7 +72,7 @@ class Layer:
 
 
 class NeuralNetwork:
-    def __init__(self, layer_sizes, activations, init_log_std= 0.2, seed=None):
+    def __init__(self, layer_sizes, activations, init_log_std= 0.3, seed=None):
         if seed is not None:
             np.random.seed(seed)
 

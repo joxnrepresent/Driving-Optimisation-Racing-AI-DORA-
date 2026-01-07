@@ -1,5 +1,9 @@
 import math
+
+import numpy as np
 from pygame import Vector2
+from pygame_gui.core.colour_parser import is_float_str
+
 import resources as r
 import pygame
 from abc import ABC, abstractmethod
@@ -116,10 +120,10 @@ class Car(pygame.sprite.Sprite, ABC):
         speed_m = speed / game_core.meter_pixel_conversion
         if speed_m > 0.1:
             max_angular_velocity = self.max_lateral_accel / speed_m
-            actual_angular_velocity = max(-max_angular_velocity,
-                                          min(max_angular_velocity,
+            angular_velocity = max(-max_angular_velocity,
+                                   min(max_angular_velocity,
                                                     (math.tan(self.steer) * speed_m) / self.wheelbase))
-            self.direction += math.degrees(actual_angular_velocity) * dt
+            self.direction += math.degrees(angular_velocity) * dt
 
     def _update_hitbox(self):
         center_x, center_y = self.rect.center
@@ -146,10 +150,12 @@ class Car(pygame.sprite.Sprite, ABC):
             change_in_progress += 1.0
 
         normalised_progress = self.progress + change_in_progress
+        is_lap_finished = False
         if normalised_progress > self.progress:
             if normalised_progress >= 1:
-                print("lap completed!")
-                self.progress = normalised_progress - 1
+                # print("lap completed!")
+                self.progress = normalised_progress
+                is_lap_finished = True
             else:
                 self.progress = normalised_progress
         else:
@@ -158,7 +164,7 @@ class Car(pygame.sprite.Sprite, ABC):
                 self.is_crashed = True
             else:
                 self.progress = normalised_progress
-        return self.progress
+        return self.progress, is_lap_finished
 
     def _update_car_sprite_position(self):
         self.image = pygame.transform.rotate(self._original_car, -self.direction)
@@ -204,7 +210,7 @@ class PlayerCar(Car):
 class AICar(Car):
     def __init__(self, starting_position = None):
         super().__init__(starting_position)
-        self.ray_cast_angles = [10, 20, 40, 75]
+        self.ray_cast_angles = [15, 30, 45, 60, 75, 60]
         self.car_max_ray_cast = game_core.screen_dimensions[0] * 0.8
         self.prev_steer_input = 0
 
@@ -233,29 +239,45 @@ class AICar(Car):
         game_core.game_mode.debug_elements["rays"][index] = collided_rays
         return sensors
 
-    def compute_reward(self, prev_progress, max_progress, sensors, actions):
+    def compute_reward(self, is_stuck, is_lap_finished, prev_progress, mean_progress, sensors):
         reward = 0
         rewards_breakdown = []
 
-        # 1) Crash penalty
+        # 1) Stopping penalty
         if self.is_crashed:
-            crash_penalty = -1.0 - (1.0 - self.progress) * 2.0
-            rewards_breakdown = [crash_penalty, 0, 0 ,0 ,0 ,0 ,0,0]
-            return crash_penalty, rewards_breakdown
+            if is_stuck:
+                stopped_penalty = -3.0
+            else:
+                stopped_penalty = -7.0
+            reward += stopped_penalty
+            # 2) Max progress bonus
+            current_progress = self.progress
+            progress_change = current_progress - mean_progress
+            exploration_coef = 140 if progress_change >  0  else 40
+            exploration_reward = exploration_coef * progress_change
+            reward += exploration_reward
+            rewards_breakdown.append(exploration_reward)
+
+            rewards_breakdown = [stopped_penalty, exploration_reward, 0, 0 , 0 , 0 , 0 , 0, 0]
+            return reward, rewards_breakdown
         else:
+            rewards_breakdown.append(0)
             rewards_breakdown.append(0)
         # --------------------------------------------------- #
 
-        # 2) Efficiency reward
+        # 3) Efficiency reward
         distance_moved = self.progress - prev_progress
 
         if distance_moved < -0.5:
             distance_moved += 1.0
 
-        if distance_moved > 1e-7:
+        if distance_moved > 1e-4:
             speed = self.velocity.magnitude()
             normalized_speed = speed / self.max_speed
-            efficiency_reward = distance_moved * 200 * (0.3+ 0.7* normalized_speed)
+            speed_reward = 0.025 * normalized_speed**2
+            # efficiency_reward = 0.15 *  np.sqrt(distance_moved * 70 + speed_reward)
+            efficiency_reward = distance_moved * 45 + speed_reward
+
             rewards_breakdown.append(efficiency_reward)
             reward += efficiency_reward
         else:
@@ -263,57 +285,71 @@ class AICar(Car):
             reward-= 0.001
         # --------------------------------------------------- #
 
-        # 3) Imbalance reward
+        # 4) Imbalance reward
         left_sensors = [sensors[2], sensors[4], sensors[6], sensors[8]]
         avg_left = sum(left_sensors) / 4
         right_sensors = [sensors[1], sensors[3], sensors[5], sensors[7]]
         avg_right = sum(right_sensors) / 4
-        imbalance = abs(avg_left - avg_right)
-        imbalance_reward = (-imbalance * 0.02)
-        reward += imbalance_reward
-        rewards_breakdown.append(imbalance_reward)
-        # --------------------------------------------------- #
+        imbalance = avg_right - avg_left
+        # imbalance_reward = (0.009 -imbalance * 0.15)
+        # imbalance_reward = - 0.08 * (imbalance ** 1.5)
+        # aligned_steering_reward = imbalance * self.current_steer_input * 0.8
 
-        # # 4) Speed reward
-        # speed = self.velocity.magnitude()
-        # normalized_speed = speed / self.max_speed
-        #
-        # rewards_breakdown.append(normalized_speed * 0.0)
-        # reward += normalized_speed * 0.0
-        # # --------------------------------------------------- #
+        left_clearance = sum(left_sensors)
+        right_clearance = sum(right_sensors)
 
-        # 4) Max progress reward/penalty
-        progress_change = self.progress - max_progress
-        exploration_reward = 0 * progress_change
-        reward += exploration_reward
-        rewards_breakdown.append(exploration_reward)
+        aligned_steering_reward = ((right_clearance - left_clearance) * self.current_steer_input ) * 0.6
+        if distance_moved > 1e-4:
+
+
+            reward += aligned_steering_reward
+            rewards_breakdown.append(aligned_steering_reward)
+        else:
+            rewards_breakdown.append(0)
         # --------------------------------------------------- #
 
         # 5) Wall hugging penalty
         min_sensor = min(sensors) if sensors else 0
         if min_sensor < 0.02:
-            reward -= (0.02 - min_sensor) * 1.5
-            rewards_breakdown.append(-(0.02 - min_sensor) * 1.5)
+            reward -= (0.02 - min_sensor) * 14
+            rewards_breakdown.append(-(0.02 - min_sensor) * 14)
         else:
             rewards_breakdown.append(0)
         # --------------------------------------------------- #
-        steer, throttle = actions
 
-        # 6) Jittery steering penalty
-        steer_change = abs(self.current_steer_input - steer)
-        reward -= steer_change * 0.01
-        rewards_breakdown.append(-steer_change * 0.01)
+        # 6) Steer anticipation reward
+        front_sensor = sensors[0]  # assuming 0 is straight ahead
+        corner_strength = max(0.0, 0.5 - front_sensor) * abs(imbalance)
+        steer_anticipation_reward = corner_strength * self.current_steer_input  * 0
+        if distance_moved > 1e-4:
+            reward += steer_anticipation_reward
+            rewards_breakdown.append(steer_anticipation_reward)
+        else:
+            rewards_breakdown.append(0)
 
         # --------------------------------------------------- #
-        # 7) Jittery acceleration penalty
-        throttle_change = abs(self.current_throttle_input - throttle)
-        reward -= throttle_change * 0.02
-        rewards_breakdown.append(-throttle_change * 0.02)
+        # 7) No steer penalty
+
+        if min(sensors) < 0.03 and distance_moved > 1e-4:
+            no_steering_penalty = -1.5 * (1- abs(self.current_steer_input))
+            reward += no_steering_penalty
+            rewards_breakdown.append(no_steering_penalty)
+        else:
+            rewards_breakdown.append(0)
         # --------------------------------------------------- #
 
-        # 8) Time penalty
-        reward += 0.001
-        rewards_breakdown.append(0.001)
-        # --------------------------------------------------- #
+        # 8) Survival bonus
+        reward += 0.004
+        rewards_breakdown.append(0.004)
+        # ---------------------------------------------------
 
+        # 9) Finish lap bonus
+        if is_lap_finished:
+            reward += 10
+            rewards_breakdown.append(10)
+        else:
+            rewards_breakdown.append(0)
+
+
+        reward = np.clip(reward, -5, 30)
         return reward, rewards_breakdown
