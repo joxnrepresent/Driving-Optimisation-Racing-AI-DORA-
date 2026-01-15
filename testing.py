@@ -1,5 +1,5 @@
 import  numpy as np
-
+import math
 # mydict = {1:[0,1,2,3], 5:[6,7,8,9]}
 # mydict[90] = "alphabet"
 # if mydict.__contains__('c'):
@@ -9,12 +9,16 @@ import  numpy as np
 #
 # mydict.pop(90)
 # print(mydict)
-my_list = [1,2,3,5,6]
-my_list = my_list[3:]
-mean = np.mean(my_list)
-print(max(my_list))
 
-print(65.3436 % 1)
+lap_times = [[1,2], [5,3], [6,4]]
+up_times = np.array(lap_times)
+for i, lap_time in enumerate(up_times):
+    print(lap_time)
+
+
+
+
+
 
 
 

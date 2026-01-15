@@ -1,5 +1,4 @@
 import math
-
 import numpy as np
 from pygame import Vector2
 from pygame_gui.core.colour_parser import is_float_str
@@ -7,22 +6,15 @@ from pygame_gui.core.colour_parser import is_float_str
 import resources as r
 import pygame
 from abc import ABC, abstractmethod
-from pygame_gui import elements
+from pygame_gui import elements, UIManager
 from resources import game_core
 from gui_custom_elements import UIGaugeMeter
 
 
 class Car(pygame.sprite.Sprite, ABC):
-    """
-    This class is the Car sprite and extends the Sprite class. The movement of the car is controlled by user input.
-    The throttle and steer values are used to control the car's movement. The car's acceleration, velocity and position
-    are calculated using vector math and arbitrary constants. Movement is not modelling in terms of forces in this
-    version.In later versions, forces will be used to model car movement which would allow lesser bugs, more accurate
-    steering and implementing drifting physics, however for present testing, this level of abstraction is sufficient
-    """
 
-    def __init__(self, starting_position=(550, 130), starting_orientation=270,
-                 car_proportions=pygame.Vector2(2.718, 4.287) * game_core.meter_pixel_conversion):
+    def __init__(self, starting_position=(game_core.screen_dimensions[0]/2, game_core.screen_dimensions[1]/2),
+            starting_orientation =270, car_proportions=pygame.Vector2(2.718, 4.287)*game_core.meter_pixel_conversion):
         super().__init__()
         self.is_crashed = False
         self.position = pygame.Vector2(starting_position)
@@ -36,17 +28,17 @@ class Car(pygame.sprite.Sprite, ABC):
         self.throttle = 0.0
         self.steer = 0.0
 
-        self.driving_force = 40
-        self.braking_force = 80
-        self.max_speed = 200
-        self.max_steer = math.radians(20)
+        self.driving_force = 50
+        self.braking_force = 90
+        self.max_speed = 400
+        self.max_steer = math.radians(30)
         self.car_proportions = car_proportions
 
         self.steer_response = 0.3
-        self.throttle_factor = 0.08
-        self.brake_factor = 0.06
+        self.throttle_factor = 0.1
+        self.brake_factor = 0.08
         self.wheelbase = 3.6
-        self.max_lateral_accel = 10.0
+        self.max_lateral_accel = 30.0
 
         """
         The '_original_car' variable is necessary for rotating the sprite properly since the car sprite is rotated
@@ -62,6 +54,10 @@ class Car(pygame.sprite.Sprite, ABC):
         """
         self.hitbox = []
         self._update_hitbox()
+
+    def set_car_position(self, position, orientation):
+        self.position = position
+        self.direction = orientation
 
     @abstractmethod
     def update(self, *args, **kwargs):
@@ -107,7 +103,7 @@ class Car(pygame.sprite.Sprite, ABC):
         direction_unit_vector = pygame.Vector2(0, 1).rotate(self.direction)
         self.acceleration = self.throttle * direction_unit_vector
         if self.throttle == 0:
-            self.velocity *= 0.995
+            self.velocity *= 0.992
         else:
             self.velocity += self.acceleration * dt
 
@@ -138,32 +134,35 @@ class Car(pygame.sprite.Sprite, ABC):
                           center_y + x * math.sin(angle) + y * math.cos(angle))
         self.hitbox[:] = corners
 
+    def set_progress(self, progress):
+        self.progress = progress
+
     def update_and_get_progress(self, track_spine):
         center = Vector2(self.rect.center)
         closest_point = min(track_spine, key=lambda point: (center - point).length_squared())
         current_progress = track_spine.index(closest_point) / (len(track_spine) - 1)
 
-        change_in_progress = current_progress - self.progress
+        change_in_progress = current_progress - (self.progress % 1)
         if change_in_progress > 0.5:
             change_in_progress -= 1.0
         elif change_in_progress <= -0.5:
             change_in_progress += 1.0
 
-        normalised_progress = self.progress + change_in_progress
+        new_progress = self.progress + change_in_progress
         is_lap_finished = False
-        if normalised_progress > self.progress:
-            if normalised_progress >= 1:
-                # print("lap completed!")
-                self.progress = normalised_progress
+        if new_progress > self.progress:
+            if math.floor(new_progress) - math.floor(self.progress) > 0:
+                print("lap completed!")
+                self.progress = new_progress
                 is_lap_finished = True
             else:
-                self.progress = normalised_progress
+                self.progress = new_progress
         else:
-            if normalised_progress <= -0.5:
+            if new_progress <= -0.5:
                 print("Wrong way! Please reset")
                 self.is_crashed = True
             else:
-                self.progress = normalised_progress
+                self.progress = new_progress
         return self.progress, is_lap_finished
 
     def _update_car_sprite_position(self):
@@ -173,7 +172,7 @@ class Car(pygame.sprite.Sprite, ABC):
 class PlayerCar(Car):
     def __init__(self, starting_position = None):
         super().__init__(starting_position)
-
+        self.control_panel_manager = UIManager(game_core.screen_dimensions)
         self.steering_slider = elements.UIHorizontalSlider(
             relative_rect=pygame.Rect((game_core.screen_dimensions[0] / 2, 700), (600, 30)),
             start_value=0,
@@ -189,6 +188,11 @@ class PlayerCar(Car):
             relative_rect=pygame.Rect((game_core.screen_dimensions[0] / 4 - 300, 600), (200, 100)),
             manager=game_core.gui_manager
         )
+
+    def delete_control_panel(self):
+        self.steering_slider.kill()
+        self.throttle_and_braking_meter.kill()
+        self.speedometer.kill()
 
     def update(self):
         self._car_movement(self._handle_steering(), self._handle_throttle())
@@ -212,7 +216,6 @@ class AICar(Car):
         super().__init__(starting_position)
         self.ray_cast_angles = [15, 30, 45, 60, 75, 60]
         self.car_max_ray_cast = game_core.screen_dimensions[0] * 0.8
-        self.prev_steer_input = 0
 
     def update(self, target_actions):
         self._car_movement(*target_actions)
@@ -236,7 +239,7 @@ class AICar(Car):
             hit_point, normalised_collision_distance = track.ray_cast(ray)
             collided_rays.append((center, hit_point))
             sensors.append(normalised_collision_distance)
-        game_core.game_mode.debug_elements["rays"][index] = collided_rays
+        # game_core.game_mode.debug_elements["rays"][index] = collided_rays
         return sensors
 
     def compute_reward(self, is_stuck, is_lap_finished, prev_progress, mean_progress, sensors):
@@ -276,7 +279,7 @@ class AICar(Car):
             normalized_speed = speed / self.max_speed
             speed_reward = 0.025 * normalized_speed**2
             # efficiency_reward = 0.15 *  np.sqrt(distance_moved * 70 + speed_reward)
-            efficiency_reward = distance_moved * 45 + speed_reward
+            efficiency_reward = distance_moved * 60 + speed_reward
 
             rewards_breakdown.append(efficiency_reward)
             reward += efficiency_reward
@@ -310,7 +313,7 @@ class AICar(Car):
 
         # 5) Wall hugging penalty
         min_sensor = min(sensors) if sensors else 0
-        if min_sensor < 0.02:
+        if min_sensor < 0.01:
             reward -= (0.02 - min_sensor) * 14
             rewards_breakdown.append(-(0.02 - min_sensor) * 14)
         else:
@@ -331,7 +334,7 @@ class AICar(Car):
         # 7) No steer penalty
 
         if min(sensors) < 0.03 and distance_moved > 1e-4:
-            no_steering_penalty = -1.5 * (1- abs(self.current_steer_input))
+            no_steering_penalty = -1 * (1- abs(self.current_steer_input))
             reward += no_steering_penalty
             rewards_breakdown.append(no_steering_penalty)
         else:
@@ -339,8 +342,8 @@ class AICar(Car):
         # --------------------------------------------------- #
 
         # 8) Survival bonus
-        reward += 0.004
-        rewards_breakdown.append(0.004)
+        reward += 0.001
+        rewards_breakdown.append(0.001)
         # ---------------------------------------------------
 
         # 9) Finish lap bonus
@@ -349,7 +352,6 @@ class AICar(Car):
             rewards_breakdown.append(10)
         else:
             rewards_breakdown.append(0)
-
 
         reward = np.clip(reward, -5, 30)
         return reward, rewards_breakdown

@@ -5,6 +5,7 @@ from collections import defaultdict
 from numpy import exp
 from pygame import Vector2
 import json
+import numpy as np
 
 """
 This module contains shared resources like constants, game-state variables (singletons), and utility 
@@ -16,18 +17,19 @@ class GameCore:
     def __init__(self):
         # Program constants
         self.is_debugging = False
-        self.load_model = True
-        self.frame_rate = 60
+        self.is_paused = False
+        self.load_model = False
+        self.frame_rate = 50
         self.tick_speedup = 1
-        self.screen_dimensions = (1200, 750)
+        self.screen_dimensions = (1400, 850)
         self.screen_fill = "White"
-        self.current_model = "WORKING Test A2C model"
-        self.current_track = "Patrick"
+        self.current_model = None
+        self.current_track = None
         self.meter_pixel_conversion = 8
         self.eps = 1e-9
 
         # Core program components
-        self.main_screen = pygame.display.set_mode(self.screen_dimensions)
+        self.main_screen = pygame.display.set_mode(self.screen_dimensions, pygame.RESIZABLE)
         self.clock = pygame.time.Clock()
         self.pressed_keys = set()
         self.pressed_buttons = set()
@@ -79,6 +81,8 @@ class GameCore:
 
     def cache_events(self, event):
         self.gui_manager.process_events(event)
+        if self.is_paused:
+            return
         if event.type == pygame.QUIT:
             exit()
         if event.type == pygame.KEYDOWN:
@@ -93,7 +97,42 @@ class GameCore:
             self.game_mode.event_handle()
             self.game_mode.update()
 
+    def set_file(self, directory, filename):
+        if directory == "Track":
+            self.current_track = f"{directory}/{filename}.json"
+        else:
+            self.current_model = f"{directory}/{filename}.npy"
+
 game_core = GameCore()
+
+class RaceTimeManager:
+    def __init__(self):
+        self.start_time = None
+        self.end_times = None
+        self.lap_times = None
+
+    def initialise_manager(self, num_of_cars, num_of_laps):
+        self.start_time = pygame.time.get_ticks()
+        self.end_times = [0] * num_of_cars
+        self.lap_times = [[0] * num_of_cars] * num_of_laps
+
+    def get_stats(self):
+        end_times_ms = np.array(self.end_times)
+        end_times_s = (end_times_ms - self.start_time) * 1000
+        lap_times_ms = np.array(self.lap_times)
+        lap_times_s = []
+        for i, car_lap_times_for_lap in enumerate(lap_times_ms):
+            times_s = car_lap_times_for_lap - lap_times_ms[i-1] if i > 0 else car_lap_times_for_lap - self.start_time
+            times_s *= 1000
+            lap_times_s.append(times_s)
+
+        return end_times_s, lap_times_s
+
+    def update(self, laps_completed, is_lap_completed):
+        if is_lap_completed:
+            self.lap_times[laps_completed - 1][i] = pygame.time.get_ticks()
+        if laps_completed == self.num_of_laps:
+            self.end_times[i] = pygame.time.get_ticks()
 
 
 """Utility functions"""
@@ -242,7 +281,7 @@ def point_segment_distance(point, segment):
 
     seg_len_sq = ab.length_squared()
 
-    t = max(0, min(1, ap.dot(ab) / seg_len_sq))
+    t = max(0, min(1, ap.dot(ab) / (seg_len_sq + 1e-10)))
     closest_point = a + ab * t
     return (point - closest_point).length()
 
@@ -250,7 +289,7 @@ def point_segment_distance(point, segment):
 def transformed_sigmoid(x):
     return (2.0 / (1.0 + exp(-x)))-1
 
-def generate_track_spine(anchor_points, control_points):
+def generate_bezier_track_spine(anchor_points, control_points):
     track_spine = []
     for i in range(len(anchor_points) - 1):
         p1, p2 = anchor_points[i], anchor_points[i + 1]
@@ -283,6 +322,56 @@ def de_casteljau(points, t):
         new_points.append((1 - t) * points[i] + t * points[i + 1])
     return de_casteljau(new_points, t)
 
+def generate_catmull_rom_track_spine(anchor_points, is_complete):
+    def catmull_rom(p0, p1, p2, p3, resolution = 100):
+        # Caching coefficients of cubic in terms of t (at^3 + bt^2 + ct + d)
+        a = -p0 + 3*p1 - 3*p2 + p3
+        b = 2*p0 - 5*p1 + 4*p2 - p3
+        c = -p0 + p2
+        d = 2*p1
+
+        curve_points = []
+        for i in range(resolution + 1):
+            t = i/resolution
+            t2 = t*t
+            t3 = t2 * t
+            point = 0.5 * (a*t3 + b*t2 + c*t + d)
+            curve_points.append(point)
+
+        return curve_points
+
+    track_spine = []
+    if is_complete:
+        for i in range(len(anchor_points)-1):
+            p0 = anchor_points[(i - 1) % len(anchor_points)]
+            p1 = anchor_points[i]
+            p2 = anchor_points[(i + 1) % len(anchor_points)]
+            p3 = anchor_points[(i + 2) % len(anchor_points)]
+            track_spine.extend(catmull_rom(p0, p1, p2, p3))
+    else:
+        for i in range(len(anchor_points) -1):
+            if i == 0:
+                p0 = anchor_points[0] + (anchor_points[0] - anchor_points[1])
+            else:
+                p0 = anchor_points[i - 1]
+
+            p1 = anchor_points[i]
+            p2 = anchor_points[i + 1]
+
+            if i == len(anchor_points) - 2:
+                p3 = anchor_points[-1] + (anchor_points[-1] - anchor_points[-2])
+            else:
+                p3 = anchor_points[i + 2]
+
+            track_spine.extend(catmull_rom(p0, p1, p2, p3))
+
+    cleaned_track_spine = []
+    for point in track_spine:
+        if not cleaned_track_spine or (point - cleaned_track_spine[-1]).length_squared() > 15:
+            cleaned_track_spine.append(point)
+    return cleaned_track_spine
+
+
 def generate_track_walls(track_spine, widths_dict, is_track_complete = False):
     outer_wall_points = []
     inner_wall_points = []
@@ -303,6 +392,7 @@ def generate_track_walls(track_spine, widths_dict, is_track_complete = False):
             segment_width = start_width + (t - start_track_index) / (end_track_index - start_track_index) * d_width
 
             spine_point, next_point = track_spine[t], track_spine[t+1]
+
             forward = (next_point - spine_point).normalize()
             if t > 0:
                 backward = (spine_point - track_spine[t - 1]).normalize()

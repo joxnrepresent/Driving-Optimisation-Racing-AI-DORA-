@@ -1,18 +1,17 @@
 import pygame
 import pygame_gui
-import resources as r
-from game_modes import TrackMakerUI, RacingSim, AICarSim
+from game_modes import MainMenu
 from resources import game_core
 
 """
 Main module for running the program. This handles input, updates, and rendering
 """
-#---------------------------------------------------------------------------------------------------------------------#
+#----------------------------------------------------f-----------------------------------------------------------------#
 
 # pygame and GUI initialisation
 pygame.init()
 game_core.gui_manager = pygame_gui.UIManager(game_core.screen_dimensions)
-game_core.set_game_mode(TrackMakerUI)
+game_core.set_game_mode(MainMenu)
 
 # Game loop which runs indefinitely till program is closed
 def game_loop():

@@ -4,6 +4,7 @@ from neural_network import NeuralNetwork
 from abc import ABC, abstractmethod
 from resources import game_core
 
+
 class RLModel(ABC):
     def __init__(self, layer_sizes, activations):
        # Recording Trajectory
@@ -18,7 +19,6 @@ class RLModel(ABC):
 
     def get_stochastic_actions(self, state_vector):
         # x: input vector
-
         x = np.array(state_vector, np.float32)
         if x.ndim == 1:
             x = np.expand_dims(x, axis=0)
@@ -37,7 +37,7 @@ class RLModel(ABC):
             x = np.expand_dims(x, axis=0)
         mu = self.actor.forward_propagation(x)
         actions = np.clip(mu, -1, 1)
-        return actions, mu
+        return actions[0]
 
     def update_trajectory(self, state, action, reward):
         self.states.append(state)
@@ -97,7 +97,7 @@ class REINFORCEModel(RLModel):
 
         self.clear_trajectory()
 
-class A2CModel(RLModel):
+class MCACModel(RLModel):
     def __init__(self, input_size, output_size = 2, actor_hidden_layers = [ 32, 64, 64, 32, ],
                  critic_hidden_layers = [16,16], num_of_steps = 100, seed=None):
         actor_layers = [input_size] + actor_hidden_layers + [output_size]
@@ -108,7 +108,7 @@ class A2CModel(RLModel):
         critic_activations = ['tanh'] * len(critic_hidden_layers) + ['linear']
         self.critic = NeuralNetwork(critic_layer_sizes, critic_activations, seed=seed)
 
-
+        self.num_of_steps = num_of_steps
         self.gae_lambda = 0.95
 
     def compute_gae_advantages(self, values):

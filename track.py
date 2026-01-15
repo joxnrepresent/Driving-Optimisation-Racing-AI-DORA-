@@ -6,16 +6,12 @@ from collections import defaultdict
 from resources import game_core
 
 class Track(Sprite):
-    """
-    Creates a track sprite. The track is composed of individual wall segments which are represented as list of start
-    and end points, and has a separate image that is loaded onto the screen. The grid is a hash map that maps the cells
-    of the grid to the track segments in that cell.
-    """
+
     def __init__(self, track_name, position = ((0,0), game_core.screen_dimensions)):
         super().__init__()
         self.grid = SpatialHashGrid()
         anchors, controls, widths = r.load_bezier_track(track_name)
-        self.track_spine = r.generate_track_spine(anchors, controls)
+        self.track_spine = r.generate_bezier_track_spine(anchors, controls)
         if 1.0 not in widths:
             widths[1.0] = widths[0.0]
         outer_wall_points, inner_wall_points = r.generate_track_walls(self.track_spine, widths)
@@ -32,17 +28,6 @@ class Track(Sprite):
             self.wall_segments.append(segment)
         for i, segment in enumerate(self.wall_segments):
             self.grid.hash_segment(segment, i)
-
-
-        # walls
-        # self.wall_segments = []
-        # segment_index = 0
-        # for wall in walls:
-        #     for i in range(len(wall)):
-        #         segment = (wall[i], wall[(i + 1) % len(wall)])
-        #         self.wall_segments.append(segment)
-        #         self.grid.hash_segment(segment, segment_index)
-        #         segment_index += 1
 
         self.rect = Rect(position)
         self.image = Surface((self.rect.width, self.rect.height), SRCALPHA)

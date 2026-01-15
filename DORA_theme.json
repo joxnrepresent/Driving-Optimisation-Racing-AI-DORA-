@@ -1,0 +1,143 @@
+{
+  "defaults": {
+    "font": {
+      "name": "default",
+      "size": 16
+    },
+    "colours": {
+      "normal_text": "#E6E6FA",
+      "dark_text": "#B8A9FF",
+      "disabled_text": "#666666"
+    }
+  },
+
+  "UIPanel": {
+    "colours": {
+      "background_colour": "#0B0D1A"
+    }
+  },
+
+  "UIPanel#main_bg": {
+    "colours": {
+      "background_colour": "#05060F"
+    }
+  },
+
+  "UIPanel#control_panel": {
+    "colours": {
+      "background_colour": "#14162ACC"
+    },
+    "misc": {
+      "border_width": 2,
+      "border_colour": "#6B5BFF88"
+    }
+  },
+
+  "UIButton": {
+    "font": {
+      "name": "default",
+      "size": 15
+    },
+    "colours": {
+      "normal_bg": "#1C1F3A",
+      "hovered_bg": "#2A2F66",
+      "selected_bg": "#3B42AA",
+      "active_bg": "#4E56FF",
+      "normal_text": "#EAE8FF",
+      "hovered_text": "#FFFFFF",
+      "selected_text": "#FFFFFF",
+      "active_text": "#FFFFFF",
+      "disabled_bg": "#111111",
+      "disabled_text": "#555555"
+    },
+    "misc": {
+      "border_width": 1,
+      "border_colour": "#5F67FF"
+    }
+  },
+
+  "UIButton#action_button": {
+    "colours": {
+      "normal_bg": "#242866",
+      "hovered_bg": "#343AFF",
+      "active_bg": "#5A63FF"
+    },
+    "misc": {
+      "border_width": 2,
+      "border_colour": "#8F9BFF"
+    }
+  },
+
+  "UIButton#menu_button": {
+    "colours": {
+      "normal_bg": "#1E2248",
+      "hovered_bg": "#3238A8",
+      "active_bg": "#4B54FF"
+    }
+  },
+
+  "UIButton#exit_button": {
+    "colours": {
+      "normal_bg": "#3A1122",
+      "hovered_bg": "#6A1B3D",
+      "active_bg": "#A3265D",
+      "normal_text": "#FFD6E8"
+    },
+    "misc": {
+      "border_colour": "#FF5FA2",
+      "border_width": 2
+    }
+  },
+
+  "UIButton#minimise_button": {
+    "font": {
+      "name": "default",
+      "size": 22
+    },
+    "colours": {
+      "normal_bg": "#181A33",
+      "hovered_bg": "#2A2E66",
+      "active_bg": "#444CFF"
+    }
+  },
+
+  "UILabel": {
+    "font": {
+      "name": "default",
+      "size": 15
+    },
+    "colours": {
+      "text": "#DAD8FF"
+    }
+  },
+
+  "UILabel#title_label": {
+    "font": {
+      "name": "default",
+      "size": 36
+    },
+    "colours": {
+      "text": "#9FA7FF"
+    }
+  },
+
+  "UILabel#subtitle_label": {
+    "font": {
+      "name": "default",
+      "size": 18
+    },
+    "colours": {
+      "text": "#7F88FF"
+    }
+  },
+
+  "UILabel#info_label": {
+    "font": {
+      "name": "default",
+      "size": 14
+    },
+    "colours": {
+      "text": "#AAAAFF"
+    }
+  }
+}

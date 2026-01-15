@@ -4,142 +4,296 @@ from typing import Union
 import random
 import json
 from fontTools.varLib.errors import NotANone
-
+import os
 import resources as r
 import pygame
+
 from track import SpatialHashGrid
 from pygame.math import Vector2
 from pygame_gui.core import UIElement
+from pygame_gui.elements import UIPanel,UILabel,UIButton,UISelectionList,UITextEntryLine, UIDropDownMenu
+import pygame_gui
+import re
 """
 This module contains custom GUI elements not included in the pygame_gui library
 """
-#---------------------------------------------------------------------------------------------------------------------#
 
-class UIFileInputOverlay(UIElement):
-    def __init__(self, relative_rect, manager, directory, mode="load"):
+class UIOptionSelector(UIElement):
+    def __init__(self, relative_rect, manager, options, callback, title="Select an option", return_mode=None):
+        super().__init__(relative_rect, manager, container=None, starting_height=999, layer_thickness=1)
+
+        # Pause game
+        r.game_core.is_paused = True
+
+        self.options = options
+        self.callback = callback
+        self.return_mode = return_mode
+        self.selected_option = options[0] if options else None
+
+        # Semi-transparent background
+        self.image = pygame.Surface(relative_rect.size, pygame.SRCALPHA)
+        self.image.fill((30, 30, 30, 120))
+
+        # Panel
+        panel_w, panel_h = 400, 250
+        self.panel = UIPanel(
+            relative_rect=pygame.Rect(
+                ((relative_rect.width - panel_w) / 2,
+                 (relative_rect.height - panel_h) / 2),
+                (panel_w, panel_h)
+            ),
+            manager=manager,
+            starting_height=1000,
+            object_id="#selector_panel"
+        )
+
+        # Title label
+        self.title_label = UILabel(
+            relative_rect=pygame.Rect((0, 10), (panel_w, 30)),
+            text=title,
+            manager=manager,
+            container=self.panel,
+            object_id="#selector_title"
+        )
+
+        # Dropdown list (similar to file_list in FileSelector)
+        self.option_list = UIDropDownMenu(
+            options_list=options,
+            starting_option=self.selected_option,
+            relative_rect=pygame.Rect((50, 70), (300, 40)),
+            manager=manager,
+            container=self.panel,
+            object_id="#selector_list"
+        )
+
+        # OK button
+        self.ok_button = UIButton(
+            relative_rect=pygame.Rect((40, 150), (140, 50)),
+            text="OK",
+            manager=manager,
+            container=self.panel,
+            object_id="#confirm_button"
+        )
+
+        # Cancel button
+        self.cancel_button = UIButton(
+            relative_rect=pygame.Rect((220, 150), (140, 50)),
+            text="Cancel",
+            manager=manager,
+            container=self.panel,
+            object_id="#cancel_button"
+        )
+
+    def process_event(self, event):
+        super().process_event(event)
+
+        if event.type == pygame_gui.UI_DROP_DOWN_MENU_CHANGED:
+            if event.ui_element == self.option_list:
+                self.selected_option = event.text
+
+        if event.type == pygame_gui.UI_BUTTON_PRESSED:
+            if event.ui_element == self.ok_button:
+                self.kill()
+                self.callback(self.selected_option)
+
+            elif event.ui_element == self.cancel_button:
+                self.kill()
+                if self.return_mode:
+                    r.game_core.set_game_mode(self.return_mode)
+
+    def kill(self):
+        r.game_core.is_paused = False
+
+        self.panel.kill()
+        self.title_label.kill()
+        self.option_list.kill()
+        self.ok_button.kill()
+        self.cancel_button.kill()
+
+        super().kill()
+
+class UIFileSelector(UIElement):
+    def __init__(self, relative_rect, manager, directory, mode,
+                 callback= lambda directory, filename: print(directory, filename), return_mode = None):
         super().__init__(relative_rect, manager, container=None,
                          starting_height=999, layer_thickness=1)
 
+        r.game_core.is_paused = True
         self.directory = directory
         self.mode = mode
-        self.is_confirmed = False
-        self.is_cancelled = False
+        self.callback = callback
+        self.return_mode = return_mode
+        self.confirm_overwrite = False
+
 
         self.image = pygame.Surface(relative_rect.size, pygame.SRCALPHA)
-        self.image.fill((50, 50, 50, 200))
+        self.image.fill((30, 30, 30, 100))
 
-        center_x = relative_rect.width // 2
-        center_y = relative_rect.height // 2
-        panel_width = 500
-        panel_height = 250
-
-
-        self.panel = pygame_gui.elements.UIPanel(
+        panel_w = 500
+        panel_h = 450
+        self.panel = UIPanel(
             relative_rect=pygame.Rect(
-                (center_x - panel_width // 2, center_y - panel_height // 2),
-                (panel_width, panel_height)
+                ((relative_rect.width - panel_w) / 2, (relative_rect.height-panel_h) / 2 ),
+                (panel_w, panel_h)
             ),
             manager=manager,
-            starting_height=1000
+            starting_height=1000,
+            object_id='#selector_panel'
         )
 
-        self.label = pygame_gui.elements.UILabel(
-            relative_rect=pygame.Rect((20, 20), (panel_width - 40, 40)),
-            text=prompt_text,
+        self.title_label = UILabel(
+            relative_rect=pygame.Rect((panel_w/2 - 50,  10), (100, 20)),
+            text= f"Select {self.directory}",
             manager=manager,
-            container=self.panel
+            container=self.panel,
+            object_id='#selector_title'
         )
 
-        self.text_entry = pygame_gui.elements.UITextEntryLine(
-            relative_rect=pygame.Rect((20, 80), (panel_width - 40, 45)),
+        self.file_list = UISelectionList(
+            relative_rect=pygame.Rect((panel_w/2 - 200, 50), (400, 250)),
+            item_list=self.get_file_list(),
             manager=manager,
-            container=self.panel
+            container=self.panel,
+            object_id='#selector_list'
         )
-        self.text_entry.set_text(default_value)
-        self.text_entry.focus()
 
+        self.entry_label = UILabel(
+            relative_rect=pygame.Rect((panel_w/4 - 45, 315), (130, 20)),
+            text=f"Enter {self.directory} name",
+            manager=manager,
+            container=self.panel,
+            object_id='#info_label'
+        )
 
-        self.error_label = pygame_gui.elements.UILabel(
-            relative_rect=pygame.Rect((20, 135), (panel_width - 40, 30)),
+        self.text_entry = UITextEntryLine(
+            relative_rect=pygame.Rect((panel_w/1.75 - 70, 310), (200, 30)),
+            manager=manager,
+            container=self.panel,
+            object_id= '#text_box'
+        )
+
+        self.error_label = UILabel(
+            relative_rect=pygame.Rect((panel_w/2 - 200, 350), (400, 30)),
             text="",
             manager=manager,
-            container=self.panel
+            container=self.panel,
+            object_id='#error_label'
         )
 
-        button_y = 180
-        button_width = 200
-
-        self.ok_button = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect((20, button_y), (button_width, 45)),
-            text="OK" if mode == "load" else "Save",
+        self.ok_button = UIButton(
+            relative_rect=pygame.Rect((panel_w/4 - 75, 380), (150, 50)),
+            text= "OK",
             manager=manager,
-            container=self.panel
+            container=self.panel,
+            object_id='#confirm_button'
         )
 
-        self.cancel_button = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect((panel_width - button_width - 20, button_y),
-                                      (button_width, 45)),
-            text="Cancel",
+        self.cancel_button = UIButton(
+            relative_rect=pygame.Rect((panel_w*3/4 - 75, 380),
+                                      (150, 50)),
+            text="Train New Model" if not self.return_mode else "Cancel",
             manager=manager,
-            container=self.panel
+            container=self.panel,
+            object_id='#cancel_button'
         )
 
-    def get_file(self, filename):
-        filepath =  f"{self.directory}/{filename}"
-        filepath += ".json" if self.directory == "Track" else ".npy"
-        try:
-            f = open(filepath)
-            f.close()
-            return filepath
-        except:
+    def get_file_list(self):
+        extension = '.json' if self.directory == 'Track' else '.npy'
+        files = [f[:-len(extension)] for f in os.listdir(self.directory)]
+
+        return files if files else [f'No saved {self.directory}s']
+
+    def validated_save_filename(self, filename):
+        filename = filename.strip()
+        extension = '.json' if self.directory == 'Track' else '.npy'
+        filepath = f"{self.directory}/{filename}{extension}"
+
+        if not filename:
+            self.error_label.set_text("Filename cannot be empty")
             return None
 
+        if ".." in filename or "/" in filename or "\\" in filename:
+            self.error_label.set_text("Invalid characters in filename")
+            return None
+
+        if not re.fullmatch(r"[A-Za-z0-9 _\-]+", filename):
+            self.error_label.set_text("Only letters, numbers, spaces, _ and - allowed")
+            return None
+
+        if os.path.exists(filepath):
+            if not self.confirm_overwrite:
+                self.error_label.set_text("File exists. Press OK again to overwrite.")
+                self.confirm_overwrite = True
+                return None
+
+        return filename
+
+
+    def get_load_file_path(self, filename):
+        extension = '.json' if self.directory == 'Track' else '.npy'
+        filepath = f"{self.directory}/{filename}{extension}"
+        if not os.path.exists(filepath):
+            self.error_label.set_text("File not found")
+            return
+        return filepath
+
     def process_event(self, event):
-        """Handle button presses"""
-        handled = super().process_event(event)
+        super().process_event(event)
+
+        if event.type == pygame_gui.UI_SELECTION_LIST_NEW_SELECTION:
+            if event.ui_element == self.file_list:
+                selected = event.text
+                if selected != 'No files found':
+                    self.text_entry.set_text(selected)
+                    self.error_label.set_text("")
+
+        if event.type == pygame_gui.UI_TEXT_ENTRY_CHANGED:
+            self.confirm_overwrite = False
+            self.error_label.set_text("")
 
         if event.type == pygame_gui.UI_BUTTON_PRESSED:
             if event.ui_element == self.ok_button:
                 filename = self.text_entry.get_text().strip()
 
-                if not filename:
-                    self.error_label.set_text("Please enter a filename!")
-                    return True
+                if self.mode == "save":
+                    validated = self.validated_save_filename(filename)
+                    if validated:
+                        if self.directory == "Track":
+                            r.game_core.current_track = filename
+                        else:
+                            r.game_core.current_model = filename
+                        self.kill()
+                        self.callback(validated)
 
-                # Check file existence based on mode
-                if self.mode == "load":
-                    if self.get_file(filename):
-                        self.is_confirmed = True
-                        if self.callback:
-                            self.callback(filename)
-                    else:
-                        self.error_label.set_text(self.not_found_message)
-                else:  # save mode
-                    self.is_confirmed = True
-                    if self.callback:
+
+                elif self.mode == "load":
+                    filepath = self.get_load_file_path(filename)
+                    if filepath:
+                        if self.directory == "Track":
+                            r.game_core.current_track = filename
+                        else:
+                            r.game_core.current_model = filename
+                        self.kill()
                         self.callback(filename)
-                return True
+
 
             elif event.ui_element == self.cancel_button:
-                self.is_cancelled = True
-                return True
-
-        return handled
-
-    def set_callback(self, callback):
-        """Set the callback function to be called when OK is pressed"""
-        self.callback = callback
+                self.kill()
+                if self.return_mode:
+                    r.game_core.set_game_mode(self.return_mode)
+                
 
     def kill(self):
-        """Clean up all UI elements"""
+        r.game_core.is_paused = False
         self.panel.kill()
-        self.label.kill()
+        self.title_label.kill()
+        self.file_list.kill()
+        self.entry_label.kill()
         self.text_entry.kill()
         self.error_label.kill()
         self.ok_button.kill()
         self.cancel_button.kill()
         super().kill()
-
 
 class UIGaugeMeter(UIElement):
     """
@@ -198,6 +352,7 @@ class UIGaugeMeter(UIElement):
 class UITrackCanvas(UIElement):
     def __init__(self, relative_rect, manager):
         super().__init__(relative_rect, manager, container=None, starting_height=0, layer_thickness=1)
+
         self.image = pygame.Surface((relative_rect.width + 10, relative_rect.height + 10))
         self.shg_grid = SpatialHashGrid(20)
         self.border_width = 20
@@ -213,15 +368,13 @@ class UITrackCanvas(UIElement):
         self.is_handles_enabled = True
         self.is_dragging = False
         self.is_track_complete = False
-        self.is_track_valid = False
+        self.validity_issues = None
         self.is_click_buffer = False
         self.selected_point = None
 
         self.rebuild([],[])
 
     def process_event(self, event):
-
-
         if (event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP, pygame.MOUSEMOTION)):
             relative_x, relative_y = event.pos[0] - self.rect.x, event.pos[1] - self.rect.y
             if (self.rect.collidepoint(event.pos) and
@@ -271,6 +424,12 @@ class UITrackCanvas(UIElement):
             i = self.selected_point[1]
 
             if self.selected_point[0] == 'a':
+
+                self.anchor_points.pop(i)
+                self.selected_point = None
+
+                if not self.is_handles_enabled:
+                    return
                 if 0 < i < len(self.anchor_points)-1:
                     self.control_points.pop(2*i)
                     self.control_points.pop(2*i-1)
@@ -281,8 +440,7 @@ class UITrackCanvas(UIElement):
                     else:
                         self.control_points.pop(-1)
                         self.control_points.pop(-1)
-                self.anchor_points.pop(i)
-                self.selected_point = None
+
             else:
                 self.widths_dict.pop(i)
 
@@ -294,8 +452,10 @@ class UITrackCanvas(UIElement):
             outer_wall_points.append(outer_wall_points[0])
             inner_wall_points.append(inner_wall_points[0])
             self.widths_dict.pop(1.0)
-
-        self.track_spine = r.generate_track_spine(self.anchor_points, self.control_points)
+        if self.is_handles_enabled:
+            self.track_spine = r.generate_bezier_track_spine(self.anchor_points, self.control_points)
+        else:
+            self.track_spine = r.generate_catmull_rom_track_spine(self.anchor_points, self.is_track_complete)
         self.rebuild(outer_wall_points, inner_wall_points)
 
     def point_selection_handling(self, mouse_pos):
@@ -332,15 +492,17 @@ class UITrackCanvas(UIElement):
     def check_anchor_insertion(self, mouse_pos):
         for i in range(len(self.anchor_points) - 1):
             a1, a2 = self.anchor_points[i], self.anchor_points[i + 1]
-            c1, c2 = self.control_points[2 * i], self.control_points[2 * i + 1]
-
-            spine_points = r.generate_track_spine([a1, a2], [c1, c2])
+            if self.is_handles_enabled:
+                c1, c2 = self.control_points[2 * i], self.control_points[2 * i + 1]
+                spine_points = r.generate_bezier_track_spine([a1, a2], [c1, c2])
+            else:
+                spine_points = r.generate_catmull_rom_track_spine([a1, a2], self.is_track_complete)
 
             for j in range(len(spine_points) - 1):
                 segment = (spine_points[j], spine_points[j + 1])
 
                 dist = r.point_segment_distance(mouse_pos, segment)
-                if dist <= 5:
+                if dist <= 30:
                     return i
         return None
 
@@ -371,7 +533,8 @@ class UITrackCanvas(UIElement):
             p2 = self.anchor_points[i + 1]
             p0 = self.anchor_points[i - 1] if i - 1 >= 0 else p1
             p3 = self.anchor_points[i + 2] if i + 2 < len(self.anchor_points) else p2
-
+            if not self.is_handles_enabled:
+                return
             b1, b2 = self.get_bezier_points(p0, p1, p2, p3)
             self.control_points.append(b1)
             self.control_points.append(b2)
@@ -397,12 +560,16 @@ class UITrackCanvas(UIElement):
             self.is_track_complete = False
         translate_vector = mouse_pos - self.anchor_points[point_index]
         self.anchor_points[point_index] = mouse_pos
+        if not self.is_handles_enabled:
+            return
         if point_index * 2 < len(self.control_points):
             self.control_points[point_index * 2] += translate_vector
         if point_index != 0:
             self.control_points[point_index * 2 - 1] += translate_vector
 
     def handle_control_point_movement(self, mouse_pos, point_index):
+        if not self.is_handles_enabled:
+            return
         corresponding_anchor_index = point_index // 2 if point_index % 2 == 0 else point_index // 2 + 1
         anchor_point = self.anchor_points[corresponding_anchor_index]
         clamped_translation = (mouse_pos - anchor_point).clamp_magnitude(self.max_handle_length)
@@ -453,7 +620,8 @@ class UITrackCanvas(UIElement):
 
         self.anchor_points[-1] = first_point
         self.is_track_complete = True
-
+        if not self.is_handles_enabled:
+            return
         mirror_handle_translation = self.control_points[0] - first_point
         self.control_points[-1] = first_point - mirror_handle_translation
 
@@ -464,33 +632,37 @@ class UITrackCanvas(UIElement):
         self.image.fill((152, 152, 152))
         r.draw_alternating_line_segments(self.image, self.track_spine)
 
-        if self.mode == "anchor":
-            for anchor in self.anchor_points:
-                if anchor == self.anchor_points[0]:
-                    pygame.draw.circle(self.image, color="Red", center=anchor, radius=self.point_size + 1)
-                elif anchor == self.anchor_points[-1]:
-                    pygame.draw.circle(self.image, color="black", center=anchor, radius=self.point_size + 1)
-                else:
-                    pygame.draw.circle(self.image, color= "green", center = anchor, radius = self.point_size)
-
-            for i, handle in enumerate(self.control_points):
-                if i%2 == 0 and i != 0:
-                    pygame.draw.line(self.image, "dark grey", handle, self.control_points[i-1], 2)
-                if i == 0:
-                    pygame.draw.line(self.image, "dark grey", handle, self.anchor_points[0], 2)
-                if i == len(self.control_points) - 1:
-                    pygame.draw.line(self.image, "dark grey", handle, self.anchor_points[-1], 2)
-
-                pygame.draw.circle(self.image, color="orange", center=handle, radius=self.point_size)
-        else:
-            for width_point_position in width_point_positions:
-                width_point_index = math.floor(max(min(width_point_position * len(self.track_spine), len(self.track_spine) - 1), 0))
-                pygame.draw.circle(self.image, color="pink", center=self.track_spine[int(width_point_index)], radius=self.point_size)
 
         for i in range(len(outer_wall_points)-1):
             r.draw_line(self.image, "purple", outer_wall_points[i], outer_wall_points[i+1])
         for i in range(len(inner_wall_points)-1):
             r.draw_line(self.image, "purple", inner_wall_points[i], inner_wall_points[i+1])
+
+        if len(self.anchor_points) != 0:
+            if self.mode == "anchor":
+                for anchor in self.anchor_points:
+                    if anchor == self.anchor_points[0]:
+                        pygame.draw.circle(self.image, color="Red", center=anchor, radius=self.point_size + 1)
+                    elif anchor == self.anchor_points[-1]:
+                        pygame.draw.circle(self.image, color="black", center=anchor, radius=self.point_size + 1)
+                    else:
+                        pygame.draw.circle(self.image, color= "green", center = anchor, radius = self.point_size)
+
+                for i, handle in enumerate(self.control_points):
+                    if i%2 == 0 and i != 0:
+                        pygame.draw.line(self.image, "dark grey", handle, self.control_points[i-1], 2)
+                    if i == 0:
+                        pygame.draw.line(self.image, "dark grey", handle, self.anchor_points[0], 2)
+                    if i == len(self.control_points) - 1:
+                        pygame.draw.line(self.image, "dark grey", handle, self.anchor_points[-1], 2)
+
+                    pygame.draw.circle(self.image, color="orange", center=handle, radius=self.point_size)
+            else:
+                for width_point_position in width_point_positions:
+                    width_point_index = math.floor(max(min(width_point_position * len(self.track_spine), len(self.track_spine) - 1), 0))
+                    pygame.draw.circle(self.image, color="pink", center=self.track_spine[int(width_point_index)], radius=self.point_size)
+
+
 
         overlay = pygame.Surface(self.image.get_size(), pygame.SRCALPHA)
         if self.selected_point:
@@ -520,23 +692,16 @@ class UITrackCanvas(UIElement):
             if i != len(outer_wall_points) - 1:
                 self.shg_grid.hash_segment((hash_points[i], hash_points[i + 1]), i)
 
-    @staticmethod
-    def catmull_rom(p0, p1, p2, p3, resolution = 100):
-        # Caching coefficients of cubic in terms of t (at^3 + bt^2 + ct + d)
-        a = -p0 + 3*p1 - 3*p2 + p3
-        b = 2*p0 - 5*p1 + 4*p2 - p3
-        c = -p0 + p2
-        d = 2*p1
 
-        curve_points = []
-        for i in range(resolution + 1):
-            t = i/resolution
-            t2 = t*t
-            t3 = t2 * t
-            point = 0.5 * (a*t3 + b*t2 + c*t + d)
-            curve_points.append(point)
+    def generate_all_controls(self):
+        self.control_points.clear()
+        for i in range(len(self.anchor_points) -1):
+            p0 = self.anchor_points[i-1] if i > 0 else self.anchor_points[i]
+            p1 = self.anchor_points[i]
+            p2 = self.anchor_points[i+1]
+            p3 = self.anchor_points[i+2] if i < len(self.anchor_points) - 2 else self.anchor_points[i+1]
+            self.control_points.extend(self.get_bezier_points(p0, p1, p2, p3))
 
-        return curve_points
 
     @staticmethod
     def get_bezier_points(p0, p1, p2, p3):
@@ -559,20 +724,24 @@ class UITrackCanvas(UIElement):
                 for collision_index in collisions:
                     distance = min(abs(collision_index - actual_segment_index), len(wall_points) - 1 - abs(collision_index - actual_segment_index))
                     if ((0< collision_index < len(hashed_points)-1 and 0< i < len(hashed_points)-1)and
-                            (distance > 6)):
+                            (distance > 4)):
                         invalid_segments.append((hashed_points[collision_index], hashed_points[collision_index + 1]))
 
-                if Vector2(segment[0] - segment[1]).length_squared() > 2500:
+                if Vector2(segment[0] - segment[1]).length_squared() > 4000:
                     invalid_segments.append(segment)
             return invalid_segments
 
         invalid_outer_walls = check_wall_validity(outer_wall_points, 0)
         invalid_inner_walls = check_wall_validity(inner_wall_points, len(outer_wall_points))
 
-        if len(invalid_inner_walls + invalid_outer_walls) == 0 and self.is_track_complete:
-            self.is_track_valid = True
+        if len(invalid_inner_walls + invalid_outer_walls) > 0:
+            self.validity_issues = "invalid walls"
+        elif not self.is_track_complete:
+            self.validity_issues = "incomplete"
+        elif len(outer_wall_points) > 300 or len(inner_wall_points) > 300:
+            self.validity_issues = "too short"
         else:
-            self.is_track_valid = False
+            self.validity_issues = None
         return invalid_outer_walls + invalid_inner_walls
 
     def kill(self):
@@ -584,7 +753,7 @@ class UITrackCanvas(UIElement):
         self.selected_point = None
         self.is_dragging = False
         self.is_track_complete = False
-        self.is_track_valid = False
+        self.validity_issues = None
 
         super().kill()
 
