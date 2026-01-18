@@ -6,7 +6,7 @@ from resources import game_core
 """
 Main module for running the program. This handles input, updates, and rendering
 """
-#----------------------------------------------------f-----------------------------------------------------------------#
+#---------------------------------------------------------------------------------------------------------------------#
 
 # pygame and GUI initialisation
 pygame.init()
@@ -22,5 +22,3 @@ def game_loop():
             game_core.process_frame()
         game_core.render()
 game_loop()
-
-

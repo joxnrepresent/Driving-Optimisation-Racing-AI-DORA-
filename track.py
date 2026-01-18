@@ -4,13 +4,14 @@ from pygame.sprite import Sprite
 from pygame import Surface, Rect, SRCALPHA, Vector2
 from collections import defaultdict
 from resources import game_core
+import pygame
 
 class Track(Sprite):
 
     def __init__(self, track_name, position = ((0,0), game_core.screen_dimensions)):
         super().__init__()
         self.grid = SpatialHashGrid()
-        anchors, controls, widths = r.load_bezier_track(track_name)
+        anchors, controls, widths = r.load_bezier_track(track_name, enforce_centering= True)
         self.track_spine = r.generate_bezier_track_spine(anchors, controls)
         if 1.0 not in widths:
             widths[1.0] = widths[0.0]
@@ -19,6 +20,7 @@ class Track(Sprite):
             outer_wall_points.append(outer_wall_points[0])
         if inner_wall_points[0] != inner_wall_points[-1]:
             inner_wall_points.append(inner_wall_points[0])
+        self.track_polygon = outer_wall_points + inner_wall_points
         self.wall_segments = []
         for i in range(len(outer_wall_points) - 1):
             segment = (outer_wall_points[i], outer_wall_points[i+1])
@@ -57,13 +59,18 @@ class Track(Sprite):
     # Colour alternates between black and red
     def draw_track(self):
         self.image.fill((0, 0, 0, 0))
-        wall_points =[]
-        wall_indices = self.grid.get_wall_segment_indices()
-        for index in wall_indices:
-            wall_points.extend(self.wall_segments[index])
-        r.draw_alternating_line_segments(self.image, wall_points)
+
+        pygame.draw.polygon(self.image, (80, 80, 80), self.track_polygon)
+        self._draw_alternating_wall(width=8)
+
         game_core.game_mode.debug_elements["track spine"] = [self.track_spine]
 
+    def _draw_alternating_wall(self,width=8):
+        is_black = True
+        for segment in self.wall_segments:
+            color = (0, 0, 0) if is_black else (200, 0, 0)  # Black or red
+            pygame.draw.line(self.image, color, segment[0], segment[1], width)
+            is_black = not is_black
 
 class SpatialHashGrid:
     """

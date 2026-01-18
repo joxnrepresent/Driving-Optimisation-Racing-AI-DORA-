@@ -1,143 +1,218 @@
 {
-  "defaults": {
-    "font": {
-      "name": "default",
-      "size": 16
+    "defaults": {
+        "colours": {
+            "normal_bg": "#181825",
+            "hovered_bg": "#25253b",
+            "active_bg": "#2e2e4d",
+            "dark_bg": "#12121a",
+            "selected_bg": "#9d7bff",
+            "normal_text": "#f1f1f7",
+            "hovered_text": "#ffffff",
+            "active_text": "#ffffff",
+            "disabled_text": "#9a9bb0",
+            "normal_border": "#3a3a5a",
+            "hovered_border": "#9d7bff",
+            "active_border": "#b49cff",
+            "error_text": "#ff4d6d"
+        },
+        "font": {
+            "name": "fira_code",
+            "size": 16
+        }
     },
-    "colours": {
-      "normal_text": "#E6E6FA",
-      "dark_text": "#B8A9FF",
-      "disabled_text": "#666666"
-    }
-  },
-
-  "UIPanel": {
-    "colours": {
-      "background_colour": "#0B0D1A"
-    }
-  },
-
-  "UIPanel#main_bg": {
-    "colours": {
-      "background_colour": "#05060F"
-    }
-  },
-
-  "UIPanel#control_panel": {
-    "colours": {
-      "background_colour": "#14162ACC"
+    "UIPanel": {
+        "colours": {
+            "normal_bg": "#232338",
+            "normal_border": "#3a3a5a"
+        },
+        "misc": {
+            "border_width": 1,
+            "shape": "rounded_rectangle",
+            "shape_corner_radius": 8
+        }
     },
-    "misc": {
-      "border_width": 2,
-      "border_colour": "#6B5BFF88"
-    }
-  },
-
-  "UIButton": {
-    "font": {
-      "name": "default",
-      "size": 15
+    "#HUD_panel": {
+        "colours": {
+            "normal_bg": "#1f1f33",
+            "normal_border": "#9d7bff"
+        },
+        "misc": {
+            "border_width": 2,
+            "shape_corner_radius": 10
+        }
     },
-    "colours": {
-      "normal_bg": "#1C1F3A",
-      "hovered_bg": "#2A2F66",
-      "selected_bg": "#3B42AA",
-      "active_bg": "#4E56FF",
-      "normal_text": "#EAE8FF",
-      "hovered_text": "#FFFFFF",
-      "selected_text": "#FFFFFF",
-      "active_text": "#FFFFFF",
-      "disabled_bg": "#111111",
-      "disabled_text": "#555555"
+    "#control_panel": {
+        "colours": {
+            "normal_bg": "#1e1e30"
+        }
     },
-    "misc": {
-      "border_width": 1,
-      "border_colour": "#5F67FF"
-    }
-  },
-
-  "UIButton#action_button": {
-    "colours": {
-      "normal_bg": "#242866",
-      "hovered_bg": "#343AFF",
-      "active_bg": "#5A63FF"
+    "UIButton": {
+        "colours": {
+            "normal_bg": "#2e2e4d",
+            "hovered_bg": "#3a3a66",
+            "active_bg": "#4a3ea8",
+            "normal_text": "#f1f1f7",
+            "hovered_text": "#ffffff",
+            "active_text": "#ffffff",
+            "normal_border": "#4a4a7a",
+            "hovered_border": "#9d7bff",
+            "active_border": "#b49cff"
+        },
+        "misc": {
+            "border_width": 1,
+            "shape": "rounded_rectangle",
+            "shape_corner_radius": 8
+        }
     },
-    "misc": {
-      "border_width": 2,
-      "border_colour": "#8F9BFF"
-    }
-  },
-
-  "UIButton#menu_button": {
-    "colours": {
-      "normal_bg": "#1E2248",
-      "hovered_bg": "#3238A8",
-      "active_bg": "#4B54FF"
-    }
-  },
-
-  "UIButton#exit_button": {
-    "colours": {
-      "normal_bg": "#3A1122",
-      "hovered_bg": "#6A1B3D",
-      "active_bg": "#A3265D",
-      "normal_text": "#FFD6E8"
+    "#menu_button_main": {
+        "font": {
+            "name": "fira_code",
+            "size": 24,
+            "bold": true
+        },
+        "misc": {
+            "border_width": 2,
+            "shape_corner_radius": 12
+        }
     },
-    "misc": {
-      "border_colour": "#FF5FA2",
-      "border_width": 2
-    }
-  },
-
-  "UIButton#minimise_button": {
-    "font": {
-      "name": "default",
-      "size": 22
+    "#panel_button": {
+        "font": {
+            "name": "fira_code",
+            "size": 16
+        }
     },
-    "colours": {
-      "normal_bg": "#181A33",
-      "hovered_bg": "#2A2E66",
-      "active_bg": "#444CFF"
-    }
-  },
-
-  "UILabel": {
-    "font": {
-      "name": "default",
-      "size": 15
+    "#exit_button": {
+        "colours": {
+            "normal_bg": "#4a2a3a",
+            "hovered_bg": "#6a3a55",
+            "active_bg": "#8a4a70"
+        }
     },
-    "colours": {
-      "text": "#DAD8FF"
-    }
-  },
-
-  "UILabel#title_label": {
-    "font": {
-      "name": "default",
-      "size": 36
+    "UILabel": {
+        "colours": {
+            "normal_text": "#e6e6f0"
+        },
+        "font": {
+            "name": "fira_code",
+            "size": 16
+        }
     },
-    "colours": {
-      "text": "#9FA7FF"
-    }
-  },
-
-  "UILabel#subtitle_label": {
-    "font": {
-      "name": "default",
-      "size": 18
+    "#panel_title": {
+        "font": {
+            "name": "fira_code",
+            "size": 20,
+            "bold": true
+        },
+        "colours": {
+            "normal_text": "#9d7bff"
+        }
     },
-    "colours": {
-      "text": "#7F88FF"
-    }
-  },
-
-  "UILabel#info_label": {
-    "font": {
-      "name": "default",
-      "size": 14
+    "#title_label": {
+        "font": {
+            "name": "orbitron",
+            "size": 150,
+            "bold": true
+        },
+        "colours": {
+            "normal_text": "#c5a0ff",
+            "hovered_text": "#ffffff"
+        },
+        "misc": {
+            "text_shadow": {
+                "enabled": true,
+                "offset": [2, 2],
+                "colour": "#3a2a7a"
+            }
+        }
     },
-    "colours": {
-      "text": "#AAAAFF"
+    "#subtitle_label": {
+        "font": {
+            "name": "fira_code",
+            "size": 24,
+            "italic": true
+        },
+        "colours": {
+            "normal_text": "#d0d0ff",
+            "hovered_text": "#ffffff"
+        },
+        "misc": {
+            "text_shadow": {
+                "enabled": true,
+                "offset": [1, 1],
+                "colour": "#25253b"
+            }
+        }
+    },
+    "#info_label": {
+        "font": {
+            "name": "fira_code",
+            "size": 14
+        },
+        "colours": {
+            "normal_text": "#c5c6d8"
+        }
+    },
+    "#error_label": {
+        "font": {
+            "name": "fira_code",
+            "size": 14,
+            "bold": true
+        },
+        "colours": {
+            "normal_text": "#ff4d6d"
+        }
+    },
+    "UIHorizontalSlider": {
+        "colours": {
+            "dark_bg": "#2a2a44",
+            "normal_bg": "#9d7bff"
+        }
+    },
+    "UIProgressBar": {
+        "colours": {
+            "dark_bg": "#2a2a44",
+            "normal_bg": "#38bdf8"
+        }
+    },
+    "UIDropDownMenu": {
+        "colours": {
+            "normal_bg": "#2e2e4d",
+            "hovered_bg": "#3a3a66",
+            "selected_bg": "#9d7bff"
+        }
+    },
+    "UISelectionList": {
+        "colours": {
+            "normal_bg": "#232338",
+            "hovered_bg": "#3a3a66",
+            "selected_bg": "#9d7bff"
+        }
+    },
+    "UITextEntryLine": {
+        "colours": {
+            "normal_bg": "#232338",
+            "normal_border": "#9d7bff",
+            "normal_text": "#ffffff"
+        }
+    },
+    "#end_screen_panel": {
+        "colours": {
+            "normal_bg": "#232338"
+        },
+        "misc": {
+            "shape_corner_radius": 14
+        }
+    },
+    "#confirm_button": {
+        "colours": {
+            "normal_bg": "#4a3ea8",
+            "hovered_bg": "#5c4fd6"
+        }
+    },
+    "#cancel_button": {
+        "colours": {
+            "normal_bg": "#4a2a3a",
+            "hovered_bg": "#6a3a55"
+        }
     }
-  }
 }

@@ -7,6 +7,7 @@ import resources as r
 import pygame
 from abc import ABC, abstractmethod
 from pygame_gui import elements, UIManager
+from pygame_gui.elements import UIPanel
 from resources import game_core
 from gui_custom_elements import UIGaugeMeter
 
@@ -14,9 +15,11 @@ from gui_custom_elements import UIGaugeMeter
 class Car(pygame.sprite.Sprite, ABC):
 
     def __init__(self, starting_position=(game_core.screen_dimensions[0]/2, game_core.screen_dimensions[1]/2),
-            starting_orientation =270, car_proportions=pygame.Vector2(2.718, 4.287)*game_core.meter_pixel_conversion):
+            starting_orientation =270, car_proportions=pygame.Vector2(272, 429) / (1.1*game_core.meter_pixel_conversion) ,
+                 image = "Mclaren"):
         super().__init__()
         self.is_crashed = False
+        self.starting_position = starting_position
         self.position = pygame.Vector2(starting_position)
         self.velocity = pygame.Vector2(0, 0)
         self.acceleration = pygame.Vector2(0, 0)
@@ -44,7 +47,7 @@ class Car(pygame.sprite.Sprite, ABC):
         The '_original_car' variable is necessary for rotating the sprite properly since the car sprite is rotated
         to an angle with respect to the natural orientation of the sprite on the screen.
         """
-        self._original_car = r.set_image("Mclaren")
+        self._original_car = r.set_image(image)
         self._original_car = pygame.transform.scale(self._original_car, car_proportions)
         self._original_car = pygame.transform.rotate(self._original_car, 180)
         self._update_car_sprite_position()
@@ -161,6 +164,7 @@ class Car(pygame.sprite.Sprite, ABC):
             if new_progress <= -0.5:
                 print("Wrong way! Please reset")
                 self.is_crashed = True
+                self.progress = 0
             else:
                 self.progress = new_progress
         return self.progress, is_lap_finished
@@ -169,24 +173,58 @@ class Car(pygame.sprite.Sprite, ABC):
         self.image = pygame.transform.rotate(self._original_car, -self.direction)
         self.rect = self.image.get_rect(center=(int(self.position.x), int(self.position.y)))
 
+    @abstractmethod
+    def reset(self):
+        self.is_crashed = False
+        self.position = pygame.Vector2(self.starting_position)
+        self.velocity = pygame.Vector2(0, 0)
+        self.acceleration = pygame.Vector2(0, 0)
+        self.current_throttle_input = 0
+        self.current_steer_input = 0
+        self.throttle = 0
+        self.steer = 0
+        self.direction = 270
+        self.progress = math.floor(self.progress)
+
+        self._update_car_sprite_position()
+        self._update_hitbox()
+
+
 class PlayerCar(Car):
-    def __init__(self, starting_position = None):
-        super().__init__(starting_position)
-        self.control_panel_manager = UIManager(game_core.screen_dimensions)
-        self.steering_slider = elements.UIHorizontalSlider(
-            relative_rect=pygame.Rect((game_core.screen_dimensions[0] / 2, 700), (600, 30)),
-            start_value=0,
-            value_range=(-100, 100),
-            manager=game_core.gui_manager
+    def __init__(self, starting_position = None, image = "purple_car",
+                 car_proportions=pygame.Vector2(272, 429) / (0.8*game_core.meter_pixel_conversion)):
+        super().__init__(starting_position, image= image, car_proportions=  car_proportions)
+
+        self.panel = UIPanel(
+            relative_rect=pygame.Rect(
+                (0, game_core.screen_dimensions[1] - 120,
+                 (game_core.screen_dimensions[0]), 120)
+            ),
+            manager=game_core.gui_manager,
+            starting_height=1000,
+            object_id='#HUD_panel'
         )
 
         self.throttle_and_braking_meter = elements.UIProgressBar(
-            relative_rect=pygame.Rect((game_core.screen_dimensions[0] / 4 - 300, 700), (500, 30)),
-            manager=game_core.gui_manager
+            relative_rect=pygame.Rect((game_core.screen_dimensions[0] / 4 - 200, 60), (400, 30)),
+            manager=game_core.gui_manager,
+            container= self.panel,
+            object_id = '#UIProgressBar'
         )
+
+        self.steering_slider = elements.UIHorizontalSlider(
+            relative_rect=pygame.Rect((game_core.screen_dimensions[0] *3/4 - 200, 60), (400, 30)),
+            start_value=0,
+            value_range=(-100, 100),
+            manager=game_core.gui_manager,
+            container= self.panel,
+            object_id = '#UIHorizontalSlider'
+        )
+
         self.speedometer = UIGaugeMeter(
-            relative_rect=pygame.Rect((game_core.screen_dimensions[0] / 4 - 300, 600), (200, 100)),
-            manager=game_core.gui_manager
+            relative_rect=pygame.Rect((game_core.screen_dimensions[0]/2  - 100 , 0), (200, 100)),
+            manager=game_core.gui_manager,
+            container= self.panel
         )
 
     def delete_control_panel(self):
@@ -211,9 +249,38 @@ class PlayerCar(Car):
             target_throttle = -1
         return target_throttle
 
+    def reset(self):
+        super().reset()
+        self.steering_slider.kill()
+        self.throttle_and_braking_meter.kill()
+        self.speedometer.kill()
+        self.throttle_and_braking_meter = elements.UIProgressBar(
+            relative_rect=pygame.Rect((game_core.screen_dimensions[0] / 4 - 200, 60), (400, 30)),
+            manager=game_core.gui_manager,
+            container= self.panel
+        )
+
+        self.steering_slider = elements.UIHorizontalSlider(
+            relative_rect=pygame.Rect((game_core.screen_dimensions[0] *3/4 - 200, 60), (400, 30)),
+            start_value=0,
+            value_range=(-100, 100),
+            manager=game_core.gui_manager,
+            container= self.panel
+        )
+
+
+        self.speedometer = UIGaugeMeter(
+            relative_rect=pygame.Rect((game_core.screen_dimensions[0]/2  - 100 , 0), (200, 100)),
+            manager=game_core.gui_manager,
+            container= self.panel
+        )
+
+
+
 class AICar(Car):
-    def __init__(self, starting_position = None):
-        super().__init__(starting_position)
+    def __init__(self, starting_position = None, image = "black_car",
+                 car_proportions = pygame.Vector2(272, 429) / (1*game_core.meter_pixel_conversion)):
+        super().__init__(starting_position, car_proportions=car_proportions, image=image)
         self.ray_cast_angles = [15, 30, 45, 60, 75, 60]
         self.car_max_ray_cast = game_core.screen_dimensions[0] * 0.8
 
@@ -241,6 +308,9 @@ class AICar(Car):
             sensors.append(normalised_collision_distance)
         # game_core.game_mode.debug_elements["rays"][index] = collided_rays
         return sensors
+
+    def reset(self):
+        super().reset()
 
     def compute_reward(self, is_stuck, is_lap_finished, prev_progress, mean_progress, sensors):
         reward = 0

@@ -22,10 +22,10 @@ class GameCore:
         self.frame_rate = 50
         self.tick_speedup = 1
         self.screen_dimensions = (1400, 850)
-        self.screen_fill = "White"
+        self.screen_fill = (18, 20, 28)
         self.current_model = None
         self.current_track = None
-        self.meter_pixel_conversion = 8
+        self.meter_pixel_conversion = 9
         self.eps = 1e-9
 
         # Core program components
@@ -81,8 +81,6 @@ class GameCore:
 
     def cache_events(self, event):
         self.gui_manager.process_events(event)
-        if self.is_paused:
-            return
         if event.type == pygame.QUIT:
             exit()
         if event.type == pygame.KEYDOWN:
@@ -96,6 +94,7 @@ class GameCore:
         if self.game_mode:
             self.game_mode.event_handle()
             self.game_mode.update()
+        game_core.pressed_buttons.clear()
 
     def set_file(self, directory, filename):
         if directory == "Track":
@@ -108,32 +107,45 @@ game_core = GameCore()
 class RaceTimeManager:
     def __init__(self):
         self.start_time = None
-        self.end_times = None
-        self.lap_times = None
+        self.is_all_laps_finished = [False]
+        self.lap_times = [[None]]
+        self.num_of_laps = 0
 
-    def initialise_manager(self, num_of_cars, num_of_laps):
+    def initialise_manager(self, num_of_cars):
         self.start_time = pygame.time.get_ticks()
-        self.end_times = [0] * num_of_cars
-        self.lap_times = [[0] * num_of_cars] * num_of_laps
+        self.is_all_laps_finished  = [False] * num_of_cars
+        self.lap_times = [
+            [None for _ in range(self.num_of_laps)]
+            for _ in range(num_of_cars)
+        ]
 
     def get_stats(self):
-        end_times_ms = np.array(self.end_times)
-        end_times_s = (end_times_ms - self.start_time) * 1000
-        lap_times_ms = np.array(self.lap_times)
-        lap_times_s = []
-        for i, car_lap_times_for_lap in enumerate(lap_times_ms):
-            times_s = car_lap_times_for_lap - lap_times_ms[i-1] if i > 0 else car_lap_times_for_lap - self.start_time
-            times_s *= 1000
-            lap_times_s.append(times_s)
+        results = {}
 
-        return end_times_s, lap_times_s
+        for car_index, car_laps in enumerate(self.lap_times):
 
-    def update(self, laps_completed, is_lap_completed):
+            lap_times_s = []
+
+            for lap_i, lap_time in enumerate(car_laps):
+
+                if lap_i == 0:
+                    lap_s = (lap_time - self.start_time) / 1000
+                else:
+                    lap_s = (lap_time - car_laps[lap_i - 1]) / 1000
+
+                lap_times_s.append(lap_s)
+
+            total_time_s = (car_laps[-1] - self.start_time) / 1000
+
+            results[f"car {car_index}"] = lap_times_s + [total_time_s]
+
+        return results
+
+    def update(self, i, laps_completed, is_lap_completed):
         if is_lap_completed:
-            self.lap_times[laps_completed - 1][i] = pygame.time.get_ticks()
-        if laps_completed == self.num_of_laps:
-            self.end_times[i] = pygame.time.get_ticks()
-
+            self.lap_times[i][laps_completed - 1] = pygame.time.get_ticks()
+            if laps_completed >= self.num_of_laps:
+                self.is_all_laps_finished[i] = True
 
 """Utility functions"""
 
@@ -172,7 +184,7 @@ def load_track_from_file(filename):
         print("File not found")
         return None
 
-def load_bezier_track(filename):
+def load_bezier_track(filename, enforce_centering = False):
     try:
         with open(f"Track/{filename}.json", "r") as f:
             data = json.load(f)
@@ -181,6 +193,20 @@ def load_bezier_track(filename):
         control_points = [Vector2(point[0], point[1]) for point in data["controls"]]
         widths_dict = {float(k): v for k, v in data["widths"].items()}
 
+        if enforce_centering:
+            all_points = anchor_points + control_points
+
+            min_x = min(point.x for point in all_points)
+            max_x = max(point.x for point in all_points)
+            min_y = min(point.y for point in all_points)
+            max_y = max(point.y for point in all_points)
+
+            track_center = Vector2((min_x + max_x) / 2, (min_y + max_y) / 2)
+            screen_center = (game_core.screen_dimensions[0] / 2, (game_core.screen_dimensions[1] - 120)/2)
+            translation = screen_center - track_center
+
+            anchor_points = [p + translation for p in anchor_points]
+            control_points = [p + translation for p in control_points]
 
         return anchor_points, control_points, widths_dict
 
@@ -188,23 +214,10 @@ def load_bezier_track(filename):
         print("File not found")
         return None
 
-def draw_track_outline(surface, strokes):
-    is_black = True
-    for stroke in strokes:
-        for i in range(len(stroke) - 1):
-            if is_black:
-                colour = "black"
-            else:
-                colour = "red"
-            is_black = not is_black
-            pygame.draw.line(surface, colour, stroke[i], stroke[i + 1], 3)
 
 def draw_line(surface, colour, p1, p2, width = 3):
     pygame.draw.line(surface, colour, p1, p2, width)
 
-def plot_line(surface, colour, p1, p2):
-    pygame.draw.circle(surface, colour, p1, 2)
-    pygame.draw.circle(surface, colour, p2, 2)
 
 
 def draw_alternating_line_segments(surface, points):

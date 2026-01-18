@@ -7,6 +7,7 @@ from fontTools.varLib.errors import NotANone
 import os
 import resources as r
 import pygame
+import numpy as np
 
 from track import SpatialHashGrid
 from pygame.math import Vector2
@@ -17,6 +18,95 @@ import re
 """
 This module contains custom GUI elements not included in the pygame_gui library
 """
+class UIEndScreen(UIElement):
+    def __init__(self, relative_rect, manager, callback, title, subtitle, content, return_mode=None):
+        super().__init__(relative_rect,manager,container=None,starting_height=999,layer_thickness=1)
+
+        # Pause game
+        r.game_core.is_paused = True
+
+        self.callback = callback
+        self.return_mode = return_mode
+
+
+        self.image = pygame.Surface(relative_rect.size, pygame.SRCALPHA)
+        self.image.fill((30, 30, 30, 140))
+
+        panel_w, panel_h = 500, 320
+        self.panel = UIPanel(
+            relative_rect=pygame.Rect(
+                ((relative_rect.width - panel_w) / 2,
+                 (relative_rect.height - panel_h) / 2),
+                (panel_w, panel_h)
+            ),
+            manager=manager,
+            starting_height=1000,
+            object_id="#end_screen_panel"
+        )
+
+        self.title_label = UILabel(
+            relative_rect=pygame.Rect((0, 10), (panel_w, 40)),
+            text=title,
+            manager=manager,
+            container=self.panel,
+            object_id="#end_screen_title"
+        )
+
+        self.subtitle_label = UILabel(
+            relative_rect=pygame.Rect((0, 55), (panel_w, 30)),
+            text=subtitle,
+            manager=manager,
+            container=self.panel,
+            object_id="#end_screen_subtitle"
+        )
+        self.content_box = pygame_gui.elements.UITextBox(
+            html_text=content.replace("\n", "<br>"),
+            relative_rect=pygame.Rect((20, 90), (panel_w - 40, 120)),
+            manager=manager,
+            container=self.panel,
+            object_id="#end_screen_content"
+        )
+
+        self.restart_button = UIButton(
+            relative_rect=pygame.Rect((40, 230), (180, 55)),
+            text="Race Again",
+            manager=manager,
+            container=self.panel,
+            object_id="#confirm_button"
+        )
+
+        self.menu_button = UIButton(
+            relative_rect=pygame.Rect((280, 230), (180, 55)),
+            text="Back to Menu",
+            manager=manager,
+            container=self.panel,
+            object_id="#cancel_button"
+        )
+
+    def process_event(self, event):
+        super().process_event(event)
+
+        if event.type == pygame_gui.UI_BUTTON_PRESSED:
+            if event.ui_element == self.restart_button:
+                self.kill()
+                self.callback("restart")
+
+            elif event.ui_element == self.menu_button:
+                self.kill()
+                self.callback("menu")
+
+    def kill(self):
+        r.game_core.is_paused = False
+
+        self.panel.kill()
+        self.title_label.kill()
+        self.subtitle_label.kill()
+        self.content_box.kill()
+        self.restart_button.kill()
+        self.menu_button.kill()
+
+        super().kill()
+
 
 class UIOptionSelector(UIElement):
     def __init__(self, relative_rect, manager, options, callback, title="Select an option", return_mode=None):
@@ -191,7 +281,7 @@ class UIFileSelector(UIElement):
         self.cancel_button = UIButton(
             relative_rect=pygame.Rect((panel_w*3/4 - 75, 380),
                                       (150, 50)),
-            text="Train New Model" if not self.return_mode else "Cancel",
+            text="Train New Model" if not self.return_mode and self.mode.__contains__(" ") else "Cancel",
             manager=manager,
             container=self.panel,
             object_id='#cancel_button'
@@ -200,8 +290,21 @@ class UIFileSelector(UIElement):
     def get_file_list(self):
         extension = '.json' if self.directory == 'Track' else '.npy'
         files = [f[:-len(extension)] for f in os.listdir(self.directory)]
+        cleaned_files = []
+        if self.mode == 'load REINFORCE' or self.mode == 'load MCAC':
+            for file in files:
+                save_data = np.load(f"Saved Model/{file}.npy", allow_pickle=True).item()
 
-        return files if files else [f'No saved {self.directory}s']
+                if self.mode == 'load REINFORCE':
+                    if save_data["model_type"] == "REINFORCE":
+                        cleaned_files.append(file)
+                elif self.mode == 'load Monte Carlo Actor Critic (MCAC)':
+                    if save_data["model_type"] == "MCAC":
+                        cleaned_files.append(file)
+        else:
+            cleaned_files = files
+
+        return cleaned_files if cleaned_files else [f'No {self.directory}s']
 
     def validated_save_filename(self, filename):
         filename = filename.strip()
@@ -255,7 +358,7 @@ class UIFileSelector(UIElement):
             if event.ui_element == self.ok_button:
                 filename = self.text_entry.get_text().strip()
 
-                if self.mode == "save":
+                if self.mode.__contains__("save"):
                     validated = self.validated_save_filename(filename)
                     if validated:
                         if self.directory == "Track":
@@ -266,7 +369,7 @@ class UIFileSelector(UIElement):
                         self.callback(validated)
 
 
-                elif self.mode == "load":
+                elif self.mode.__contains__("load"):
                     filepath = self.get_load_file_path(filename)
                     if filepath:
                         if self.directory == "Track":
@@ -281,7 +384,8 @@ class UIFileSelector(UIElement):
                 self.kill()
                 if self.return_mode:
                     r.game_core.set_game_mode(self.return_mode)
-                
+                else:
+                    self.callback(None)
 
     def kill(self):
         r.game_core.is_paused = False
@@ -301,9 +405,9 @@ class UIGaugeMeter(UIElement):
     """
     def __init__(self, relative_rect, manager,
                  min_value=0, max_value=300, starting_value=0,
-                 fill_colour="grey", dial_colour='red',
-                 border_colour="black", border_width=3, dial_thickness=2):
-        super().__init__(relative_rect, manager, container=None, starting_height=0, layer_thickness=1)
+                 fill_colour="black", dial_colour='red',
+                 border_colour="grey", border_width=3, dial_thickness=2, container = None):
+        super().__init__(relative_rect, manager, container=container, starting_height=0, layer_thickness=1)
 
         self.min_value = min_value
         self.max_value = max_value
@@ -320,7 +424,7 @@ class UIGaugeMeter(UIElement):
 
     # Redraws updated version of meter
     def rebuild(self):
-        self.image.fill("grey")
+        self.image.fill(self.fill_colour)
         width, height = self.relative_rect.size
         center = (width // 2, height)
         radius = height
@@ -683,7 +787,7 @@ class UITrackCanvas(UIElement):
         self.image.blit(overlay, (0, 0))
 
         pygame.draw.rect(self.image, "black", pygame.Rect((0, 0), (
-        self.image.get_width() - self.border_width/2, self.image.get_height() - self.border_width/2)), width=self.border_width)
+        self.image.get_width() - self.border_width/2, self.image.get_height())), width=self.border_width)
 
     def hash_grid(self, outer_wall_points, inner_wall_points):
         self.shg_grid.clear_grid()
@@ -738,7 +842,7 @@ class UITrackCanvas(UIElement):
             self.validity_issues = "invalid walls"
         elif not self.is_track_complete:
             self.validity_issues = "incomplete"
-        elif len(outer_wall_points) > 300 or len(inner_wall_points) > 300:
+        elif len(outer_wall_points) < 300 or len(inner_wall_points) < 300:
             self.validity_issues = "too short"
         else:
             self.validity_issues = None
@@ -756,56 +860,3 @@ class UITrackCanvas(UIElement):
         self.validity_issues = None
 
         super().kill()
-
-
-# class UITrackCanvas(UIElement):
-#     def __init__(self, relative_rect, manager, bg_colour = "White"):
-#         super().__init__(relative_rect, manager, container=None, starting_height=0, layer_thickness=1)
-#         self.bg_colour = bg_colour
-#         self.strokes = []
-#         self.current_stroke = []
-#         self.is_dragging = False
-#         self.is_drawing = False
-#         self.image = pygame.Surface((self.relative_rect.width, self.relative_rect.height), pygame.SRCALPHA)
-#         self.rebuild()
-#
-#
-#     def process_event(self, event):
-#         if self.is_drawing:
-#             if event.type in (pygame.MOUSEBUTTONUP, pygame.MOUSEBUTTONDOWN, pygame.MOUSEMOTION):
-#                 if self.rect.collidepoint(event.pos):
-#                     if event.type == pygame.MOUSEBUTTONDOWN:
-#                         self.is_dragging = True
-#                         self.current_stroke.clear()
-#                     elif event.type == pygame.MOUSEMOTION and self.is_dragging:
-#                         relative_pos = pygame.Vector2((event.pos[0] - self.rect.x, event.pos[1] - self.rect.y))
-#                         self.current_stroke.append(relative_pos)
-#                     elif event.type == pygame.MOUSEBUTTONUP:
-#                         self.strokes.append(self.current_stroke.copy())
-#                         self.current_stroke.clear()
-#                         self.is_dragging = False
-#             self.rebuild()
-#
-#     def rebuild(self):
-#         self.image.fill((0,0,0,0))
-#         r.draw_track_outline(self.image, self.strokes)
-#         if self.is_dragging:
-#             for i in range(len(self.current_stroke) - 1):
-#                 pygame.draw.line(self.image, "Red", self.current_stroke[i], self.current_stroke[i+1], 3)
-#
-#     def save_drawing(self, filename):
-#         with open("Track/"+ filename + ".txt", "w") as file:
-#             for stroke in self.strokes:
-#                 for point in stroke:
-#                     file.write(str(point[0]) + "," + str(point[1]) + ",")
-#                 file.write("\n")
-#             print("saved")
-#
-#     def load_drawing(self, filename):
-#         self.strokes = r.load_track_from_file(filename)
-#         self.rebuild()
-#
-#     def clear(self):
-#         self.strokes.clear()
-#         self.current_stroke.clear()
-#         self.rebuild()
