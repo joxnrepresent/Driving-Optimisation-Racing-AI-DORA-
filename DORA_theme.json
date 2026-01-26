@@ -16,7 +16,7 @@
             "error_text": "#ff4d6d"
         },
         "font": {
-            "name": "fira_code",
+            "name": "menlo",
             "size": 16
         }
     },
@@ -66,7 +66,7 @@
     },
     "#menu_button_main": {
         "font": {
-            "name": "fira_code",
+            "name": "menlo",
             "size": 24,
             "bold": true
         },
@@ -75,9 +75,30 @@
             "shape_corner_radius": 12
         }
     },
+    "#pause_button": {
+        "font": {
+            "name": "menlo",
+            "size": 30,
+            "bold": true
+        },
+        "misc": {
+            "border_width": 4,
+            "shape_corner_radius": 12
+        }
+    },
+    "#play_button": {
+        "font": {
+            "name": "menlo",
+            "size": 2
+        },
+        "misc": {
+            "border_width": 4,
+            "shape_corner_radius": 12
+        }
+    },
     "#panel_button": {
         "font": {
-            "name": "fira_code",
+            "name": "menlo",
             "size": 16
         }
     },
@@ -93,13 +114,13 @@
             "normal_text": "#e6e6f0"
         },
         "font": {
-            "name": "fira_code",
+            "name": "menlo",
             "size": 16
         }
     },
     "#panel_title": {
         "font": {
-            "name": "fira_code",
+            "name": "menlo",
             "size": 20,
             "bold": true
         },
@@ -109,7 +130,7 @@
     },
     "#title_label": {
         "font": {
-            "name": "orbitron",
+            "name": "menlo",
             "size": 150,
             "bold": true
         },
@@ -127,7 +148,7 @@
     },
     "#subtitle_label": {
         "font": {
-            "name": "fira_code",
+            "name": "menlo",
             "size": 24,
             "italic": true
         },
@@ -145,7 +166,7 @@
     },
     "#info_label": {
         "font": {
-            "name": "fira_code",
+            "name": "menlo",
             "size": 14
         },
         "colours": {
@@ -154,7 +175,7 @@
     },
     "#error_label": {
         "font": {
-            "name": "fira_code",
+            "name": "menlo",
             "size": 14,
             "bold": true
         },

@@ -81,7 +81,7 @@ class RLModel(ABC):
 
 
 class REINFORCEModel(RLModel):
-    def __init__(self, input_size, output_size = 2, hidden_layer_sizes=[ 8, 8, 8, 8, 8 ], seed=None):
+    def __init__(self, input_size, output_size = 2, hidden_layer_sizes= [ 32, 32, 64, 64, 64, 32, 32 ], seed=None):
         layer_sizes = [input_size] + hidden_layer_sizes + [output_size]
         activations = ['elu'] * len(hidden_layer_sizes) + ['linear']
         super().__init__(layer_sizes, activations)
@@ -94,11 +94,12 @@ class REINFORCEModel(RLModel):
         self.update_actor(advantage, states, pre_squash_actions)
         avg_rewards = np.array(self.rewards).mean()
         avg_returns = np.array(returns).mean()
-
         self.clear_trajectory()
+        return (f"Reward:{avg_rewards:.3f} \n"
+                f"Returns:{avg_returns:.3f} \n")
 
 class MCACModel(RLModel):
-    def __init__(self, input_size, output_size = 2, actor_hidden_layers = [ 32, 64, 64, 32, ],
+    def __init__(self, input_size, output_size = 2, actor_hidden_layers = [ 32, 64, 64, 64, 32 ],
                  critic_hidden_layers = [16,16], num_of_steps = 100, seed=None):
         actor_layers = [input_size] + actor_hidden_layers + [output_size]
         actor_activations = ['elu'] * len(actor_hidden_layers) + ['linear']
@@ -145,6 +146,12 @@ class MCACModel(RLModel):
         avg_value = np.array(values).mean()
         avg_critic_loss = np.sqrt(np.mean((values - returns) ** 2))
         avg_std = np.exp(self.actor.log_std).mean()
-        # print(f"Reward:{avg_rewards:.3f} Returns:{avg_returns:.3f} Value:{avg_value:.3f} Critic Loss:{avg_critic_loss:.3f} Std:{avg_std:.3f}")
-        # print(f"Value range: [{values.min():.2f}, {values.max():.2f}] | Return range: [{returns.min():.2f}, {returns.max():.2f}]")
         self.clear_trajectory()
+
+        return (f"Reward:{avg_rewards:.3f} \n"
+                f"Returns:{avg_returns:.3f} \n"
+                f"Value:{avg_value:.3f} \n"
+                f"Critic Loss:{avg_critic_loss:.3f} \n"
+                f"Exploration (Std) :{avg_std:.3f} \n")
+
+        # print(f"Value range: [{values.min():.2f}, {values.max():.2f}] | Return range: [{returns.min():.2f}, {returns.max():.2f}]")

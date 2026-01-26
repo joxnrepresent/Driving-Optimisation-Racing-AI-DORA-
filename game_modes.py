@@ -1,23 +1,21 @@
 import math
-import os.path
+import copy
 import pickle
 import json
-
-import numpy
+import sys
 import numpy as np
 import pygame
 import pygame_gui
-from pygame_gui.elements import UIPanel, UILabel, UIButton
 
+import cars
 import resources as r
 from resources import game_core, RaceTimeManager
 from gui_custom_elements import UIGaugeMeter, UITrackCanvas, UIFileSelector, UIOptionSelector, UIEndScreen
 from track import Track
 from cars import PlayerCar, AICar
 from rl_model import MCACModel, REINFORCEModel
-from numpy import clip, exp
+from pygame_gui.elements import UIPanel, UILabel, UIButton
 from abc import ABC, abstractmethod
-from collections import defaultdict
 
 """This module contains classes """
 #---------------------------------------------------------------------------------------------------------------------#
@@ -35,59 +33,72 @@ class GameMode(ABC):
         except:
             pass
 
-        self.control_panel_visible = True
+        self.pause_menu_visible = True
 
-        self.control_panel = pygame_gui.elements.UIPanel(
+        self.pause_menu = UIPanel(
                             relative_rect=pygame.Rect((50,50), (300, 500)),
                             manager=self.gui_manager,
                             object_id='#control_panel'
                             )
 
-        self.minimise_button = pygame_gui.elements.UIButton(
+        self.pause_button = UIButton(
                                 relative_rect=pygame.Rect((370,50), (50, 50)),
-                                text='–',
+                                text='||',
                                 manager=self.gui_manager,
-                                object_id='#minimise_button'
+                                object_id='#pause_button'
                                 )
-        self.minimise_control_panel()
+
+        self.pause_label = pygame_gui.elements.UILabel(
+            relative_rect=pygame.Rect((10, 10), (280, 30)),
+            text='Paused',
+            manager=self.gui_manager,
+            container=self.pause_menu,
+            object_id='#panel_title'
+        )
+
+        self.minimise_pause_menu()
 
     def update(self, *args):
         pass
 
-    def minimise_control_panel(self):
+    def minimise_pause_menu(self):
 
         game_core.is_paused = False
-        if not self.control_panel_visible:
+        if not self.pause_menu_visible:
             return
 
 
-        self.control_panel.hide()
-        self.control_panel_visible = False
+        self.pause_menu.hide()
+        self.pause_menu_visible = False
 
-        self.minimise_button.set_relative_position((50, 50))
-        self.minimise_button.set_text('+')
+        self.pause_button.set_relative_position((50, 50))
+        self.pause_button.set_text('||')
 
 
-    def restore_control_panel(self):
+    def display_pause_menu(self):
 
         game_core.is_paused = True
-        if self.control_panel_visible:
+        if self.pause_menu_visible:
             return
 
 
-        self.control_panel.show()
-        self.control_panel_visible = True
+        self.pause_menu.show()
+        self.pause_menu_visible = True
 
-        self.minimise_button.set_relative_position((370,50))
-        self.minimise_button.set_text('–')
+        self.pause_button.set_relative_position((370, 50))
+        self.pause_button.set_text('\u25B6')
+
 
     def event_handle(self):
-        if self.minimise_button in game_core.pressed_buttons:
-            if self.control_panel_visible:
-                self.minimise_control_panel()
+        if self.pause_button in game_core.pressed_buttons:
+            if self.pause_menu_visible:
+                self.minimise_pause_menu()
             else:
-                self.restore_control_panel()
+                self.display_pause_menu()
 
+"""
+Creates an interface that allows the user to create, save and draw custom tracks.
+"""
 class MainMenu(GameMode):
     def __init__(self):
         super().__init__()
@@ -119,7 +130,7 @@ class MainMenu(GameMode):
 
         self.track_maker_button = UIButton(
             relative_rect=pygame.Rect(screen_w // 2 - 450, 300, 400, 70),
-            text='Track Editor',
+            text='Tracks Editor',
             manager=self.gui_manager,
             container=self.options_panel,
             object_id='#menu_button_main'
@@ -127,7 +138,7 @@ class MainMenu(GameMode):
 
         self.solo_sim_button = UIButton(
             relative_rect=pygame.Rect(screen_w // 2 + 50, 300, 400, 70),
-            text='Manual Racing Mode',
+            text='Solo Racing Simulation',
             manager=self.gui_manager,
             container=self.options_panel,
             object_id='#menu_button_main'
@@ -135,7 +146,7 @@ class MainMenu(GameMode):
 
         self.racing_sim_button = UIButton(
             relative_rect=pygame.Rect(screen_w // 2 - 450, 420, 400, 70),
-            text='Race AI Mode',
+            text='Race against AI',
             manager=self.gui_manager,
             container=self.options_panel,
             object_id='#menu_button_main'
@@ -188,6 +199,236 @@ class MainMenu(GameMode):
     def update(self, *args):
         self.gui_manager.update(1 / game_core.frame_rate)
 
+class TrackMakerUI(GameMode):
+    """
+    Class stores the variables, objects and methods needed to run the track maker.
+    """
+
+    def __init__(self):
+        super().__init__()
+
+        self.canvas = UITrackCanvas(
+            relative_rect=pygame.Rect((0,60), (game_core.screen_dimensions[0], game_core.screen_dimensions[1] - 120)),
+            manager=self.gui_manager
+        )
+
+
+        self.anchor_toggle_button = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect((10, 50), (140, 40)),
+            text="Anchor Mode",
+            manager=self.gui_manager,
+            container=self.pause_menu,
+            object_id='#panel_button'
+        )
+        self.anchor_toggle_button.disable()
+
+        self.width_toggle_button = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect((150, 50), (140, 40)),
+            text="Width Mode",
+            manager=self.gui_manager,
+            container=self.pause_menu,
+            object_id='#panel_button'
+        )
+
+        self.toggle_handles_button = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect((10, 100), (140, 40)),
+            text="Enable Handles",
+            manager=self.gui_manager,
+            container=self.pause_menu,
+            object_id='#panel_button'
+        )
+
+        self.clear_button = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect((150, 100), (140, 40)),
+            text="Clear Tracks",
+            manager=self.gui_manager,
+            container=self.pause_menu,
+            object_id='#panel_button'
+        )
+
+        self.save_button = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect((10, 150), (140, 40)),
+            text="Save",
+            manager=self.gui_manager,
+            container=self.pause_menu,
+            object_id='#panel_button'
+        )
+
+        self.load_button = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect((150, 150), (140, 40)),
+            text="Load",
+            manager=self.gui_manager,
+            container=self.pause_menu,
+            object_id='#panel_button'
+        )
+
+        self.info_label = pygame_gui.elements.UILabel(
+            relative_rect=pygame.Rect((10, 300), (280, 80)),
+            text='Click: Add\nBackspace: Delete\nDrag: Move',
+            manager=self.gui_manager,
+            container=self.pause_menu,
+            object_id='#info_label'
+        )
+
+        self.menu_button = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect((10, 420), (280, 60)),
+            text="Return to Menu",
+            manager=self.gui_manager,
+            container=self.pause_menu,
+            object_id='#exit_button'
+        )
+
+        self.error_label = pygame_gui.elements.UILabel(
+            relative_rect=pygame.Rect(
+                (game_core.screen_dimensions[0] / 2 - 125, game_core.screen_dimensions[1] / 2 - 50), (250, 50)),
+            text='',
+            manager=self.gui_manager,
+            object_id='#error_label'
+        )
+
+        self.ack_error_button = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect(
+                (game_core.screen_dimensions[0] / 2 - 50, game_core.screen_dimensions[1] / 2 + 10), (100, 50)),
+            text="OK",
+            manager=self.gui_manager,
+            object_id='#exit_button'
+        )
+
+        self.error_label.hide()
+        self.ack_error_button.hide()
+
+        self.file_selector = None
+        self.width_slider = None
+        self.canvas.anchor_mode = False
+        self.canvas.width_mode = False
+
+    def update(self):
+        self.gui_manager.update(1 / game_core.frame_rate)
+        if self.canvas.mode == "width":
+            self.changing_widths()
+
+    def changing_widths(self):
+        if self.canvas.selected_point and self.canvas.selected_point[0] == 'w':
+            width_val_index = self.canvas.selected_point[1]
+            width_point_index = math.floor(max(min(width_val_index * len(self.canvas.track_spine),
+                                                   len(self.canvas.track_spine) - 1), 0))
+            point_position = self.canvas.track_spine[int(width_point_index)]
+            if self.width_slider is None:
+                start_val = self.canvas.widths_dict[width_val_index]
+                self.width_slider = pygame_gui.elements.UIHorizontalSlider(
+                    relative_rect=pygame.Rect((point_position[0] -150, point_position[1] + 100),
+                                               (300, 30)),
+                    start_value=start_val,
+                    value_range=(60, 100),
+                    manager=self.gui_manager
+                )
+                self.width_label = pygame_gui.elements.UILabel(
+                    relative_rect=pygame.Rect((point_position[0] -30, point_position[1] + 130), (60, 30)),
+                    text=str(int(start_val)),
+                    manager=self.gui_manager
+                )
+            else:
+                val = int(round(self.width_slider.get_current_value()))
+                self.canvas.widths_dict[width_val_index] = val
+                self.width_label.set_text(str(val))
+        else:
+            if self.width_slider and self.width_label:
+                self.width_slider.kill()
+                self.width_label.kill()
+            self.width_slider = None
+            self.width_label = None
+
+
+    # Handles button presses:
+    def event_handle(self):
+        if self.anchor_toggle_button in game_core.pressed_buttons:
+            self.canvas.mode = "anchor"
+            self.canvas.selected_point = None
+            self.anchor_toggle_button.disable()
+            self.width_toggle_button.enable()
+
+        if self.width_toggle_button in game_core.pressed_buttons:
+            self.canvas.mode = "width"
+            self.canvas.selected_point = None
+            self.width_toggle_button.disable()
+            self.anchor_toggle_button.enable()
+
+        if self.save_button in game_core.pressed_buttons:
+            if self.canvas.validity_issues is not None:
+                self.error_label.show()
+                self.ack_error_button.show()
+                if self.canvas.validity_issues == "invalid walls":
+                    self.error_label.set_text("Tracks has overlapping/ kinked walls")
+                elif self.canvas.validity_issues == "incomplete":
+                    self.error_label.set_text("Tracks is incomplete")
+                elif self.canvas.validity_issues == "too short":
+                    self.error_label.set_text("Tracks is too short")
+            else:
+                self.save_track()
+
+        if self.load_button in game_core.pressed_buttons:
+            self.load_track()
+
+        if self.clear_button in game_core.pressed_buttons:
+            self.canvas.kill()
+            self.canvas = UITrackCanvas(
+            relative_rect=pygame.Rect((0,60), (game_core.screen_dimensions[0], game_core.screen_dimensions[1] - 120)),
+            manager=self.gui_manager
+        )
+
+
+        if self.menu_button in game_core.pressed_buttons:
+            game_core.set_game_mode(MainMenu)
+
+        if self.toggle_handles_button in game_core.pressed_buttons:
+            self.canvas.is_handles_enabled = not self.canvas.is_handles_enabled
+            self.canvas.selected_point = None
+            if self.canvas.is_handles_enabled:
+                self.canvas.generate_all_controls()
+                self.toggle_handles_button.set_text("Disable Handles")
+            else:
+                self.canvas.control_points.clear()
+                self.toggle_handles_button.set_text("Enable Handles")
+
+        if self.ack_error_button in game_core.pressed_buttons:
+            self.ack_error_button.hide()
+            self.error_label.hide()
+
+        super().event_handle()
+
+    def save_track(self):
+        self.file_selector = UIFileSelector(pygame.Rect((0, 0), game_core.screen_dimensions),
+                                            self.gui_manager,
+                                            "Tracks",
+                                            "save",
+                                            lambda filename: self.write_track_data(filename))
+
+    def load_track(self):
+        self.file_selector = UIFileSelector(pygame.Rect((0, 0), game_core.screen_dimensions),
+                                            self.gui_manager,
+                                            "Tracks",
+                                            "load",
+                                            lambda filename: self.load_track_data(filename),)
+
+    def write_track_data(self, filename=game_core.current_track):
+        if filename is not None:
+            if not self.canvas.is_handles_enabled:
+                self.canvas.generate_all_controls()
+            data = {
+                "anchors": [(point.x, point.y) for point in self.canvas.anchor_points],
+                "controls": [(point.x, point.y) for point in self.canvas.control_points],
+                "widths": {str(k): v for k, v in self.canvas.widths_dict.items()}
+            }
+            with open(f"Tracks/{filename}.json", "w") as file:
+                json.dump(data, file, indent=2)
+
+    def load_track_data(self, filename=game_core.current_track):
+        if filename is not None:
+            self.canvas.anchor_points, self.canvas.control_points, self.canvas.widths_dict = r.load_bezier_track(filename)
+
+
+
+
 class CarSimulation(GameMode):
     """Base class for car simulation modes."""
 
@@ -197,18 +438,18 @@ class CarSimulation(GameMode):
             relative_rect=pygame.Rect((5, 130), (285, 40)),
             text="Reset simulation",
             manager=self.gui_manager,
-            container=self.control_panel,
+            container=self.pause_menu,
             object_id='#panel_button'
         )
         self.menu_button = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect((5, 420), (285, 60)),
             text="Return to Menu",
             manager=self.gui_manager,
-            container=self.control_panel,
+            container=self.pause_menu,
             object_id='#exit_button'
         )
 
-        # Track setup
+        # Tracks setup
         self.track = None
         self.track_loader = None
         self.end_screen = None
@@ -226,7 +467,7 @@ class CarSimulation(GameMode):
     def initialise_track(self):
         self.track_loader = UIFileSelector(pygame.Rect((0, 0), game_core.screen_dimensions),
                                            self.gui_manager,
-                                           "Track",
+                                           "Tracks",
                                            "load",
                                            callback=lambda filename: self.set_track(filename),
                                            return_mode= MainMenu)
@@ -239,7 +480,8 @@ class CarSimulation(GameMode):
     def initialise_num_of_laps(self):
         self.num_of_laps_setter = UIOptionSelector(pygame.Rect((0, 0), game_core.screen_dimensions),
                          self.gui_manager,
-                         ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+                         title= "Select number of laps",
+                         options =["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
                          callback=lambda num_of_laps: self.set_num_of_laps(num_of_laps),
                          return_mode=MainMenu)
 
@@ -336,8 +578,15 @@ class SoloCarSim(CarSimulation):
             relative_rect=pygame.Rect((10, 220), (280, 30)),
             text='W: Throttle | S: Brake',
             manager=self.gui_manager,
-            container=self.control_panel,
+            container=self.pause_menu,
             object_id = '#info_label'
+        )
+        self.controls_toggle_button = pygame_gui.elements.UIButton(
+            relative_rect=pygame.Rect((5, 80), (285, 40)),
+            text="Enable steering slider",
+            manager=self.gui_manager,
+            container=self.pause_menu,
+            object_id='#panel_button'
         )
 
     def reset_gui(self):
@@ -359,6 +608,12 @@ class SoloCarSim(CarSimulation):
 
     def event_handle(self):
         """Handle events and clear button presses."""
+        if self.controls_toggle_button in game_core.pressed_buttons:
+            self.cars[0].toggle_slider()
+            if self.cars[0].is_slider_enabled:
+                self.controls_toggle_button.set_text("Disable steer slider")
+            else:
+                self.controls_toggle_button.set_text("Enable steer slider")
 
         super().event_handle()
 
@@ -402,13 +657,13 @@ class RacingSim(CarSimulation):
             relative_rect=pygame.Rect((10, 100), (280, 30)),
             text='W: Throttle | S: Brake',
             manager=self.gui_manager,
-            container=self.control_panel,
+            container=self.pause_menu,
             object_id='#info_label'
         )
 
         self.rl_model = None
         self.model_loader = None
-
+        game_core.debug_elements["rays"] = [0]
 
     def set_track(self, filename):
         super().set_track(filename)
@@ -417,13 +672,13 @@ class RacingSim(CarSimulation):
     def initialise_rl_model(self):
         self.model_loader = UIFileSelector(pygame.Rect((0, 0), game_core.screen_dimensions),
                                            self.gui_manager,
-                                           "Saved Model",
-                                           "load",
+                                           "Models",
+                                           "load raceable",
                                            callback=lambda filename: self.set_model(filename),
                                            return_mode=MainMenu)
 
     def set_model(self, filename=None):
-        save_data = np.load(f"Saved Model/{filename}.npy", allow_pickle=True).item()
+        save_data = np.load(f"Models/{filename}.npy", allow_pickle=True).item()
         self.rl_model = REINFORCEModel(self.state_size)
         self.rl_model.actor.set_params(save_data['actor_params'])
         self.initialise_num_of_laps()
@@ -433,6 +688,7 @@ class RacingSim(CarSimulation):
             self.game_sprites.remove(self.cars[0], self.cars[1])
             self.cars[0].delete_control_panel()
         self.cars = [PlayerCar(self.track.track_spine[0]), AICar(self.track.track_spine[0])]
+        self.cars[1].ray_cast(self.track, 0)
         self.game_sprites.add(self.cars[0], self.cars[1])
         self.debug_elements["hitboxes"].extend([self.cars[0].hitbox, self.cars[1].hitbox])
 
@@ -449,7 +705,7 @@ class RacingSim(CarSimulation):
                 self.is_crashed[i] = False
             else:
                 if isinstance(car, AICar):
-                    sensors = car.ray_cast(self.track, 1)
+                    sensors = car.ray_cast(self.track, 0)
                     state = sensors + [car.velocity.magnitude() / car.max_speed,
                                        car.steer / car.max_steer]
                     actions = self.rl_model.get_deterministic_actions(state)
@@ -495,35 +751,27 @@ class AICarSim(CarSimulation):
         super().__init__(num_of_cars=simulation_size)
         self.episode_num = 0
 
-        self.title_label = pygame_gui.elements.UILabel(
-            relative_rect=pygame.Rect((10, 10), (280, 30)),
-            text='AI Training Controls',
-            manager=self.gui_manager,
-            container=self.control_panel,
-            object_id='#panel_title'
-        )
-
         self.episodes_completed_label = pygame_gui.elements.UILabel(
             relative_rect=pygame.Rect((10, 50), (280, 25)),
             text=f'Episode: {self.episode_num}',
             manager=self.gui_manager,
-            container=self.control_panel,
+            container=self.pause_menu,
             object_id='#info_label'
         )
 
         self.speed_label = pygame_gui.elements.UILabel(
             relative_rect=pygame.Rect((10, 80), (280, 25)),
-            text=f'Speed: {game_core.tick_speedup}x',
+            text=f'Speed: {game_core.tick_speedup}X',
             manager=self.gui_manager,
-            container=self.control_panel,
+            container=self.pause_menu,
             object_id='#info_label'
         )
 
-        self.tick_speedup = pygame_gui.elements.UIButton(
+        self.tick_speedup_button = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect((5, 170), (285, 40)),
             text="Adjust Speed",
             manager=self.gui_manager,
-            container=self.control_panel,
+            container=self.pause_menu,
             object_id='#panel_button'
         )
 
@@ -531,27 +779,37 @@ class AICarSim(CarSimulation):
             relative_rect=pygame.Rect((5, 300), (285, 40)),
             text="Save Model",
             manager=self.gui_manager,
-            container=self.control_panel,
+            container=self.pause_menu,
             object_id='#panel_button'
         )
 
         self.stats_panel = pygame_gui.elements.UIPanel(
-                            relative_rect=pygame.Rect((5, game_core.screen_dimensions[1] - 150),
-                                                      (game_core.screen_dimensions[0], 150)),
+                            relative_rect=pygame.Rect((5, game_core.screen_dimensions[1] - 200),
+                                                      (game_core.screen_dimensions[0]-5, 200)),
                             manager=self.gui_manager,
                             object_id='#control_panel'
                             )
 
-        self.log_box = pygame_gui.elements.UITextBox(
+        self.episodic_log_box = pygame_gui.elements.UITextBox(
             html_text="",
-            relative_rect=pygame.Rect((5, 5),(game_core.screen_dimensions[0] / 2 - 60, 140)),
+            relative_rect=pygame.Rect((5, 5),(game_core.screen_dimensions[0] / 3-10, 190)),
             manager=self.gui_manager,
             container= self.stats_panel
         )
 
-
-
-        self.log_data = []
+        self.learning_log_box = pygame_gui.elements.UITextBox(
+            html_text="",
+            relative_rect=pygame.Rect((game_core.screen_dimensions[0] / 3+10, 5), (game_core.screen_dimensions[0] / 3-10, 190)),
+            manager=self.gui_manager,
+            container=self.stats_panel
+        )
+        self.model_training_box = pygame_gui.elements.UITextBox(
+            html_text="",
+            relative_rect=pygame.Rect((game_core.screen_dimensions[0] * 2/ 3 + 10, 5),
+                                      (game_core.screen_dimensions[0] / 3 - 25, 190)),
+            manager=self.gui_manager,
+            container=self.stats_panel
+        )
 
         # AI Configuration
         self.state_size = state_size
@@ -574,9 +832,15 @@ class AICarSim(CarSimulation):
         # Model management
         self.performance_history = []
         self.history_window = 20
-        self.rollback_threshold = 0.8
+        self.rollback_threshold = 0.7
         self.best_hist_avg = 0
         self.best_model_params = None
+
+        self.rollback_counter = 0
+        self.avg_progress = 0
+        self.max_progress = 0
+        self.avg_lap_time = None
+        self.best_lap_time = None
 
 
         self.model_type_selector = None
@@ -585,7 +849,21 @@ class AICarSim(CarSimulation):
         self.model_saver = None
         self.model_type = None
         self.rl_model = None
+        self.is_model_raceable= False
 
+        self.learning_log_data = (f"Average progress: {self.avg_progress:.2f}% \n"
+                                  f"Best progress: {self.max_progress:.2f}% \n"
+                                  f"Average lap time: None \n"
+                                  f"Fastest lap time: None \n"
+                                  f"Model ready?: {self.is_model_raceable} \n"
+                                  f"Number of rollback: {self.rollback_counter} \n")
+
+        self.learning_log_box.set_text(self.learning_log_data)
+
+        self.episodic_log_data = ["-----------------"]
+        self.model_training_log = ("Average return: None \n"
+                                   "Average reward: None")
+        self.model_training_box.set_text(self.model_training_log)
         # Debug setup
         game_core.debug_elements["rays"] = [0] * simulation_size
 
@@ -608,7 +886,7 @@ class AICarSim(CarSimulation):
     def initialise_rl_model(self):
         self.model_loader = UIFileSelector(pygame.Rect((0, 0), game_core.screen_dimensions),
                                            self.gui_manager,
-                                           "Saved Model",
+                                           "Models",
                                            f"load {self.model_type}",
                                            callback=lambda filename: self.set_model(filename),
                                            return_mode=None)
@@ -620,9 +898,9 @@ class AICarSim(CarSimulation):
                 self.rl_model = REINFORCEModel(self.state_size)
             else:
                 self.rl_model = MCACModel(self.state_size)
-            self.best_model_params = {'actor': self.rl_model.actor.get_params()}
+            self.best_model_params = copy.deepcopy({'actor': self.rl_model.actor.get_params()})
             if hasattr(self.rl_model, 'critic'):
-                self.best_model_params['critic'] = self.rl_model.critic.get_params()
+                self.best_model_params['critic'] = copy.deepcopy(self.rl_model.critic.get_params())
         else:
             self.load_model(filename)
 
@@ -637,6 +915,7 @@ class AICarSim(CarSimulation):
         self.cars = []
         for i in range(self.num_of_cars):
             car = AICar(self.track.track_spine[0])
+            car.ray_cast(self.track, i)
             self.cars.append(car)
             self.game_sprites.add(car)
             self.debug_elements["hitboxes"].append(car.hitbox)
@@ -649,6 +928,7 @@ class AICarSim(CarSimulation):
             self._update_ai_step()
 
         if all(self.is_crashed):
+            super().update()
             self._handle_episode_end()
             return
 
@@ -680,6 +960,14 @@ class AICarSim(CarSimulation):
         """Process a single car's reward after action is taken."""
         car.collision_detection(self.track)
         progress, is_lap_finished = car.update_and_get_progress(self.track.track_spine)
+
+        if is_lap_finished:
+            laps_completed = math.floor(progress)
+            # Ensure we don't double count if super().update() also runs
+            if self.time_manager.lap_times[i][laps_completed - 1] is None:
+                self.time_manager.update(i, laps_completed, is_lap_finished)
+
+
         is_stuck = self._check_if_stuck(i, progress)
 
         # Compute reward
@@ -695,12 +983,12 @@ class AICarSim(CarSimulation):
         if car.progress >= self.time_manager.num_of_laps:
             self.is_crashed[i] = True  # Mark as finished
             car.is_crashed = True  # Actually stop the car
-            reward += 20
-            rewards_array[-1] += 20
+            reward += 130
+            rewards_array[-1] += 130
 
-        clipped_reward = np.clip(reward, -10, 100) / 10
+        clipped_reward = np.clip(reward, -50, 100 * self.time_manager.num_of_laps)
 
-        # Track rewards
+        # Tracks rewards
         reward_breakdown = np.array(rewards_array)
         self.epoch_rewards_breakdown[i] += reward_breakdown
         self.time_step_rewards_breakdown.append(reward_breakdown)
@@ -734,7 +1022,8 @@ class AICarSim(CarSimulation):
         """Reinitialize simulation and update model parameters."""
         # Only update params if there's actual trajectory data
         if len(self.rl_model.states) > 0 and len(self.rl_model.rewards) > 0:
-            self.rl_model.update_params()
+            self.model_training_log = self.rl_model.update_params()
+            self.model_training_box.set_text(self.model_training_log)
 
         self.max_epoch_progress = [0.0] * self.num_of_cars
         super()._reinitialise_simulation()
@@ -751,7 +1040,8 @@ class AICarSim(CarSimulation):
             self._cache_performance(avg_progress, self.max_epoch_progress)
             log_msg += self._check_rollback()
             self.update_logger(log_msg)
-
+        for car in self.cars:
+            car.progress = math.floor(car.progress)
         # Always reset reward tracking
         self.epoch_rewards_breakdown = np.zeros([self.num_of_cars, self.reward_size], float)
         self.time_step_rewards_breakdown = []
@@ -759,14 +1049,27 @@ class AICarSim(CarSimulation):
         self._reinitialise_simulation()
 
     def update_logger(self, log_msg):
-        self.log_data.append(log_msg)
+        self.episodic_log_data.append(log_msg)
 
-        if len(self.log_data) > 300:
-            self.log_data = self.log_data[-300:]
+        if len(self.episodic_log_data) > 40:
+            self.episodic_log_data = self.episodic_log_data[-40:]
 
-        self.log_box.set_text("<br>".join(self.log_data))
-        if self.log_box.scroll_bar:
-            self.log_box.scroll_bar.set_scroll_from_start_percentage(1.0)
+        self.episodic_log_box.set_text("<br>".join(self.episodic_log_data))
+        if self.episodic_log_box.scroll_bar:
+            self.episodic_log_box.scroll_bar.set_scroll_from_start_percentage(1.0)
+
+        self.log_learning_progress()
+        self.learning_log_box.set_text(self.learning_log_data)
+
+    def log_learning_progress(self):
+        rounded_avg_lap_time = round(self.avg_lap_time, 5) if self.avg_lap_time else None
+        rounded_best_lap_time = round(self.best_lap_time, 5) if self.best_lap_time else None
+        self.learning_log_data = (f"Average progress: {self.avg_progress:.2f}% \n"
+                                  f"Best progress: {self.max_progress:.2f}% \n"
+                                  f"Average lap time: {rounded_avg_lap_time} \n"
+                                  f"Fastest lap time: {rounded_best_lap_time} \n"
+                                  f"Model ready?: {self.is_model_raceable} \n"
+                                  f"Number of rollback: {self.rollback_counter} \n")
 
     def _log_episode_results(self):
         """Log episode statistics."""
@@ -779,9 +1082,12 @@ class AICarSim(CarSimulation):
         avg_time_step_rewards = np.round(time_step_rewards.mean(axis=0), 3)
         print(f"Time step rewards: {avg_time_step_rewards.tolist()}")
         print()
+        avg_progress = sum(car.progress for car in self.cars) / len(self.cars)
+        episode_duration = (pygame.time.get_ticks() - self.time_manager.start_time)/1000
         return (f"Episode: {self.episode_num} \n"
-                f"Epoch rewards: {avg_epoch_rewards.tolist()} \n"
-                f"Time step rewards: {avg_time_step_rewards.tolist()} \n")
+                f"Episode duration: {episode_duration:.2f} \n"
+                f"Avg progress: {avg_progress:.2f} \n"
+                f"Avg reward: {sum(avg_epoch_rewards.tolist()):.2f} \n")
 
     def _check_rollback(self):
         """Check if model should be rolled back due to poor performance."""
@@ -802,12 +1108,28 @@ class AICarSim(CarSimulation):
             print("----xx--------xx--------xx--------xx--------xx--------xx--------xx--------xx----")
             print()
 
+            self.rollback_counter += 1
+            self.rl_model.clear_trajectory()
             self.performance_history.clear()
             return "----xx" * 5 + "\n" + "Model Rolled Back" + "\n" + "----xx" * 5 + "\n \n"
         return  ""
 
     def _cache_performance(self, avg_total, epoch_progresses):
         """Cache performance metrics and update best model if improved."""
+        self.avg_progress = sum(car.progress for car in self.cars) / len(self.cars) * 100
+        self.max_progress = max(self.max_progress, self.avg_progress)
+        self.avg_lap_time = self.time_manager.get_average_lap_time()
+        if self.avg_lap_time is not None:
+            if self.best_lap_time is not None:
+                self.best_lap_time = min(self.best_lap_time, self.avg_lap_time)
+            else:
+                self.best_lap_time = self.avg_lap_time
+
+
+        if self.avg_progress/100 > 0.8 * self.time_manager.num_of_laps:
+            self.is_model_raceable = True
+        else:
+            self.is_model_raceable = False
         self.performance_history.append(avg_total)
 
         # Maintain performance history window
@@ -823,12 +1145,12 @@ class AICarSim(CarSimulation):
         historic_avg = np.mean(relevant_hist)
 
         # Update best model if performance improved
-        if historic_avg > self.best_hist_avg and min(relevant_hist) > 0.8 * historic_avg:
+        if historic_avg > self.best_hist_avg:
             self.best_hist_avg = historic_avg
             cache_params = {'actor': self.rl_model.actor.get_params()}
             if hasattr(self.rl_model, 'critic'):
                 cache_params['critic'] = self.rl_model.critic.get_params()
-            self.best_model_params = cache_params
+            self.best_model_params = copy.deepcopy(cache_params)
 
         self.historic_progress.append(max(epoch_progresses))
         if len(self.historic_progress) > self.history_window:
@@ -844,7 +1166,7 @@ class AICarSim(CarSimulation):
             self._reinitialise_simulation()
 
         # Speed control
-        if self.tick_speedup in game_core.pressed_buttons:
+        if self.tick_speedup_button in game_core.pressed_buttons:
             self._toggle_speed()
 
         # Save model
@@ -856,9 +1178,9 @@ class AICarSim(CarSimulation):
     def initialise_model_saver(self):
         self.model_saver = UIFileSelector(pygame.Rect((0, 0), game_core.screen_dimensions),
                                           self.gui_manager,
-                                          "Saved Model",
+                                          "Models",
                                           "save",
-                                          lambda filename: self.save_model(filename))
+                                          callback= lambda filename: self.save_model(filename))
 
     def reset_cars(self):
         """Reset all AI cars."""
@@ -876,6 +1198,7 @@ class AICarSim(CarSimulation):
             return
 
         save_data = {
+            'is_model_raceable': self.is_model_raceable,
             'model_type': 'MCAC' if hasattr(self.rl_model, 'critic') else 'REINFORCE',
             'actor_params': self.rl_model.actor.get_params(),
             'episode_num': self.episode_num,
@@ -885,7 +1208,7 @@ class AICarSim(CarSimulation):
         if save_data['model_type'] == 'MCAC':
             save_data['critic_params'] = self.rl_model.critic.get_params()
 
-        np.save(f"Saved Model/{filename}.npy", save_data, allow_pickle=True)
+        np.save(f"Models/{filename}.npy", save_data, allow_pickle=True)
 
         self.model_saver = None
 
@@ -894,8 +1217,9 @@ class AICarSim(CarSimulation):
         if filename is None:
             filename = game_core.current_model
 
-        save_data = np.load(f"Saved Model/{filename}.npy", allow_pickle=True).item()
+        save_data = np.load(f"Models/{filename}.npy", allow_pickle=True).item()
 
+        self.is_model_raceable = save_data['is_model_raceable']
         if self.model_type == 'REINFORCE':
             self.rl_model = REINFORCEModel(self.state_size)
         else:
@@ -906,252 +1230,22 @@ class AICarSim(CarSimulation):
         if hasattr(self.rl_model, 'critic') and 'critic_params' in save_data:
             self.rl_model.critic.set_params(save_data['critic_params'])
 
-        self.best_model_params = save_data['best_model_params']
+        self.best_model_params = copy.deepcopy(save_data['best_model_params'])
         self.episode_num = save_data['episode_num']
 
     def _toggle_speed(self):
         """Toggle simulation speed."""
         if game_core.tick_speedup == 1:
-            game_core.tick_speedup = 50
-        elif game_core.tick_speedup == 50:
-            game_core.tick_speedup = 100
+            game_core.tick_speedup = 2
+        elif game_core.tick_speedup == 2:
+            game_core.tick_speedup = 5
+        elif game_core.tick_speedup == 5:
+            game_core.tick_speedup = 10
         else:
             game_core.tick_speedup = 1
 
-        self.tick_speedup.set_text(f"Speed: {game_core.tick_speedup}")
+        self.speed_label.set_text(f"Speed: {game_core.tick_speedup}X")
 
     def display_end_screen(self, results):
         pass
-"""
-Creates an interface that allows the user to create, save and draw custom tracks.
-"""
-
-
-class TrackMakerUI(GameMode):
-    """
-    Class stores the variables, objects and methods needed to run the track maker.
-    """
-
-    def __init__(self):
-        super().__init__()
-
-        self.canvas = UITrackCanvas(
-            relative_rect=pygame.Rect((0,60), (game_core.screen_dimensions[0], game_core.screen_dimensions[1] - 120)),
-            manager=self.gui_manager
-        )
-
-        self.title_label = pygame_gui.elements.UILabel(
-            relative_rect=pygame.Rect((10, 10), (280, 30)),
-            text='Track Editor',
-            manager=self.gui_manager,
-            container=self.control_panel,
-            object_id='#panel_title'
-        )
-
-        self.anchor_toggle_button = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect((10, 50), (140, 40)),
-            text="Anchor Mode",
-            manager=self.gui_manager,
-            container=self.control_panel,
-            object_id='#panel_button'
-        )
-        self.anchor_toggle_button.disable()
-
-        self.width_toggle_button = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect((150, 50), (140, 40)),
-            text="Width Mode",
-            manager=self.gui_manager,
-            container=self.control_panel,
-            object_id='#panel_button'
-        )
-
-        self.toggle_handles_button = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect((10, 100), (140, 40)),
-            text="Toggle Handles",
-            manager=self.gui_manager,
-            container=self.control_panel,
-            object_id='#panel_button'
-        )
-
-        self.clear_button = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect((150, 100), (140, 40)),
-            text="Clear Track",
-            manager=self.gui_manager,
-            container=self.control_panel,
-            object_id='#panel_button'
-        )
-
-        self.save_button = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect((10, 150), (140, 40)),
-            text="Save",
-            manager=self.gui_manager,
-            container=self.control_panel,
-            object_id='#panel_button'
-        )
-
-        self.load_button = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect((150, 150), (140, 40)),
-            text="Load",
-            manager=self.gui_manager,
-            container=self.control_panel,
-            object_id='#panel_button'
-        )
-
-        self.info_label = pygame_gui.elements.UILabel(
-            relative_rect=pygame.Rect((10, 300), (280, 80)),
-            text='Click: Add\nBackspace: Delete\nDrag: Move',
-            manager=self.gui_manager,
-            container=self.control_panel,
-            object_id='#info_label'
-        )
-
-        self.menu_button = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect((10, 420), (280, 60)),
-            text="Return to Menu",
-            manager=self.gui_manager,
-            container=self.control_panel,
-            object_id='#exit_button'
-        )
-
-        self.error_label = pygame_gui.elements.UILabel(
-            relative_rect=pygame.Rect(
-                (game_core.screen_dimensions[0] / 2 - 125, game_core.screen_dimensions[1] / 2 - 50), (250, 50)),
-            text='',
-            manager=self.gui_manager,
-            object_id='#error_label'
-        )
-
-        self.ack_error_button = pygame_gui.elements.UIButton(
-            relative_rect=pygame.Rect(
-                (game_core.screen_dimensions[0] / 2 - 50, game_core.screen_dimensions[1] / 2 + 10), (100, 50)),
-            text="OK",
-            manager=self.gui_manager,
-            object_id='#exit_button'
-        )
-
-        self.error_label.hide()
-        self.ack_error_button.hide()
-
-        self.file_selector = None
-        self.width_slider = None
-        self.canvas.anchor_mode = False
-        self.canvas.width_mode = False
-
-    def update(self):
-        self.gui_manager.update(1 / game_core.frame_rate)
-        if self.canvas.mode == "width":
-            self.changing_widths()
-
-    def changing_widths(self):
-        if self.canvas.selected_point and self.canvas.selected_point[0] == 'w':
-            width_point_index = self.canvas.selected_point[1]
-            if self.width_slider is None:
-                start_val = self.canvas.widths_dict[width_point_index]
-                self.width_slider = pygame_gui.elements.UIHorizontalSlider(
-                    relative_rect=pygame.Rect((100, 10), (300, 30)),
-                    start_value=start_val,
-                    value_range=(60, 100),
-                    manager=self.gui_manager
-                )
-                self.width_label = pygame_gui.elements.UILabel(
-                    relative_rect=pygame.Rect((410, 10), (60, 30)),
-                    text=str(int(start_val)),
-                    manager=self.gui_manager
-                )
-            else:
-                val = int(round(self.width_slider.get_current_value()))
-                self.canvas.widths_dict[width_point_index] = val
-                self.width_label.set_text(str(val))
-        else:
-            if self.width_slider and self.width_label:
-                self.width_slider.kill()
-                self.width_label.kill()
-            self.width_slider = None
-            self.width_label = None
-
-
-    # Handles button presses:
-    def event_handle(self):
-        if self.anchor_toggle_button in game_core.pressed_buttons:
-            self.canvas.mode = "anchor"
-            self.canvas.selected_point = None
-            self.anchor_toggle_button.disable()
-            self.width_toggle_button.enable()
-
-        if self.width_toggle_button in game_core.pressed_buttons:
-            self.canvas.mode = "width"
-            self.canvas.selected_point = None
-            self.width_toggle_button.disable()
-            self.anchor_toggle_button.enable()
-
-        if self.save_button in game_core.pressed_buttons:
-            if self.canvas.validity_issues is not None:
-                self.error_label.show()
-                self.ack_error_button.show()
-                if self.canvas.validity_issues == "invalid walls":
-                    self.error_label.set_text("Track has overlapping/ kinked walls")
-                elif self.canvas.validity_issues == "incomplete":
-                    self.error_label.set_text("Track is incomplete")
-                elif self.canvas.validity_issues == "too short":
-                    self.error_label.set_text("Track is too short")
-            else:
-                self.save_track()
-
-        if self.load_button in game_core.pressed_buttons:
-            self.load_track()
-
-        if self.clear_button in game_core.pressed_buttons:
-            self.canvas.kill()
-            self.canvas = UITrackCanvas(
-            relative_rect=pygame.Rect((0,60), (game_core.screen_dimensions[0], game_core.screen_dimensions[1] - 120)),
-            manager=self.gui_manager
-        )
-
-
-        if self.menu_button in game_core.pressed_buttons:
-            game_core.set_game_mode(MainMenu)
-
-        if self.toggle_handles_button in game_core.pressed_buttons:
-            self.canvas.is_handles_enabled = not self.canvas.is_handles_enabled
-            self.canvas.selected_point = None
-            if self.canvas.is_handles_enabled:
-                self.canvas.generate_all_controls()
-            else:
-                self.canvas.control_points.clear()
-
-        if self.ack_error_button in game_core.pressed_buttons:
-            self.ack_error_button.hide()
-            self.error_label.hide()
-
-        super().event_handle()
-
-    def save_track(self):
-        self.file_selector = UIFileSelector(pygame.Rect((0, 0), game_core.screen_dimensions),
-                                            self.gui_manager,
-                                            "Track",
-                                            "save",
-                                            lambda filename: self.write_track_data(filename))
-
-    def load_track(self):
-        self.file_selector = UIFileSelector(pygame.Rect((0, 0), game_core.screen_dimensions),
-                                            self.gui_manager,
-                                            "Track",
-                                            "load",
-                                            lambda filename: self.load_track_data(filename),)
-
-    def write_track_data(self, filename=game_core.current_track):
-        if filename is not None:
-            if not self.canvas.is_handles_enabled:
-                self.canvas.generate_all_controls()
-            data = {
-                "anchors": [(point.x, point.y) for point in self.canvas.anchor_points],
-                "controls": [(point.x, point.y) for point in self.canvas.control_points],
-                "widths": {str(k): v for k, v in self.canvas.widths_dict.items()}
-            }
-            with open(f"Track/{filename}.json", "w") as file:
-                json.dump(data, file, indent=2)
-
-    def load_track_data(self, filename=game_core.current_track):
-        if filename is not None:
-            self.canvas.anchor_points, self.canvas.control_points, self.canvas.widths_dict = r.load_bezier_track(filename)
 

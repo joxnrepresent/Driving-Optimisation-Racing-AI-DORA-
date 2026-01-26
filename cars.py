@@ -1,16 +1,12 @@
 import math
 import numpy as np
-from pygame import Vector2
-from pygame_gui.core.colour_parser import is_float_str
-
 import resources as r
 import pygame
-from abc import ABC, abstractmethod
-from pygame_gui import elements, UIManager
-from pygame_gui.elements import UIPanel
 from resources import game_core
 from gui_custom_elements import UIGaugeMeter
-
+from pygame import Vector2
+from abc import ABC, abstractmethod
+from pygame_gui.elements import UIPanel, UIProgressBar, UIHorizontalSlider
 
 class Car(pygame.sprite.Sprite, ABC):
 
@@ -39,9 +35,9 @@ class Car(pygame.sprite.Sprite, ABC):
 
         self.steer_response = 0.3
         self.throttle_factor = 0.1
-        self.brake_factor = 0.08
+        self.brake_factor = 0.04
         self.wheelbase = 3.6
-        self.max_lateral_accel = 30.0
+        self.max_lateral_accel = 20.0
 
         """
         The '_original_car' variable is necessary for rotating the sprite properly since the car sprite is rotated
@@ -195,37 +191,46 @@ class PlayerCar(Car):
                  car_proportions=pygame.Vector2(272, 429) / (0.8*game_core.meter_pixel_conversion)):
         super().__init__(starting_position, image= image, car_proportions=  car_proportions)
 
-        self.panel = UIPanel(
+        self.hud_panel = UIPanel(
             relative_rect=pygame.Rect(
-                (0, game_core.screen_dimensions[1] - 120,
-                 (game_core.screen_dimensions[0]), 120)
+                (0, game_core.screen_dimensions[1] - 200,
+                 (game_core.screen_dimensions[0]), 200)
             ),
             manager=game_core.gui_manager,
             starting_height=1000,
             object_id='#HUD_panel'
         )
 
-        self.throttle_and_braking_meter = elements.UIProgressBar(
-            relative_rect=pygame.Rect((game_core.screen_dimensions[0] / 4 - 200, 60), (400, 30)),
+        self.throttle_and_braking_meter =UIProgressBar(
+            relative_rect=pygame.Rect((game_core.screen_dimensions[0] / 4 - 200, 100), (400, 50)),
             manager=game_core.gui_manager,
-            container= self.panel,
+            container= self.hud_panel,
             object_id = '#UIProgressBar'
         )
 
-        self.steering_slider = elements.UIHorizontalSlider(
-            relative_rect=pygame.Rect((game_core.screen_dimensions[0] *3/4 - 200, 60), (400, 30)),
+        self.steering_slider = UIHorizontalSlider(
+            relative_rect=pygame.Rect((game_core.screen_dimensions[0] *3/4 - 200, 100), (400, 50)),
             start_value=0,
             value_range=(-100, 100),
             manager=game_core.gui_manager,
-            container= self.panel,
+            container= self.hud_panel,
             object_id = '#UIHorizontalSlider'
         )
+        self.is_slider_enabled = False
+        self.steering_slider.disable()
 
         self.speedometer = UIGaugeMeter(
-            relative_rect=pygame.Rect((game_core.screen_dimensions[0]/2  - 100 , 0), (200, 100)),
+            relative_rect=pygame.Rect((game_core.screen_dimensions[0]/2  - 125 , 20), (250, 125)),
             manager=game_core.gui_manager,
-            container= self.panel
+            container= self.hud_panel
         )
+
+    def toggle_slider(self):
+        self.is_slider_enabled = not self.is_slider_enabled
+        if self.is_slider_enabled:
+            self.steering_slider.enable()
+        else:
+            self.steering_slider.disable()
 
     def delete_control_panel(self):
         self.steering_slider.kill()
@@ -238,7 +243,15 @@ class PlayerCar(Car):
         self.speedometer.update_value(self.velocity.magnitude())
 
     def _handle_steering(self):
-        target_steering = self.steering_slider.get_current_value()/100
+        if self.is_slider_enabled:
+            target_steering = self.steering_slider.get_current_value()/100
+        else:
+            if pygame.K_a in game_core.pressed_keys:
+                target_steering = -1
+            elif pygame.K_d in game_core.pressed_keys:
+                target_steering = 1
+            else:
+                target_steering = 0
         return target_steering
 
     def _handle_throttle(self):
@@ -254,25 +267,28 @@ class PlayerCar(Car):
         self.steering_slider.kill()
         self.throttle_and_braking_meter.kill()
         self.speedometer.kill()
-        self.throttle_and_braking_meter = elements.UIProgressBar(
-            relative_rect=pygame.Rect((game_core.screen_dimensions[0] / 4 - 200, 60), (400, 30)),
+        self.throttle_and_braking_meter =UIProgressBar(
+            relative_rect=pygame.Rect((game_core.screen_dimensions[0] / 4 - 200, 100), (400, 50)),
             manager=game_core.gui_manager,
-            container= self.panel
+            container= self.hud_panel,
+            object_id = '#UIProgressBar'
         )
 
-        self.steering_slider = elements.UIHorizontalSlider(
-            relative_rect=pygame.Rect((game_core.screen_dimensions[0] *3/4 - 200, 60), (400, 30)),
+        self.steering_slider = UIHorizontalSlider(
+            relative_rect=pygame.Rect((game_core.screen_dimensions[0] *3/4 - 200, 100), (400, 50)),
             start_value=0,
             value_range=(-100, 100),
             manager=game_core.gui_manager,
-            container= self.panel
+            container= self.hud_panel,
+            object_id = '#UIHorizontalSlider'
         )
-
+        self.is_slider_enabled = False
+        self.steering_slider.disable()
 
         self.speedometer = UIGaugeMeter(
-            relative_rect=pygame.Rect((game_core.screen_dimensions[0]/2  - 100 , 0), (200, 100)),
+            relative_rect=pygame.Rect((game_core.screen_dimensions[0]/2  - 125 , 20), (250, 125)),
             manager=game_core.gui_manager,
-            container= self.panel
+            container= self.hud_panel
         )
 
 
@@ -306,7 +322,8 @@ class AICar(Car):
             hit_point, normalised_collision_distance = track.ray_cast(ray)
             collided_rays.append((center, hit_point))
             sensors.append(normalised_collision_distance)
-        # game_core.game_mode.debug_elements["rays"][index] = collided_rays
+
+        game_core.game_mode.debug_elements["rays"][index] = collided_rays
         return sensors
 
     def reset(self):
@@ -319,15 +336,15 @@ class AICar(Car):
         # 1) Stopping penalty
         if self.is_crashed:
             if is_stuck:
-                stopped_penalty = -3.0
+                stopped_penalty = -10.0
             else:
-                stopped_penalty = -7.0
+                stopped_penalty = -50.0
             reward += stopped_penalty
             # 2) Max progress bonus
             current_progress = self.progress
             progress_change = current_progress - mean_progress
             exploration_coef = 140 if progress_change >  0  else 40
-            exploration_reward = exploration_coef * progress_change
+            exploration_reward = r.sign(progress_change) + 2.5* math.log(abs(exploration_coef * progress_change) + 1)
             reward += exploration_reward
             rewards_breakdown.append(exploration_reward)
 
@@ -349,7 +366,7 @@ class AICar(Car):
             normalized_speed = speed / self.max_speed
             speed_reward = 0.025 * normalized_speed**2
             # efficiency_reward = 0.15 *  np.sqrt(distance_moved * 70 + speed_reward)
-            efficiency_reward = distance_moved * 60 + speed_reward
+            efficiency_reward = distance_moved * 40 + speed_reward
 
             rewards_breakdown.append(efficiency_reward)
             reward += efficiency_reward
@@ -371,7 +388,7 @@ class AICar(Car):
         left_clearance = sum(left_sensors)
         right_clearance = sum(right_sensors)
 
-        aligned_steering_reward = ((right_clearance - left_clearance) * self.current_steer_input ) * 0.6
+        aligned_steering_reward = ((right_clearance - left_clearance) * self.current_steer_input ) * 0.55
         if distance_moved > 1e-4:
 
 
@@ -393,7 +410,7 @@ class AICar(Car):
         # 6) Steer anticipation reward
         front_sensor = sensors[0]  # assuming 0 is straight ahead
         corner_strength = max(0.0, 0.5 - front_sensor) * abs(imbalance)
-        steer_anticipation_reward = corner_strength * self.current_steer_input  * 0
+        steer_anticipation_reward = corner_strength * self.current_steer_input  * 2
         if distance_moved > 1e-4:
             reward += steer_anticipation_reward
             rewards_breakdown.append(steer_anticipation_reward)
@@ -412,16 +429,16 @@ class AICar(Car):
         # --------------------------------------------------- #
 
         # 8) Survival bonus
-        reward += 0.001
-        rewards_breakdown.append(0.001)
+        reward += 0.003
+        rewards_breakdown.append(0.003)
         # ---------------------------------------------------
 
         # 9) Finish lap bonus
         if is_lap_finished:
-            reward += 10
-            rewards_breakdown.append(10)
+            reward += 70
+            rewards_breakdown.append(70)
         else:
             rewards_breakdown.append(0)
 
-        reward = np.clip(reward, -5, 30)
+
         return reward, rewards_breakdown

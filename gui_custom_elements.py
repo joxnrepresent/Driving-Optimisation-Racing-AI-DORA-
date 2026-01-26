@@ -1,20 +1,17 @@
 import math
-from operator import index
-from typing import Union
-import random
 import json
-from fontTools.varLib.errors import NotANone
 import os
 import resources as r
+import re
 import pygame
 import numpy as np
 
 from track import SpatialHashGrid
 from pygame.math import Vector2
 from pygame_gui.core import UIElement
-from pygame_gui.elements import UIPanel,UILabel,UIButton,UISelectionList,UITextEntryLine, UIDropDownMenu
+from pygame_gui.elements import UIPanel,UILabel,UIButton,UISelectionList,UITextEntryLine, UIDropDownMenu, UITextBox
 import pygame_gui
-import re
+
 """
 This module contains custom GUI elements not included in the pygame_gui library
 """
@@ -59,7 +56,7 @@ class UIEndScreen(UIElement):
             container=self.panel,
             object_id="#end_screen_subtitle"
         )
-        self.content_box = pygame_gui.elements.UITextBox(
+        self.content_box = UITextBox(
             html_text=content.replace("\n", "<br>"),
             relative_rect=pygame.Rect((20, 90), (panel_w - 40, 120)),
             manager=manager,
@@ -248,7 +245,7 @@ class UIFileSelector(UIElement):
         )
 
         self.entry_label = UILabel(
-            relative_rect=pygame.Rect((panel_w/4 - 45, 315), (130, 20)),
+            relative_rect=pygame.Rect((panel_w/4 - 45, 315), (150, 20)),
             text=f"Enter {self.directory} name",
             manager=manager,
             container=self.panel,
@@ -256,7 +253,7 @@ class UIFileSelector(UIElement):
         )
 
         self.text_entry = UITextEntryLine(
-            relative_rect=pygame.Rect((panel_w/1.75 - 70, 310), (200, 30)),
+            relative_rect=pygame.Rect((panel_w/1.75 - 60, 310), (200, 30)),
             manager=manager,
             container=self.panel,
             object_id= '#text_box'
@@ -288,27 +285,28 @@ class UIFileSelector(UIElement):
         )
 
     def get_file_list(self):
-        extension = '.json' if self.directory == 'Track' else '.npy'
+        extension = '.json' if self.directory == 'Tracks' else '.npy'
         files = [f[:-len(extension)] for f in os.listdir(self.directory)]
         cleaned_files = []
-        if self.mode == 'load REINFORCE' or self.mode == 'load MCAC':
+        if self.mode == 'load REINFORCE' or self.mode == 'load Monte Carlo Actor Critic (MCAC)':
             for file in files:
-                save_data = np.load(f"Saved Model/{file}.npy", allow_pickle=True).item()
+                save_data = np.load(f"Models/{file}.npy", allow_pickle=True).item()
+                if ((self.mode == 'load REINFORCE' and save_data["model_type"] == "REINFORCE") or
+                        (self.mode == 'load Monte Carlo Actor Critic (MCAC)' and save_data["model_type"] == "MCAC")):
+                    cleaned_files.append(file)
 
-                if self.mode == 'load REINFORCE':
-                    if save_data["model_type"] == "REINFORCE":
-                        cleaned_files.append(file)
-                elif self.mode == 'load Monte Carlo Actor Critic (MCAC)':
-                    if save_data["model_type"] == "MCAC":
-                        cleaned_files.append(file)
+        elif self.mode == "load raceable":
+            for file in files:
+                save_data = np.load(f"Models/{file}.npy", allow_pickle=True).item()
+                if save_data['is_model_raceable']:
+                    cleaned_files.append(file)
         else:
             cleaned_files = files
-
-        return cleaned_files if cleaned_files else [f'No {self.directory}s']
+        return cleaned_files if cleaned_files else [f'No {self.directory}']
 
     def validated_save_filename(self, filename):
         filename = filename.strip()
-        extension = '.json' if self.directory == 'Track' else '.npy'
+        extension = '.json' if self.directory == 'Tracks' else '.npy'
         filepath = f"{self.directory}/{filename}{extension}"
 
         if not filename:
@@ -333,7 +331,7 @@ class UIFileSelector(UIElement):
 
 
     def get_load_file_path(self, filename):
-        extension = '.json' if self.directory == 'Track' else '.npy'
+        extension = '.json' if self.directory == 'Tracks' else '.npy'
         filepath = f"{self.directory}/{filename}{extension}"
         if not os.path.exists(filepath):
             self.error_label.set_text("File not found")
@@ -361,7 +359,7 @@ class UIFileSelector(UIElement):
                 if self.mode.__contains__("save"):
                     validated = self.validated_save_filename(filename)
                     if validated:
-                        if self.directory == "Track":
+                        if self.directory == "Tracks":
                             r.game_core.current_track = filename
                         else:
                             r.game_core.current_model = filename
@@ -369,10 +367,11 @@ class UIFileSelector(UIElement):
                         self.callback(validated)
 
 
+
                 elif self.mode.__contains__("load"):
                     filepath = self.get_load_file_path(filename)
                     if filepath:
-                        if self.directory == "Track":
+                        if self.directory == "Tracks":
                             r.game_core.current_track = filename
                         else:
                             r.game_core.current_model = filename
@@ -385,7 +384,7 @@ class UIFileSelector(UIElement):
                 if self.return_mode:
                     r.game_core.set_game_mode(self.return_mode)
                 else:
-                    self.callback(None)
+                    self.callback(filename=None)
 
     def kill(self):
         r.game_core.is_paused = False
@@ -469,7 +468,7 @@ class UITrackCanvas(UIElement):
         self.max_handle_length = 100
 
         self.mode = "anchor"
-        self.is_handles_enabled = True
+        self.is_handles_enabled = False
         self.is_dragging = False
         self.is_track_complete = False
         self.validity_issues = None
@@ -721,7 +720,6 @@ class UITrackCanvas(UIElement):
         if (moving_anchor != last_point and moving_anchor != first_point
             or (last_point - first_point).length() > self.point_size * 5):
             return False
-
         self.anchor_points[-1] = first_point
         self.is_track_complete = True
         if not self.is_handles_enabled:

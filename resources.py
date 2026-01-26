@@ -2,10 +2,10 @@ import math
 import pygame
 import pygame_gui
 from collections import defaultdict
-from numpy import exp
 from pygame import Vector2
 import json
-import numpy as np
+from numpy import  exp
+from abc import  ABC, abstractmethod
 
 """
 This module contains shared resources like constants, game-state variables (singletons), and utility 
@@ -16,12 +16,11 @@ functions/methods used throughout the project.
 class GameCore:
     def __init__(self):
         # Program constants
-        self.is_debugging = False
+        self.is_debugging = True
         self.is_paused = False
         self.load_model = False
         self.frame_rate = 50
         self.tick_speedup = 1
-        self.screen_dimensions = (1400, 850)
         self.screen_fill = (18, 20, 28)
         self.current_model = None
         self.current_track = None
@@ -29,8 +28,11 @@ class GameCore:
         self.eps = 1e-9
 
         # Core program components
-        self.main_screen = pygame.display.set_mode(self.screen_dimensions, pygame.RESIZABLE)
+        self.main_screen = pygame.display.set_mode((0,0), pygame.FULLSCREEN)
+        self.screen_dimensions = self.main_screen.get_size()
         self.clock = pygame.time.Clock()
+        self.sim_time_ms = 0
+        self.dt_ms = 0
         self.pressed_keys = set()
         self.pressed_buttons = set()
         self.game_mode = None
@@ -49,12 +51,6 @@ class GameCore:
     def render(self):
         self.main_screen.fill(self.screen_fill)
 
-
-        # Main game rendering
-        self.game_sprites.draw(self.main_screen)
-        self.gui_manager.draw_ui(self.main_screen)
-
-
         # Debug graphics
         if self.is_debugging:
             if self.debug_elements:
@@ -67,17 +63,19 @@ class GameCore:
                         if element_type == "rays":
                             try:
                                 for ray in element:
-                                    pygame.draw.line(self.main_screen, "red", ray[0], ray[1])
+                                    pygame.draw.line(self.main_screen, (200, 0, 0), ray[0], ray[1])
                             except:
                                 print(element)
-                        elif element_type == "track spine":
-                            for i in range(len(element) - 1):
-                                draw_line(self.main_screen, "Blue", element[i], element[i + 1])
+                        # elif element_type == "track spine":
+                        #     for i in range(len(element) - 1):
+                        #         draw_line(self.main_screen, "Blue", element[i], element[i + 1])
                         # if element_type == "grid lines":
                         #     if element:
                         #         draw_grid(self.main_screen)
+        self.game_sprites.draw(self.main_screen)
+        self.gui_manager.draw_ui(self.main_screen)
         pygame.display.flip()
-        self.clock.tick(game_core.frame_rate)
+        self.dt_ms = self.clock.tick(game_core.frame_rate)
 
     def cache_events(self, event):
         self.gui_manager.process_events(event)
@@ -97,12 +95,13 @@ class GameCore:
         game_core.pressed_buttons.clear()
 
     def set_file(self, directory, filename):
-        if directory == "Track":
+        if directory == "Tracks":
             self.current_track = f"{directory}/{filename}.json"
         else:
             self.current_model = f"{directory}/{filename}.npy"
 
 game_core = GameCore()
+
 
 class RaceTimeManager:
     def __init__(self):
@@ -112,7 +111,7 @@ class RaceTimeManager:
         self.num_of_laps = 0
 
     def initialise_manager(self, num_of_cars):
-        self.start_time = pygame.time.get_ticks()
+        self.start_time = game_core.sim_time_ms
         self.is_all_laps_finished  = [False] * num_of_cars
         self.lap_times = [
             [None for _ in range(self.num_of_laps)]
@@ -141,9 +140,28 @@ class RaceTimeManager:
 
         return results
 
+    def get_average_lap_time(self):
+        lap_durations = []
+
+        for car_laps in self.lap_times:
+            prev_time = self.start_time
+
+            for lap_time in car_laps:
+                if lap_time is None:
+                    break
+
+                lap_durations.append(lap_time - prev_time)
+                prev_time = lap_time
+
+        if not lap_durations:
+            return None
+
+        # return seconds
+        return sum(lap_durations) / len(lap_durations) / 1000
+
     def update(self, i, laps_completed, is_lap_completed):
         if is_lap_completed:
-            self.lap_times[i][laps_completed - 1] = pygame.time.get_ticks()
+            self.lap_times[i][laps_completed - 1] = game_core.sim_time_ms
             if laps_completed >= self.num_of_laps:
                 self.is_all_laps_finished[i] = True
 
@@ -172,7 +190,7 @@ def wrap_value(value, lower_limit, upper_limit):
 
 def load_track_from_file(filename):
     try:
-        with open("Track/"+filename + ".txt", "r") as file:
+        with open("Tracks/"+filename + ".txt", "r") as file:
             for line in file:
                 coordinates = line.split(',')
                 points = []
@@ -186,7 +204,7 @@ def load_track_from_file(filename):
 
 def load_bezier_track(filename, enforce_centering = False):
     try:
-        with open(f"Track/{filename}.json", "r") as f:
+        with open(f"Tracks/{filename}.json", "r") as f:
             data = json.load(f)
 
         anchor_points = [Vector2(point[0], point[1]) for point in data["anchors"]]
@@ -202,7 +220,7 @@ def load_bezier_track(filename, enforce_centering = False):
             max_y = max(point.y for point in all_points)
 
             track_center = Vector2((min_x + max_x) / 2, (min_y + max_y) / 2)
-            screen_center = (game_core.screen_dimensions[0] / 2, (game_core.screen_dimensions[1] - 120)/2)
+            screen_center = (game_core.screen_dimensions[0] / 2, (game_core.screen_dimensions[1] - 200)/2)
             translation = screen_center - track_center
 
             anchor_points = [p + translation for p in anchor_points]
@@ -356,10 +374,10 @@ def generate_catmull_rom_track_spine(anchor_points, is_complete):
     track_spine = []
     if is_complete:
         for i in range(len(anchor_points)-1):
-            p0 = anchor_points[(i - 1) % len(anchor_points)]
+            p0 = anchor_points[(i - 1) % (len(anchor_points)-1)]
             p1 = anchor_points[i]
-            p2 = anchor_points[(i + 1) % len(anchor_points)]
-            p3 = anchor_points[(i + 2) % len(anchor_points)]
+            p2 = anchor_points[(i + 1) % (len(anchor_points)-1)]
+            p3 = anchor_points[(i + 2) % (len(anchor_points)-1)]
             track_spine.extend(catmull_rom(p0, p1, p2, p3))
     else:
         for i in range(len(anchor_points) -1):

@@ -1,6 +1,5 @@
 import numpy as np
 from statistics import variance
-from resources import transformed_sigmoid
 
 class Layer:
     def __init__(self, input_size, output_size, activation):
@@ -119,8 +118,8 @@ class NeuralNetwork:
         self.adam_moments['b'] = [(m.copy(), v.copy()) for m, v in params['adam_moments']['b']]
         self.adam_moments['log_std'] = (params['adam_moments']['log_std'][0].copy(),
                                         params['adam_moments']['log_std'][1].copy())
-        self.adam_moments['t'] = params['adam_moments']['t']
-
+        # self.adam_moments['t'] = params['adam_moments']['t']
+        self.adam_moments['t'] = 0
 
     def forward_propagation(self, a):
         # a -> input to next layer

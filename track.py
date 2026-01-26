@@ -20,7 +20,8 @@ class Track(Sprite):
             outer_wall_points.append(outer_wall_points[0])
         if inner_wall_points[0] != inner_wall_points[-1]:
             inner_wall_points.append(inner_wall_points[0])
-        self.track_polygon = outer_wall_points + inner_wall_points
+        self.outer_wall_points = outer_wall_points
+        self.inner_wall_points = inner_wall_points
         self.wall_segments = []
         for i in range(len(outer_wall_points) - 1):
             segment = (outer_wall_points[i], outer_wall_points[i+1])
@@ -59,18 +60,44 @@ class Track(Sprite):
     # Colour alternates between black and red
     def draw_track(self):
         self.image.fill((0, 0, 0, 0))
+        track_polygon = self.outer_wall_points + self.inner_wall_points
+        pygame.draw.polygon(self.image, (80, 80, 80), track_polygon)
+        self.draw_checkered_line()
+        self.draw_alternating_wall()
 
-        pygame.draw.polygon(self.image, (80, 80, 80), self.track_polygon)
-        self._draw_alternating_wall(width=8)
 
         game_core.game_mode.debug_elements["track spine"] = [self.track_spine]
 
-    def _draw_alternating_wall(self,width=8):
+    def draw_alternating_wall(self,width=10):
         is_black = True
         for segment in self.wall_segments:
-            color = (0, 0, 0) if is_black else (200, 0, 0)  # Black or red
+            color = (0, 0, 0) if is_black else (200, 0, 0)
             pygame.draw.line(self.image, color, segment[0], segment[1], width)
             is_black = not is_black
+
+    def draw_checkered_line(self, thickness = 20, checkered_rows = 10):
+
+        finish_line = self.inner_wall_points[0] - self.outer_wall_points[0]
+        length = finish_line.length()
+
+        unit_vector = finish_line.normalize()
+        normal_vector = Vector2(-unit_vector.y, unit_vector.x)
+
+        check_length = length / checkered_rows
+
+        for i in range(checkered_rows):
+            start = self.outer_wall_points[0] + unit_vector * (i * check_length)
+            end = self.outer_wall_points[0] + unit_vector * ((i + 1) * check_length)
+
+            color = (255, 255, 255) if i % 2 == 0 else (0, 0, 0)
+
+            p1 = start + normal_vector * (thickness / 2)
+            p2 = end + normal_vector * (thickness / 2)
+            p3 = end - normal_vector * (thickness / 2)
+            p4 = start - normal_vector * (thickness / 2)
+
+            pygame.draw.polygon(self.image, color, [p1, p2, p3, p4])
+
 
 class SpatialHashGrid:
     """
