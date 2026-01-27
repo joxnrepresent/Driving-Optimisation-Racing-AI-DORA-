@@ -15,6 +15,8 @@ import pygame_gui
 """
 This module contains custom GUI elements not included in the pygame_gui library
 """
+
+
 class UIEndScreen(UIElement):
     def __init__(self, relative_rect, manager, callback, title, subtitle, content, return_mode=None):
         super().__init__(relative_rect,manager,container=None,starting_height=999,layer_thickness=1)
@@ -605,7 +607,7 @@ class UITrackCanvas(UIElement):
                 segment = (spine_points[j], spine_points[j + 1])
 
                 dist = r.point_segment_distance(mouse_pos, segment)
-                if dist <= 30:
+                if dist <= 40:
                     return i
         return None
 
@@ -628,16 +630,14 @@ class UITrackCanvas(UIElement):
 
     def insert_anchor(self, mouse_pos, insert_index):
         self.anchor_points.insert(insert_index, mouse_pos)
+        self.control_points = []
         if not self.is_handles_enabled:
             return
-        self.control_points = []
         for i in range(len(self.anchor_points) - 1):
             p1 = self.anchor_points[i]
             p2 = self.anchor_points[i + 1]
             p0 = self.anchor_points[i - 1] if i - 1 >= 0 else p1
             p3 = self.anchor_points[i + 2] if i + 2 < len(self.anchor_points) else p2
-            if not self.is_handles_enabled:
-                return
             b1, b2 = self.get_bezier_points(p0, p1, p2, p3)
             self.control_points.append(b1)
             self.control_points.append(b2)

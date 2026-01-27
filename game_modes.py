@@ -24,6 +24,7 @@ class GameMode(ABC):
     """Base class for all game modes."""
 
     def __init__(self):
+        game_core.tick_speedup = 1
         self.game_sprites = game_core.game_sprites
         self.debug_elements = game_core.debug_elements
         self.gui_manager = game_core.gui_manager
@@ -706,10 +707,9 @@ class RacingSim(CarSimulation):
             else:
                 if isinstance(car, AICar):
                     sensors = car.ray_cast(self.track, 0)
-                    state = sensors + [car.velocity.magnitude() / car.max_speed,
-                                       car.steer / car.max_steer]
+                    state = sensors + [car.velocity.magnitude() / car.max_speed, car.steer / car.max_steer]
                     actions = self.rl_model.get_deterministic_actions(state)
-                    car.update(actions)
+                    car.update(actions[0])
                 else:
                     car.update()
 
@@ -750,7 +750,6 @@ class AICarSim(CarSimulation):
     def __init__(self, simulation_size=12, state_size=15):
         super().__init__(num_of_cars=simulation_size)
         self.episode_num = 0
-
         self.episodes_completed_label = pygame_gui.elements.UILabel(
             relative_rect=pygame.Rect((10, 50), (280, 25)),
             text=f'Episode: {self.episode_num}',
@@ -983,8 +982,8 @@ class AICarSim(CarSimulation):
         if car.progress >= self.time_manager.num_of_laps:
             self.is_crashed[i] = True  # Mark as finished
             car.is_crashed = True  # Actually stop the car
-            reward += 130
-            rewards_array[-1] += 130
+            reward += 80
+            rewards_array[-1] += 80
 
         clipped_reward = np.clip(reward, -50, 100 * self.time_manager.num_of_laps)
 
@@ -1126,7 +1125,7 @@ class AICarSim(CarSimulation):
                 self.best_lap_time = self.avg_lap_time
 
 
-        if self.avg_progress/100 > 0.8 * self.time_manager.num_of_laps:
+        if self.avg_progress/100 > 0.6 * self.time_manager.num_of_laps:
             self.is_model_raceable = True
         else:
             self.is_model_raceable = False

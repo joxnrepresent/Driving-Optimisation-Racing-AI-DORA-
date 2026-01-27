@@ -344,7 +344,7 @@ class AICar(Car):
             current_progress = self.progress
             progress_change = current_progress - mean_progress
             exploration_coef = 140 if progress_change >  0  else 40
-            exploration_reward = r.sign(progress_change) + 2.5* math.log(abs(exploration_coef * progress_change) + 1)
+            exploration_reward = r.sign(progress_change) + 2.5* math.log(abs(exploration_coef * progress_change) + 1) * 0
             reward += exploration_reward
             rewards_breakdown.append(exploration_reward)
 
@@ -435,8 +435,8 @@ class AICar(Car):
 
         # 9) Finish lap bonus
         if is_lap_finished:
-            reward += 70
-            rewards_breakdown.append(70)
+            reward += 50
+            rewards_breakdown.append(50)
         else:
             rewards_breakdown.append(0)
 

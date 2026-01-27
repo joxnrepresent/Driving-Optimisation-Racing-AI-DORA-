@@ -11,6 +11,7 @@ class Track(Sprite):
     def __init__(self, track_name, position = ((0,0), game_core.screen_dimensions)):
         super().__init__()
         self.grid = SpatialHashGrid()
+
         anchors, controls, widths = r.load_bezier_track(track_name, enforce_centering= True)
         self.track_spine = r.generate_bezier_track_spine(anchors, controls)
         if 1.0 not in widths:

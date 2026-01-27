@@ -35,9 +35,13 @@ class RLModel(ABC):
         x = np.array(state_vector, np.float32)
         if x.ndim == 1:
             x = np.expand_dims(x, axis=0)
+
         mu = self.actor.forward_propagation(x)
-        actions = np.clip(mu, -1, 1)
-        return actions[0]
+        sigma = np.exp(self.actor.log_std)
+        noise = np.random.randn(*mu.shape) * sigma
+        pre_squash = mu + noise
+        actions = np.clip(pre_squash, -1, 1)
+        return actions
 
     def update_trajectory(self, state, action, reward):
         self.states.append(state)
