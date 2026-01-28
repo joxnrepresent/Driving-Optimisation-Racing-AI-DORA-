@@ -6,16 +6,16 @@ from resources import game_core
 
 
 class RLModel(ABC):
-    def __init__(self, layer_sizes, activations):
+    def __init__(self, l2_lambda, layer_sizes, activations, gamma, entropy,init_log_std, learning_rate, beta1, beta2):
        # Recording Trajectory
        self.states = []
        self.pre_squash_actions = []
        self.rewards = []
 
-       self.actor = NeuralNetwork(layer_sizes, activations)
-       # Learning rate
-       self.gamma = 0.99
-       self.entropy = 0.02
+       self.actor = NeuralNetwork(layer_sizes, activations, init_log_std, learning_rate, beta1, beta2)
+       self.gamma = gamma
+       self.entropy = entropy
+       self.l2_lambda = l2_lambda
 
     def get_stochastic_actions(self, state_vector):
         # x: input vector
@@ -71,8 +71,7 @@ class RLModel(ABC):
         sigma = np.exp(self.actor.log_std)
 
         d_mu = -((pre_squash_actions - mu) / (sigma ** 2 + game_core.eps)) * advantage[:, None]
-        l2_lamda = 0.01
-        d_mu += l2_lamda * mu
+        d_mu += self.l2_lambda * mu
         d_mu = np.clip(d_mu, -1, 1)
 
         d_log_std = np.mean(-(((pre_squash_actions - mu) ** 2) / (sigma ** 2) - 1) * advantage[:, None], axis = 0) + self.entropy
@@ -85,10 +84,23 @@ class RLModel(ABC):
 
 
 class REINFORCEModel(RLModel):
-    def __init__(self, input_size, output_size = 2, hidden_layer_sizes= [ 32, 32, 64, 64, 64, 32, 32 ], seed=None):
+    def __init__(self, input_size, activations= None, output_size = 2, hidden_layer_sizes= [ 32, 32, 64, 64, 64, 32, 32 ],
+                  gamma = 0.98, entropy_bonus = 0.02, l2_lambda = 0.02,
+                 init_log_std = 0.3, learning_rate = 3e-3, beta1 = 0.9, beta2 = 0.999):
         layer_sizes = [input_size] + hidden_layer_sizes + [output_size]
-        activations = ['elu'] * len(hidden_layer_sizes) + ['linear']
-        super().__init__(layer_sizes, activations)
+        if activations is None:
+            activations = ['elu'] * len(hidden_layer_sizes) + ['linear']
+        super().__init__(
+            l2_lambda,
+            layer_sizes,
+            activations,
+            gamma,
+            entropy_bonus,
+            init_log_std,
+            learning_rate,
+            beta1,
+            beta2
+        )
 
     def update_params(self):
         states = np.vstack(self.states)
@@ -103,34 +115,24 @@ class REINFORCEModel(RLModel):
                 f"Returns:{avg_returns:.3f} \n")
 
 class MCACModel(RLModel):
-    def __init__(self, input_size, output_size = 2, actor_hidden_layers = [ 32, 64, 64, 64, 32 ],
-                 critic_hidden_layers = [16,16], num_of_steps = 100, seed=None):
-        actor_layers = [input_size] + actor_hidden_layers + [output_size]
-        actor_activations = ['elu'] * len(actor_hidden_layers) + ['linear']
-        super().__init__(actor_layers, actor_activations)
+    def __init__(self, input_size, actor_activations= None, critic_activations = None, output_size=2, gamma=0.98, l2_lambda=0.02, entropy_bonus=0.02,
+                 actor_layer_sizes=[32, 32, 64, 64, 64, 32, 32],  actor_init_log_std=0.3,
+                 actor_learning_rate=3e-3, actor_beta1=0.9, actor_beta2=0.999,
+                 critic_layer_sizes=[16, 16], critic_init_log_std=0.3,
+                 critic_learning_rate=3e-3, critic_beta1=0.9, critic_beta2=0.999
+                 ):
+        actor_layers = [input_size] + actor_layer_sizes + [output_size]
+        if actor_activations is None:
+            actor_activations = ['elu'] * len(actor_layer_sizes) + ['linear']
+        if critic_activations is None:
+            critic_activations = ['tanh'] * len(critic_layer_sizes) + ['linear']
+        super().__init__(l2_lambda, actor_layers, actor_activations, gamma, entropy_bonus,
+                         actor_init_log_std, actor_learning_rate, actor_beta1, actor_beta2)
 
-        critic_layer_sizes = [input_size] + critic_hidden_layers + [1]
-        critic_activations = ['tanh'] * len(critic_hidden_layers) + ['linear']
-        self.critic = NeuralNetwork(critic_layer_sizes, critic_activations, seed=seed)
+        critic_layers = [input_size] + critic_layer_sizes + [1]
 
-        self.num_of_steps = num_of_steps
-        self.gae_lambda = 0.95
-
-    def compute_gae_advantages(self, values):
-        rewards = np.array(self.rewards, np.float32)
-        time_steps, batch_size = rewards.shape
-        advantages = np.zeros_like(rewards)
-        gae = np.zeros(batch_size)
-
-        next_values = np.vstack([values[1:], np.zeros((1, batch_size))])
-
-        deltas = rewards + self.gamma * next_values - values
-
-        for t in reversed(range(time_steps)):
-            advantages[t] = deltas[t] + self.gamma * self.gae_lambda * gae
-            gae = advantages[t]
-
-        return advantages
+        self.critic = NeuralNetwork(critic_layers, critic_activations, critic_init_log_std, critic_learning_rate,
+                                    critic_beta1, critic_beta2)
 
     def update_params(self):
 

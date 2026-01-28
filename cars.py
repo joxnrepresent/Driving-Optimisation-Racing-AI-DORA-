@@ -435,8 +435,8 @@ class AICar(Car):
 
         # 9) Finish lap bonus
         if is_lap_finished:
-            reward += 50
-            rewards_breakdown.append(50)
+            reward += 70
+            rewards_breakdown.append(70)
         else:
             rewards_breakdown.append(0)
 

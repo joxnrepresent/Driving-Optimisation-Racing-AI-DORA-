@@ -25,11 +25,11 @@ class Layer:
     def activation(self, z):
         if self.activation_name == 'relu':
             return np.maximum(0, z)
-        if self.activation_name == "elu":
+        if self.activation_name == 'elu':
             return np.where(z > 0, z, np.exp(z) - 1)
         elif self.activation_name == 'linear':
             return z
-        elif self.activation_name == "tanh":
+        elif self.activation_name == 'tanh':
             return np.tanh(z)
 
     def activation_derivative(self, z):
@@ -71,7 +71,7 @@ class Layer:
 
 
 class NeuralNetwork:
-    def __init__(self, layer_sizes, activations, init_log_std= 0.3, seed=None):
+    def __init__(self, layer_sizes, activations, init_log_std, alpha, beta1, beta2, seed=None):
         if seed is not None:
             np.random.seed(seed)
 
@@ -81,7 +81,9 @@ class NeuralNetwork:
             self.layers.append(Layer(layer_sizes[i], layer_sizes[i+1], activations[i]))
 
         self.log_std = np.full(layer_sizes[-1], init_log_std, dtype=np.float64)
-
+        self.alpha = alpha
+        self.beta1 = beta1
+        self.beta2 = beta2
         #Adaptive Moment (Adam) Optimiser
         """
         1st moment - mean
@@ -146,12 +148,18 @@ class NeuralNetwork:
             self.adam_moments['w'][i], weight_update = self.adam_estimation(self.adam_moments['w'][i][0],
                                                                             self.adam_moments['w'][i][1],
                                                                             weight_grads[i],
-                                                                            self.adam_moments['t'])
+                                                                            self.adam_moments['t'],
+                                                                            self.alpha,
+                                                                            self.beta1,
+                                                                            self.beta2)
 
             self.adam_moments['b'][i], bias_update = self.adam_estimation(self.adam_moments['b'][i][0],
                                                                           self.adam_moments['b'][i][1],
                                                                           bias_grads[i],
-                                                                          self.adam_moments['t'])
+                                                                          self.adam_moments['t'],
+                                                                            self.alpha,
+                                                                            self.beta1,
+                                                                            self.beta2)
             layer.weights += weight_update
             layer.biases += bias_update
 
@@ -159,16 +167,20 @@ class NeuralNetwork:
             self.adam_moments['log_std'], log_std_update = self.adam_estimation(self.adam_moments['log_std'][0],
                                                                             self.adam_moments['log_std'][1],
                                                                             d_log_std,
-                                                                            self.adam_moments['t'])
+                                                                            self.adam_moments['t'],
+                                                                            self.alpha,
+                                                                            self.beta1,
+                                                                            self.beta2)
+
         if d_log_std is not None:
             self.log_std += log_std_update
             self.log_std = np.clip(self.log_std, -3, 1)
 
     @staticmethod
-    def adam_estimation(m, v, grad, t, alpha = 3e-3, beta1 = 0.9, beta2 = 0.999, eps = 1e-8):
+    def adam_estimation(m, v, grad, t, alpha, beta1, beta2):
         m = beta1 * m + (1 - beta1) * grad
         v = beta2 * v + (1 - beta2) * grad * grad
         m_hat = m / (1 - beta1 ** t)
         v_hat = v / (1 - beta2 ** t)
-        update_value = -alpha * m_hat / (np.sqrt(v_hat) + eps)
+        update_value = -alpha * m_hat / (np.sqrt(v_hat) + 1e-8)
         return (m, v), update_value

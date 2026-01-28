@@ -333,7 +333,7 @@ def test_9_1_2_stochastic_actions():
     """Test 9.1.2: Stochastic action sampling"""
     from rl_model import REINFORCEModel
 
-    model = REINFORCEModel(15, seed=42)
+    model = REINFORCEModel(15, )
     state = np.array([0.5] * 15)
 
     actions_list = []
@@ -354,7 +354,7 @@ def test_9_1_3_deterministic_actions():
     """Test 9.1.3: Deterministic action output"""
     from rl_model import REINFORCEModel
 
-    model = REINFORCEModel(15, seed=42)
+    model = REINFORCEModel(15, )
     state = np.array([0.5] * 15)
 
     actions_list = []
@@ -390,7 +390,7 @@ def test_9_1_5_trajectory_storage():
     """Test 9.1.5: Trajectory storage"""
     from rl_model import REINFORCEModel
 
-    model = REINFORCEModel(15)
+    model = REINFORCEModel(15, )
 
     for i in range(5):
         state = np.random.randn(1, 15)

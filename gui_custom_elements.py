@@ -9,13 +9,570 @@ import numpy as np
 from track import SpatialHashGrid
 from pygame.math import Vector2
 from pygame_gui.core import UIElement
-from pygame_gui.elements import UIPanel,UILabel,UIButton,UISelectionList,UITextEntryLine, UIDropDownMenu, UITextBox
+from pygame_gui.elements import UIPanel,UILabel,UIButton,UISelectionList,UITextEntryLine, UIDropDownMenu, UITextBox, UIScrollingContainer
 import pygame_gui
 
 """
 This module contains custom GUI elements not included in the pygame_gui library
 """
 
+
+class UIModelCreator(UIElement):
+    """UI for creating and configuring new RL models with custom hyperparameters."""
+
+    def __init__(self, relative_rect, manager, model_type, callback, return_mode=None):
+        super().__init__(relative_rect, manager, container=None,
+                         starting_height=999, layer_thickness=1)
+
+        r.game_core.is_paused = True
+        self.model_type = model_type
+        self.callback = callback
+        self.return_mode = return_mode
+
+        self.image = pygame.Surface(relative_rect.size, pygame.SRCALPHA)
+        self.image.fill((30, 30, 30, 120))
+
+        panel_w = 500
+        panel_h = 650
+        self.panel = UIPanel(
+            relative_rect=pygame.Rect(
+                ((relative_rect.width - panel_w) / 2,
+                 (relative_rect.height - panel_h) / 2),
+                (panel_w, panel_h)
+            ),
+            manager=manager,
+            starting_height=1000,
+            object_id='#selector_panel'
+        )
+
+
+        self.title_label = UILabel(
+            relative_rect=pygame.Rect((panel_w / 2 - 150, 10), (300, 30)),
+            text=f"Configure {self.model_type} Model",
+            manager=manager,
+            container=self.panel,
+            object_id='#selector_title'
+        )
+
+        self.scroll_container = UIScrollingContainer(
+            relative_rect=pygame.Rect((0, 40), (panel_w - 20, panel_h - 120)),
+            manager=manager,
+            container=self.panel,
+        )
+
+        y = 10
+        row_height = 40
+        x = 50
+        label_width = 180
+        text_input_width = 200
+
+        UILabel(
+            relative_rect=pygame.Rect((x, y), (label_width, 25)),
+            text="Number of Cars:",
+            manager=manager,
+            container=self.scroll_container,
+            object_id='#info_label'
+        )
+        self.num_of_cars_input = UITextEntryLine(
+            relative_rect=pygame.Rect((x + label_width, y), (text_input_width, 30)),
+            manager=manager,
+            container=self.scroll_container
+        )
+        self.num_of_cars_input.set_text("12")
+        y += row_height
+
+        # Gamma
+        UILabel(
+            relative_rect=pygame.Rect((x, y), (label_width, 25)),
+            text="Gamma (Discount):",
+            manager=manager,
+            container=self.scroll_container,
+            object_id='#info_label'
+        )
+        self.gamma_input = UITextEntryLine(
+            relative_rect=pygame.Rect((x + label_width, y), (text_input_width, 30)),
+            manager=manager,
+            container=self.scroll_container
+        )
+        self.gamma_input.set_text("0.99")
+        y += row_height
+
+        # Entropy
+        UILabel(
+            relative_rect=pygame.Rect((x, y), (label_width, 25)),
+            text="Entropy Bonus:",
+            manager=manager,
+            container=self.scroll_container,
+            object_id='#info_label'
+        )
+        self.entropy_input = UITextEntryLine(
+            relative_rect=pygame.Rect((x + label_width, y), (text_input_width, 30)),
+            manager=manager,
+            container=self.scroll_container
+        )
+        self.entropy_input.set_text("0.02")
+        y += row_height
+
+
+        # L2 Lambda
+        UILabel(
+            relative_rect=pygame.Rect((x, y), (label_width, 25)),
+            text="L2 Lambda:",
+            manager=manager,
+            container=self.scroll_container,
+            object_id='#info_label'
+        )
+        self.l2_lambda_input = UITextEntryLine(
+            relative_rect=pygame.Rect((x + label_width, y), (text_input_width, 30)),
+            manager=manager,
+            container=self.scroll_container
+        )
+        self.l2_lambda_input.set_text("0.01")
+        y += row_height
+
+        # Init Log Std
+        UILabel(
+            relative_rect=pygame.Rect((x, y), (label_width, 25)),
+            text="Init Log Std:",
+            manager=manager,
+            container=self.scroll_container,
+            object_id='#info_label'
+        )
+        self.actor_init_log_std_input = UITextEntryLine(
+            relative_rect=pygame.Rect((x + label_width, y), (text_input_width, 30)),
+            manager=manager,
+            container=self.scroll_container
+        )
+        self.actor_init_log_std_input.set_text("0.3")
+        y += row_height
+
+        # Learning Rate
+        UILabel(
+            relative_rect=pygame.Rect((x, y), (label_width, 25)),
+            text="Actor learning Rate:",
+            manager=manager,
+            container=self.scroll_container,
+            object_id='#info_label'
+        )
+        self.actor_learning_rate_input = UITextEntryLine(
+            relative_rect=pygame.Rect((x + label_width, y), (text_input_width, 30)),
+            manager=manager,
+            container=self.scroll_container
+        )
+        self.actor_learning_rate_input.set_text("0.003")
+        y += row_height
+
+        # Adam Beta1
+        UILabel(
+            relative_rect=pygame.Rect((x, y), (label_width, 25)),
+            text="Actor adam Beta1:",
+            manager=manager,
+            container=self.scroll_container,
+            object_id='#info_label'
+        )
+        self.actor_adam_beta1_input = UITextEntryLine(
+            relative_rect=pygame.Rect((x + label_width, y), (text_input_width, 30)),
+            manager=manager,
+            container=self.scroll_container
+        )
+        self.actor_adam_beta1_input.set_text("0.9")
+        y += row_height
+
+        # Adam Beta2
+        UILabel(
+            relative_rect=pygame.Rect((x, y), (label_width, 25)),
+            text="Actor adam Beta2:",
+            manager=manager,
+            container=self.scroll_container,
+            object_id='#info_label'
+        )
+        self.actor_adam_beta2_input = UITextEntryLine(
+            relative_rect=pygame.Rect((x + label_width, y), (text_input_width, 30)),
+            manager=manager,
+            container=self.scroll_container
+        )
+        self.actor_adam_beta2_input.set_text("0.999")
+        y += row_height
+
+        # Actor Hidden Layers
+        UILabel(
+            relative_rect=pygame.Rect((x, y), (label_width, 25)),
+            text="Actor Layers:",
+            manager=manager,
+            container=self.scroll_container,
+            object_id='#info_label'
+        )
+        self.actor_layers_input = UITextEntryLine(
+            relative_rect=pygame.Rect((x + label_width, y), (text_input_width, 30)),
+            manager=manager,
+            container=self.scroll_container
+        )
+        self.actor_layers_input.set_text("32,32,64,64,64,32,32")
+        y += row_height
+
+        # Actor Activation
+        UILabel(
+            relative_rect=pygame.Rect((x, y), (label_width, 25)),
+            text="Actor Activation:",
+            manager=manager,
+            container=self.scroll_container,
+            object_id='#info_label'
+        )
+        self.actor_activation_dropdown = UIDropDownMenu(
+            options_list=[
+                'elu',  # Good default
+                'relu',  # Common choice
+                'tanh',  # Good for bounded outputs
+                'linear',  # No activation
+                'Custom'  # For custom pattern
+            ],
+            starting_option='elu',
+            relative_rect=pygame.Rect((x + label_width, y), (text_input_width, 30)),
+            manager=manager,
+            container=self.scroll_container
+        )
+
+        y += row_height
+
+        UILabel(
+            relative_rect=pygame.Rect((x, y), (label_width, 25)),
+            text="Custom Actor Activations:",
+            manager=manager,
+            container=self.scroll_container,
+            object_id='#info_label'
+        )
+        self.actor_activation_custom_input = UITextEntryLine(
+            relative_rect=pygame.Rect((x + label_width, y), (text_input_width, 30)),
+            manager=manager,
+            container=self.scroll_container
+        )
+        self.actor_activation_custom_input.set_text("elu,relu,tanh")
+        self.actor_activation_custom_input.hide()
+        y += row_height
+
+        # MCAC-specific fields
+        if self.model_type == "Monte Carlo Actor Critic (MCAC)":
+
+            # Init Log Std
+            UILabel(
+                relative_rect=pygame.Rect((x, y), (label_width, 25)),
+                text="Init Critic Log Std:",
+                manager=manager,
+                container=self.scroll_container,
+                object_id='#info_label'
+            )
+            self.critic_init_log_std_input = UITextEntryLine(
+                relative_rect=pygame.Rect((x + label_width, y), (text_input_width, 30)),
+                manager=manager,
+                container=self.scroll_container
+            )
+            self.critic_init_log_std_input.set_text("0.3")
+            y += row_height
+
+            # Learning Rate
+            UILabel(
+                relative_rect=pygame.Rect((x, y), (label_width, 25)),
+                text="Critic learning Rate:",
+                manager=manager,
+                container=self.scroll_container,
+                object_id='#info_label'
+            )
+            self.critic_learning_rate_input = UITextEntryLine(
+                relative_rect=pygame.Rect((x + label_width, y), (text_input_width, 30)),
+                manager=manager,
+                container=self.scroll_container
+            )
+            self.critic_learning_rate_input.set_text("0.003")
+            y += row_height
+
+            # Adam Beta1
+            UILabel(
+                relative_rect=pygame.Rect((x, y), (label_width, 25)),
+                text="Critic adam Beta1:",
+                manager=manager,
+                container=self.scroll_container,
+                object_id='#info_label'
+            )
+            self.critic_adam_beta1_input = UITextEntryLine(
+                relative_rect=pygame.Rect((x + label_width, y), (text_input_width, 30)),
+                manager=manager,
+                container=self.scroll_container
+            )
+            self.critic_adam_beta1_input.set_text("0.9")
+            y += row_height
+
+            # Adam Beta2
+            UILabel(
+                relative_rect=pygame.Rect((x, y), (label_width, 25)),
+                text="Critic adam Beta2:",
+                manager=manager,
+                container=self.scroll_container,
+                object_id='#info_label'
+            )
+            self.critic_adam_beta2_input = UITextEntryLine(
+                relative_rect=pygame.Rect((x + label_width, y), (text_input_width, 30)),
+                manager=manager,
+                container=self.scroll_container
+            )
+            self.critic_adam_beta2_input.set_text("0.999")
+            y += row_height
+
+            # Critic Hidden Layers
+            UILabel(
+                relative_rect=pygame.Rect((x, y), (label_width, 25)),
+                text="Critic Layers:",
+                manager=manager,
+                container=self.scroll_container,
+                object_id='#info_label'
+            )
+            self.critic_layers_input = UITextEntryLine(
+                relative_rect=pygame.Rect((x + label_width, y), (text_input_width, 30)),
+                manager=manager,
+                container=self.scroll_container
+            )
+            self.critic_layers_input.set_text("16,16")
+            y += row_height
+            # Critic Activation
+            UILabel(
+                relative_rect=pygame.Rect((x, y), (label_width, 25)),
+                text="Critic Activation:",
+                manager=manager,
+                container=self.scroll_container,
+                object_id='#info_label'
+            )
+            self.critic_activation_dropdown = UIDropDownMenu(
+                options_list=[
+                    'tanh',  # Good default for critic
+                    'relu',
+                    'elu',
+                    'linear',
+                    'Custom'
+                ],
+                starting_option='tanh',
+                relative_rect=pygame.Rect((x + label_width, y), (text_input_width, 30)),
+                manager=manager,
+                container=self.scroll_container
+            )
+            y += row_height
+
+            # Custom Critic Activation Input
+            UILabel(
+                relative_rect=pygame.Rect((x, y), (label_width, 25)),
+                text="Custom Critic Activations:",
+                manager=manager,
+                container=self.scroll_container,
+                object_id='#info_label'
+            )
+            self.critic_activation_custom_input = UITextEntryLine(
+                relative_rect=pygame.Rect((x + label_width, y), (text_input_width, 30)),
+                manager=manager,
+                container=self.scroll_container
+            )
+            self.critic_activation_custom_input.set_text("tanh,tanh")
+            self.critic_activation_custom_input.hide()
+            y += row_height
+
+
+        # Create and Cancel buttons
+        self.create_button = UIButton(
+            relative_rect=pygame.Rect((panel_w / 4 - 75, panel_h - 60), (150, 50)),
+            text="Create Model",
+            manager=manager,
+            container=self.panel,
+            object_id='#confirm_button'
+        )
+
+        self.cancel_button = UIButton(
+            relative_rect=pygame.Rect((panel_w * 3 / 4 - 75, panel_h - 60), (150, 50)),
+            text="Cancel",
+            manager=manager,
+            container=self.panel,
+            object_id='#cancel_button'
+        )
+
+        # Error label
+        self.error_label = UILabel(
+            relative_rect=pygame.Rect((50, panel_h - 100), (panel_w - 100, 30)),
+            text="",
+            manager=manager,
+            container=self.panel,
+            object_id='#error_label'
+        )
+
+        self.scroll_container.set_scrollable_area_dimensions(
+            (panel_w - 20, y + 20)
+        )
+
+    def get_config_from_inputs(self):
+        """Get configuration from all input fields and validate."""
+        try:
+            config = {}
+            config['num_of_cars'] = int(self.num_of_cars_input.get_text())
+            config['gamma'] = float(self.gamma_input.get_text())
+            config['l2_lambda'] = float(self.l2_lambda_input.get_text())
+            config['entropy'] = float(self.entropy_input.get_text())
+            config['actor_init_log_std'] = float(self.actor_init_log_std_input.get_text())
+            config['actor_learning_rate'] = float(self.actor_learning_rate_input.get_text())
+            config['actor_adam_beta1'] = float(self.actor_adam_beta1_input.get_text())
+            config['actor_adam_beta2'] = float(self.actor_adam_beta2_input.get_text())
+
+            actor_layer_settings = self.actor_layers_input.get_text().strip().split(',')
+            config['actor_hidden_layers'] = []
+            for layer in actor_layer_settings:
+                layer = layer.strip()
+                if layer:
+                    config['actor_hidden_layers'].append(int(layer))
+
+            actor_activation_choice = self.actor_activation_dropdown.selected_option[0]
+            if actor_activation_choice == 'Custom':
+                actor_activation_text = self.actor_activation_custom_input.get_text()
+                config['actor_activations'] = []
+                for activation in actor_activation_text.split(','):
+                    activation = activation.strip()
+                    if activation:
+                        config['actor_activations'].append(activation)
+                if len(config['actor_activations']) != len(config['actor_hidden_layers']):
+                    raise ValueError(
+                        "Activations must match hidden layers)")
+                config['actor_activations'].append('linear')
+            else:
+                num_actor_layers = len(config['actor_hidden_layers'])
+                config['actor_activations'] = [actor_activation_choice] * num_actor_layers + ['linear']
+
+
+
+            if config['num_of_cars'] <= 0:
+                raise ValueError("Number of cars must be positive")
+
+            if not 0 <= config['gamma'] <= 1:
+                raise ValueError("Gamma must be between 0 and 1")
+
+            if not 0 <= config['actor_adam_beta1'] < 1:
+                raise ValueError("Adam Beta1 must be between 0 and 1")
+
+
+            if not 0 <= config['actor_adam_beta2'] < 1:
+                raise ValueError("Adam Beta2 must be between 0 and 1")
+
+
+            if not config['actor_hidden_layers'] or any(x <= 0 for x in config['actor_hidden_layers']):
+                raise ValueError("Actor layers must contain positive integers")
+
+            if not config['actor_activations'] or len(config['actor_activations']) != len(config['actor_hidden_layers']) + 1:
+                raise ValueError("Activations do not match hidden layers")
+
+            # Get MCAC-specific parameters if applicable
+            if self.model_type == "Monte Carlo Actor Critic (MCAC)":
+                config['critic_init_log_std'] = float(self.critic_init_log_std_input.get_text())
+                config['critic_learning_rate'] = float(self.critic_learning_rate_input.get_text())
+                config['critic_adam_beta1'] = float(self.critic_adam_beta1_input.get_text())
+                config['critic_adam_beta2'] = float(self.critic_adam_beta2_input.get_text())
+                critic_layer_settings = self.critic_layers_input.get_text().strip().split(',')
+                config['critic_hidden_layers'] = []
+                for layer in critic_layer_settings:
+                    layer = layer.strip()
+                    if layer:
+                        config['critic_hidden_layers'].append(int(layer))
+
+                critic_activation_choice = self.critic_activation_dropdown.selected_option[0]
+                if critic_activation_choice == 'Custom':
+                    critic_activation_text = self.critic_activation_custom_input.get_text()
+                    config['critic_activations'] = []
+                    for activation in critic_activation_text.split(','):
+                        activation = activation.strip()
+                        if activation:
+                            config['critic_activations'].append(activation)
+
+                    if len(config['critic_activations']) != len(config['critic_hidden_layers']):
+                        raise ValueError(
+                            "Activations must match hidden layers")
+                    config['critic_activations'].append('linear')
+                else:
+                    num_critic_layers = len(config['critic_hidden_layers'])
+                    config['critic_activations'] = [critic_activation_choice] * num_critic_layers + ['linear']
+
+                if not config['critic_hidden_layers'] or any(x <= 0 for x in config['critic_hidden_layers']):
+                    raise ValueError("Critic layers must contain positive integers")
+
+                if not config['critic_activations'] or len(config['critic_activations']) != len(
+                        config['critic_hidden_layers']) + 1:
+                    raise ValueError("Activations do not match hidden layers")
+
+            return config
+
+        except ValueError as e:
+            self.error_label.set_text(f"Error: {str(e)}")
+            return None
+
+    def process_event(self, event):
+        super().process_event(event)
+
+        if event.type == pygame_gui.UI_TEXT_ENTRY_CHANGED:
+            self.error_label.set_text("")
+
+        if event.type == pygame_gui.UI_DROP_DOWN_MENU_CHANGED:
+            self.error_label.set_text("")
+            if event.ui_element == self.actor_activation_dropdown:
+                if event.text == 'Custom':
+                    self.actor_activation_custom_input.show()
+                else:
+                    self.actor_activation_custom_input.hide()
+
+            if self.model_type == "Monte Carlo Actor Critic (MCAC)":
+                if event.ui_element == self.critic_activation_dropdown:
+                    if event.text == 'Custom':
+                        self.critic_activation_custom_input.show()
+                    else:
+                        self.critic_activation_custom_input.hide()
+
+        if event.type == pygame_gui.UI_BUTTON_PRESSED:
+            if event.ui_element == self.create_button:
+                config = self.get_config_from_inputs()
+                if config:
+                    self.kill()
+                    self.callback(config)
+
+            elif event.ui_element == self.cancel_button:
+                self.kill()
+                if self.return_mode:
+                    r.game_core.set_game_mode(self.return_mode)
+
+    def kill(self):
+        r.game_core.is_paused = False
+
+        # Kill all UI elements
+        self.panel.kill()
+        self.title_label.kill()
+        self.scroll_container.kill()
+
+        # Common inputs
+        self.num_of_cars_input.kill()
+        self.gamma_input.kill()
+        self.entropy_input.kill()
+        self.actor_learning_rate_input.kill()
+        self.actor_adam_beta1_input.kill()
+        self.actor_adam_beta2_input.kill()
+        self.actor_init_log_std_input.kill()
+        self.l2_lambda_input.kill()
+        self.actor_layers_input.kill()
+        self.actor_activation_dropdown.kill()
+        self.actor_activation_custom_input.kill()
+
+        # MCAC-specific inputs
+        if self.model_type == "Monte Carlo Actor Critic (MCAC)":
+            self.critic_init_log_std_input.kill()
+            self.critic_layers_input.kill()
+            self.critic_activation_dropdown.kill()
+            self.critic_activation_custom_input.kill()
+            self.critic_learning_rate_input.kill()
+            self.critic_adam_beta1_input.kill()
+            self.critic_adam_beta2_input.kill()
+
+        self.create_button.kill()
+        self.cancel_button.kill()
+        self.error_label.kill()
+
+        super().kill()
 
 class UIEndScreen(UIElement):
     def __init__(self, relative_rect, manager, callback, title, subtitle, content, return_mode=None):
@@ -286,16 +843,20 @@ class UIFileSelector(UIElement):
             object_id='#cancel_button'
         )
 
+
     def get_file_list(self):
         extension = '.json' if self.directory == 'Tracks' else '.npy'
         files = [f[:-len(extension)] for f in os.listdir(self.directory)]
         cleaned_files = []
         if self.mode == 'load REINFORCE' or self.mode == 'load Monte Carlo Actor Critic (MCAC)':
             for file in files:
-                save_data = np.load(f"Models/{file}.npy", allow_pickle=True).item()
-                if ((self.mode == 'load REINFORCE' and save_data["model_type"] == "REINFORCE") or
-                        (self.mode == 'load Monte Carlo Actor Critic (MCAC)' and save_data["model_type"] == "MCAC")):
-                    cleaned_files.append(file)
+                try:
+                    save_data = np.load(f"Models/{file}.npy", allow_pickle=True).item()
+                    if ((self.mode == 'load REINFORCE' and save_data["model_type"] == "REINFORCE") or
+                            (self.mode == 'load Monte Carlo Actor Critic (MCAC)' and save_data["model_type"] == "MCAC")):
+                        cleaned_files.append(file)
+                except:
+                    print(f"Corrupted file {file}")
 
         elif self.mode == "load raceable":
             for file in files:
@@ -335,8 +896,15 @@ class UIFileSelector(UIElement):
     def get_load_file_path(self, filename):
         extension = '.json' if self.directory == 'Tracks' else '.npy'
         filepath = f"{self.directory}/{filename}{extension}"
+        valid_files = []
+        for item in self.file_list.item_list:
+            valid_files.append(item['text'])
+
         if not os.path.exists(filepath):
             self.error_label.set_text("File not found")
+            return
+        if  filename not in valid_files:
+            self.error_label.set_text("Could not load file (File is corrupted)")
             return
         return filepath
 
@@ -368,8 +936,6 @@ class UIFileSelector(UIElement):
                         self.kill()
                         self.callback(validated)
 
-
-
                 elif self.mode.__contains__("load"):
                     filepath = self.get_load_file_path(filename)
                     if filepath:
@@ -378,7 +944,9 @@ class UIFileSelector(UIElement):
                         else:
                             r.game_core.current_model = filename
                         self.kill()
-                        self.callback(filename)
+                        if not self.callback(filename) and self.return_mode:
+                            r.game_core.unexpected_error_msg = (f"Error occurred when loading {self.directory[:-1]}\n"
+                                                                f"(File is likely corrupted)")
 
 
             elif event.ui_element == self.cancel_button:

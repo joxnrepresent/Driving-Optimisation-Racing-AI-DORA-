@@ -17,6 +17,7 @@ class GameCore:
     def __init__(self):
         # Program constants
         self.is_debugging = True
+        self.unexpected_error_msg = None
         self.is_paused = False
         self.load_model = False
         self.frame_rate = 50
@@ -51,7 +52,6 @@ class GameCore:
     def render(self):
         self.main_screen.fill(self.screen_fill)
         self.game_sprites.draw(self.main_screen)
-        self.gui_manager.draw_ui(self.main_screen)
         # Debug graphics
         if self.is_debugging:
             if self.debug_elements:
@@ -66,13 +66,14 @@ class GameCore:
                                 for ray in element:
                                     pygame.draw.line(self.main_screen, (200, 0, 0), ray[0], ray[1])
                             except:
-                                print(element)
+                                pass
                         # elif element_type == "track spine":
                         #     for i in range(len(element) - 1):
                         #         draw_line(self.main_screen, "Blue", element[i], element[i + 1])
                         # if element_type == "grid lines":
                         #     if element:
                         #         draw_grid(self.main_screen)
+        self.gui_manager.draw_ui(self.main_screen)
         pygame.display.flip()
         self.dt_ms = self.clock.tick(game_core.frame_rate)
 
