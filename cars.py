@@ -440,5 +440,4 @@ class AICar(Car):
         else:
             rewards_breakdown.append(0)
 
-
         return reward, rewards_breakdown

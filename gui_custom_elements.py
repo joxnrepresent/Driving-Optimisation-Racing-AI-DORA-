@@ -55,7 +55,7 @@ class UIModelCreator(UIElement):
         )
 
         self.scroll_container = UIScrollingContainer(
-            relative_rect=pygame.Rect((0, 40), (panel_w - 20, panel_h - 120)),
+            relative_rect=pygame.Rect((0, 40), (panel_w - 20, panel_h - 150)),
             manager=manager,
             container=self.panel,
         )
@@ -234,19 +234,20 @@ class UIModelCreator(UIElement):
 
         y += row_height
 
-        UILabel(
-            relative_rect=pygame.Rect((x, y), (label_width, 25)),
+        self.actor_activation_custom_label = UILabel(
+            relative_rect=pygame.Rect((x, y), (label_width + 20, 25)),
             text="Custom Actor Activations:",
             manager=manager,
             container=self.scroll_container,
             object_id='#info_label'
         )
         self.actor_activation_custom_input = UITextEntryLine(
-            relative_rect=pygame.Rect((x + label_width, y), (text_input_width, 30)),
+            relative_rect=pygame.Rect((x + label_width + 20, y), (text_input_width, 30)),
             manager=manager,
             container=self.scroll_container
         )
         self.actor_activation_custom_input.set_text("elu,relu,tanh")
+        self.actor_activation_custom_label.hide()
         self.actor_activation_custom_input.hide()
         y += row_height
 
@@ -356,19 +357,20 @@ class UIModelCreator(UIElement):
             y += row_height
 
             # Custom Critic Activation Input
-            UILabel(
-                relative_rect=pygame.Rect((x, y), (label_width, 25)),
+            self. critic_activation_custom_label = UILabel(
+                relative_rect=pygame.Rect((x, y), (label_width + 20, 25)),
                 text="Custom Critic Activations:",
                 manager=manager,
                 container=self.scroll_container,
                 object_id='#info_label'
             )
             self.critic_activation_custom_input = UITextEntryLine(
-                relative_rect=pygame.Rect((x + label_width, y), (text_input_width, 30)),
+                relative_rect=pygame.Rect((x + label_width + 20, y), (text_input_width, 30)),
                 manager=manager,
                 container=self.scroll_container
             )
             self.critic_activation_custom_input.set_text("tanh,tanh")
+            self.critic_activation_custom_label.hide()
             self.critic_activation_custom_input.hide()
             y += row_height
 
@@ -514,15 +516,19 @@ class UIModelCreator(UIElement):
             self.error_label.set_text("")
             if event.ui_element == self.actor_activation_dropdown:
                 if event.text == 'Custom':
+                    self.actor_activation_custom_label.show()
                     self.actor_activation_custom_input.show()
                 else:
+                    self.actor_activation_custom_label.hide()
                     self.actor_activation_custom_input.hide()
 
             if self.model_type == "Monte Carlo Actor Critic (MCAC)":
                 if event.ui_element == self.critic_activation_dropdown:
                     if event.text == 'Custom':
+                        self.critic_activation_custom_label.show()
                         self.critic_activation_custom_input.show()
                     else:
+                        self.critic_activation_custom_label.hide()
                         self.critic_activation_custom_input.hide()
 
         if event.type == pygame_gui.UI_BUTTON_PRESSED:
@@ -556,6 +562,7 @@ class UIModelCreator(UIElement):
         self.l2_lambda_input.kill()
         self.actor_layers_input.kill()
         self.actor_activation_dropdown.kill()
+        self.actor_activation_custom_label.kill()
         self.actor_activation_custom_input.kill()
 
         # MCAC-specific inputs
@@ -564,6 +571,7 @@ class UIModelCreator(UIElement):
             self.critic_layers_input.kill()
             self.critic_activation_dropdown.kill()
             self.critic_activation_custom_input.kill()
+            self.critic_activation_custom_label.kill()
             self.critic_learning_rate_input.kill()
             self.critic_adam_beta1_input.kill()
             self.critic_adam_beta2_input.kill()
@@ -860,9 +868,13 @@ class UIFileSelector(UIElement):
 
         elif self.mode == "load raceable":
             for file in files:
-                save_data = np.load(f"Models/{file}.npy", allow_pickle=True).item()
-                if save_data['is_model_raceable']:
-                    cleaned_files.append(file)
+                try:
+                    save_data = np.load(f"Models/{file}.npy", allow_pickle=True).item()
+                    if save_data['is_model_raceable']:
+                        cleaned_files.append(file)
+                except:
+                    print(f"Corrupted file {file}")
+
         else:
             cleaned_files = files
         return cleaned_files if cleaned_files else [f'No {self.directory}']
@@ -944,9 +956,7 @@ class UIFileSelector(UIElement):
                         else:
                             r.game_core.current_model = filename
                         self.kill()
-                        if not self.callback(filename) and self.return_mode:
-                            r.game_core.unexpected_error_msg = (f"Error occurred when loading {self.directory[:-1]}\n"
-                                                                f"(File is likely corrupted)")
+                        self.callback(filename)
 
 
             elif event.ui_element == self.cancel_button:

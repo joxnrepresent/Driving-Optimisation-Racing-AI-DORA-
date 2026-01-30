@@ -132,7 +132,7 @@ class MainMenu(GameMode):
 
         self.track_maker_button = UIButton(
             relative_rect=pygame.Rect(screen_w // 2 - 450, 300, 400, 70),
-            text='Tracks Editor',
+            text='Tracks Maker',
             manager=self.gui_manager,
             container=self.options_panel,
             object_id='#menu_button_main'
@@ -180,9 +180,10 @@ class MainMenu(GameMode):
 
         self.error_label = pygame_gui.elements.UILabel(
             relative_rect=pygame.Rect(
-                (game_core.screen_dimensions[0] / 2 - 125, game_core.screen_dimensions[1] / 2 - 50), (250, 50)),
+                (game_core.screen_dimensions[0] / 2 - 400, game_core.screen_dimensions[1] / 2 - 50), (800, 50)),
             text='',
             manager=self.gui_manager,
+            container=self.options_panel,
             object_id='#error_label'
         )
 
@@ -191,6 +192,7 @@ class MainMenu(GameMode):
                 (game_core.screen_dimensions[0] / 2 - 50, game_core.screen_dimensions[1] / 2 + 10), (100, 50)),
             text="OK",
             manager=self.gui_manager,
+            container=self.options_panel,
             object_id='#exit_button'
         )
         self.error_label.hide()
@@ -246,7 +248,7 @@ class TrackMakerUI(GameMode):
         super().__init__()
 
         self.canvas = UITrackCanvas(
-            relative_rect=pygame.Rect((0,60), (game_core.screen_dimensions[0], game_core.screen_dimensions[1] - 120)),
+            relative_rect=pygame.Rect((0,80), (game_core.screen_dimensions[0], game_core.screen_dimensions[1] - 160)),
             manager=self.gui_manager
         )
 
@@ -413,10 +415,10 @@ class TrackMakerUI(GameMode):
         if self.clear_button in game_core.pressed_buttons:
             self.canvas.kill()
             self.canvas = UITrackCanvas(
-            relative_rect=pygame.Rect((0,60), (game_core.screen_dimensions[0], game_core.screen_dimensions[1] - 120)),
-            manager=self.gui_manager
-        )
-
+                relative_rect=pygame.Rect((0, 80),
+                                          (game_core.screen_dimensions[0], game_core.screen_dimensions[1] - 160)),
+                manager=self.gui_manager
+            )
 
         if self.menu_button in game_core.pressed_buttons:
             game_core.set_game_mode(MainMenu)
@@ -521,8 +523,17 @@ class CarSimulation(GameMode):
 
 
     def set_track(self, filename):
-        self.track = Track(filename)
-        self.game_sprites.add(self.track)
+        try:
+            anchors, controls, widths = r.load_bezier_track(filename, enforce_centering=True)
+            self.track = Track(anchors, controls, widths)
+            self.game_sprites.add(self.track)
+            return True
+        except Exception as e:
+            r.game_core.unexpected_error_msg = f"Error occurred when loading {filename}: (File is likely corrupted)"
+            r.game_core.set_game_mode(MainMenu)
+            print("Track load failed:", e)
+            return False
+
 
     def initialise_num_of_laps(self):
         self.num_of_laps_setter = UIOptionSelector(pygame.Rect((0, 0), game_core.screen_dimensions),
@@ -650,8 +661,9 @@ class SoloCarSim(CarSimulation):
         self.debug_elements["hitboxes"].append(self.cars[0].hitbox)
 
     def set_track(self, filename):
-        super().set_track(filename)
-        self.initialise_num_of_laps()
+        successful = super().set_track(filename)
+        if successful:
+            self.initialise_num_of_laps()
 
     def event_handle(self):
         """Handle events and clear button presses."""
@@ -713,8 +725,10 @@ class RacingSim(CarSimulation):
         game_core.debug_elements["rays"] = [0]
 
     def set_track(self, filename):
-        super().set_track(filename)
-        self.initialise_rl_model()
+
+        success = super().set_track(filename)
+        if success:
+            self.initialise_rl_model()
 
     def initialise_rl_model(self):
         self.model_loader = UIFileSelector(pygame.Rect((0, 0), game_core.screen_dimensions),
@@ -733,22 +747,16 @@ class RacingSim(CarSimulation):
                 hidden_layer_sizes.append(w.shape[1])
             self.rl_model = REINFORCEModel(
                 input_size=self.state_size,
+                activations=save_data.get('actor_activations', ['elu'] * len(hidden_layer_sizes)+ ['linear']),
                 output_size=2,
-                hidden_layer_sizes=hidden_layer_sizes,
-                activations=save_data.get('actor_activations', ['elu'] * len(actor_layer_sizes) + ['linear']),
-                gamma=save_data.get('gamma', 0.99),
-                entropy_bonus=save_data.get('entropy', 0.02),
-                l2_lambda=save_data.get('l2_lambda', 0.01),
-                init_log_std=save_data['actor_params']['log_std'][0],
-                learning_rate=save_data.get('actor_learning_rate', 0.003),
-                beta1=save_data.get('actor_beta1', 0.9),
-                beta2=save_data.get('actor_beta2', 0.999)
+                hidden_layer_sizes=hidden_layer_sizes
             )
             self.rl_model.actor.set_params(save_data['actor_params'])
             self.initialise_num_of_laps()
-            return True
-        except:
-            return False
+        except Exception as e:
+            game_core.unexpected_error_msg  = f"ERROR LOADING MODEL:{str(e)}"
+            game_core.set_game_mode(MainMenu)
+
 
     def init_cars(self):
         if self.cars:
@@ -935,8 +943,9 @@ class AICarSim(CarSimulation):
 
 
     def set_track(self, filename):
-        super().set_track(filename)
-        self.initialise_model_type()
+        success = super().set_track(filename)
+        if success:
+            self.initialise_model_type()
 
     def initialise_model_type(self):
         self.model_type_selector = UIOptionSelector(pygame.Rect((0, 0), game_core.screen_dimensions),
@@ -961,9 +970,13 @@ class AICarSim(CarSimulation):
         if filename is None:
             self.initialise_hyper_params()
         else:
-            save_data = np.load(f"Models/{filename}.npy", allow_pickle=True).item()
-            self.load_model(save_data)
-            self.initialise_num_of_laps()
+            try:
+                save_data = np.load(f"Models/{filename}.npy", allow_pickle=True).item()
+                self.load_model(save_data)
+                self.initialise_num_of_laps()
+            except Exception as e:
+                game_core.unexpected_error_msg = f"ERROR LOADING MODEL:{str(e)}"
+                game_core.set_game_mode(MainMenu)
 
     def initialise_hyper_params(self):
         self.hyper_param_setter = UIModelCreator(
@@ -974,40 +987,106 @@ class AICarSim(CarSimulation):
             return_mode=MainMenu
         )
 
-    def create_model(self, config):
-        self.num_of_cars = config['num_of_cars']
-        if self.model_type == "REINFORCE":
-            self.rl_model = REINFORCEModel(input_size=self.state_size,
-                                           output_size= 2,
-                                           gamma=config['gamma'],
-                                           entropy_bonus=config['entropy'],
-                                           l2_lambda=config['l2_lambda'],
-                                           hidden_layer_sizes=config['actor_hidden_layers'],
-                                           activations= config['actor_activations'],
-                                           learning_rate=config['actor_learning_rate'],
-                                           beta1=config['actor_adam_beta1'],
-                                           beta2=config['actor_adam_beta2'],
-                                           init_log_std=config['actor_init_log_std'])
-        else:
-            self.rl_model = MCACModel(input_size=self.state_size,
-                                      output_size=2,
-                                      gamma=config['gamma'],
-                                      l2_lambda=config['l2_lambda'],
-                                      entropy_bonus=config['entropy'],
-                                      actor_layer_sizes=config['actor_hidden_layers'],
-                                      actor_activations=config['actor_activations'],
-                                      actor_init_log_std=config['actor_init_log_std'],
-                                      actor_learning_rate=config['actor_learning_rate'],
-                                      actor_beta1=config['actor_adam_beta1'],
-                                      actor_beta2=config['actor_adam_beta2'],
-                                      critic_layer_sizes= config['critic_hidden_layers'],
-                                      critic_activations= config['critic_activations'],
-                                      critic_init_log_std=config['critic_init_log_std'],
-                                      critic_learning_rate= config['critic_learning_rate'],
-                                      critic_beta1=config['critic_adam_beta1'],
-                                      critic_beta2=config['critic_adam_beta2'])
+    def load_model(self, save_data):
+        actor_layer_sizes = []
+        weights = save_data["actor_params"]["weights"]
 
-        self.initialise_num_of_laps()
+        for w in weights[:-1]:
+            actor_layer_sizes.append(w.shape[1])
+
+        # Load basic info
+        self.is_model_raceable = save_data['is_model_raceable']
+        self.episode_num = save_data['episode_num']
+        self.num_of_cars = save_data.get('num_of_cars', 12)
+
+        # Create the appropriate model
+        if save_data['model_type'] == 'REINFORCE':
+            self.rl_model = REINFORCEModel(
+                input_size=self.state_size,
+                output_size=2,
+                hidden_layer_sizes=actor_layer_sizes,
+                activations=save_data.get('actor_activations', ['elu'] * len(actor_layer_sizes) + ['linear']),
+                gamma=save_data.get('gamma', 0.99),
+                entropy_bonus=save_data.get('entropy', 0.02),
+                l2_lambda=save_data.get('l2_lambda', 0.01),
+                init_log_std=save_data['actor_params']['log_std'][0],
+                learning_rate=save_data.get('actor_learning_rate', 0.003),
+                beta1=save_data.get('actor_beta1', 0.9),
+                beta2=save_data.get('actor_beta2', 0.999)
+            )
+        else:
+            # Extract critic architecture
+            critic_layer_sizes = []
+            weights = save_data["critic_params"]["weights"]
+
+            for w in weights[:-1]:
+                critic_layer_sizes.append(w.shape[1])
+
+            self.rl_model = MCACModel(
+                input_size=self.state_size,
+                output_size=2,
+                actor_layer_sizes=actor_layer_sizes,
+                actor_activations=save_data.get('actor_activations', ['elu'] * len(actor_layer_sizes) + ['linear']),
+                critic_layer_sizes=critic_layer_sizes,
+                critic_activations=save_data.get('critic_activations', ['tanh'] * len(critic_layer_sizes) + ['linear']),
+                gamma=save_data.get('gamma', 0.99),
+                l2_lambda=save_data.get('l2_lambda', 0.01),
+                entropy_bonus=save_data.get('entropy', 0.02),
+                actor_init_log_std=save_data['actor_params']['log_std'][0],
+                actor_learning_rate=save_data.get('actor_learning_rate', 0.003),
+                actor_beta1=save_data.get('actor_beta1', 0.9),
+                actor_beta2=save_data.get('actor_beta2', 0.999),
+                critic_init_log_std=save_data['critic_params']['log_std'][0],
+                critic_learning_rate=save_data.get('critic_learning_rate', 0.003),
+                critic_beta1=save_data.get('critic_beta1', 0.9),
+                critic_beta2=save_data.get('critic_beta2', 0.999)
+            )
+
+        self.rl_model.actor.set_params(save_data['actor_params'])
+
+        if hasattr(self.rl_model, 'critic') and 'critic_params' in save_data:
+            self.rl_model.critic.set_params(save_data['critic_params'])
+
+        self.best_model_params = copy.deepcopy(save_data['best_model_params'])
+
+    def create_model(self, config):
+        try:
+            self.num_of_cars = config['num_of_cars']
+            if self.model_type == "REINFORCE":
+                self.rl_model = REINFORCEModel(input_size=self.state_size,
+                                               output_size= 2,
+                                               gamma=config['gamma'],
+                                               entropy_bonus=config['entropy'],
+                                               l2_lambda=config['l2_lambda'],
+                                               hidden_layer_sizes=config['actor_hidden_layers'],
+                                               activations= config['actor_activations'],
+                                               learning_rate=config['actor_learning_rate'],
+                                               beta1=config['actor_adam_beta1'],
+                                               beta2=config['actor_adam_beta2'],
+                                               init_log_std=config['actor_init_log_std'])
+            else:
+                self.rl_model = MCACModel(input_size=self.state_size,
+                                          output_size=2,
+                                          gamma=config['gamma'],
+                                          l2_lambda=config['l2_lambda'],
+                                          entropy_bonus=config['entropy'],
+                                          actor_layer_sizes=config['actor_hidden_layers'],
+                                          actor_activations=config['actor_activations'],
+                                          actor_init_log_std=config['actor_init_log_std'],
+                                          actor_learning_rate=config['actor_learning_rate'],
+                                          actor_beta1=config['actor_adam_beta1'],
+                                          actor_beta2=config['actor_adam_beta2'],
+                                          critic_layer_sizes= config['critic_hidden_layers'],
+                                          critic_activations= config['critic_activations'],
+                                          critic_init_log_std=config['critic_init_log_std'],
+                                          critic_learning_rate= config['critic_learning_rate'],
+                                          critic_beta1=config['critic_adam_beta1'],
+                                          critic_beta2=config['critic_adam_beta2'])
+
+            self.initialise_num_of_laps()
+        except:
+            game_core.unexpected_error_msg  = f"ERROR LOADING MODEL:{str(e)}"
+            game_core.set_game_mode(MainMenu)
 
 
 
@@ -1334,73 +1413,6 @@ class AICarSim(CarSimulation):
 
         np.save(f"Models/{filename}.npy", save_data, allow_pickle=True)
         self.model_saver = None
-
-
-    def load_model(self, save_data):
-        try:
-            actor_layer_sizes = []
-            weights = save_data["actor_params"]["weights"]
-
-            for w in weights[:-1]:
-                actor_layer_sizes.append(w.shape[1])
-
-            # Load basic info
-            self.is_model_raceable = save_data['is_model_raceable']
-            self.episode_num = save_data['episode_num']
-            self.num_of_cars = save_data.get('num_of_cars', 12)
-
-            # Create the appropriate model
-            if save_data['model_type'] == 'REINFORCE':
-                self.rl_model = REINFORCEModel(
-                    input_size=self.state_size,
-                    output_size=2,
-                    hidden_layer_sizes=actor_layer_sizes,
-                    activations=save_data.get('actor_activations', ['elu'] * len(actor_layer_sizes) + ['linear']),
-                    gamma=save_data.get('gamma', 0.99),
-                    entropy_bonus=save_data.get('entropy', 0.02),
-                    l2_lambda=save_data.get('l2_lambda', 0.01),
-                    init_log_std=save_data['actor_params']['log_std'][0],
-                    learning_rate=save_data.get('actor_learning_rate', 0.003),
-                    beta1=save_data.get('actor_beta1', 0.9),
-                    beta2=save_data.get('actor_beta2', 0.999)
-                )
-            else:
-                # Extract critic architecture
-                critic_layer_sizes = []
-                weights = save_data["critic_params"]["weights"]
-
-                for w in weights[:-1]:
-                    critic_layer_sizes.append(w.shape[1])
-
-                self.rl_model = MCACModel(
-                    input_size=self.state_size,
-                    output_size=2,
-                    actor_layer_sizes=actor_layer_sizes,
-                    actor_activations=actor_activations,
-                    critic_layer_sizes=critic_layer_sizes,
-                    critic_activations=save_data.get('critic_activations', ['tanh'] * len(critic_layer_sizes) + ['linear']),
-                    gamma=save_data.get('gamma', 0.99),
-                    l2_lambda=save_data.get('l2_lambda', 0.01),
-                    entropy_bonus=save_data.get('entropy', 0.02),
-                    actor_init_log_std=save_data['actor_params']['log_std'][0],
-                    actor_learning_rate=save_data.get('actor_learning_rate', 0.003),
-                    actor_beta1=save_data.get('actor_beta1', 0.9),
-                    actor_beta2=save_data.get('actor_beta2', 0.999),
-                    critic_init_log_std=save_data['critic_params']['log_std'][0],
-                    critic_learning_rate=save_data.get('critic_learning_rate', 0.003),
-                    critic_beta1=save_data.get('critic_beta1', 0.9),
-                    critic_beta2=save_data.get('critic_beta2', 0.999)
-                )
-
-            self.rl_model.actor.set_params(save_data['actor_params'])
-
-            if hasattr(self.rl_model, 'critic') and 'critic_params' in save_data:
-                self.rl_model.critic.set_params(save_data['critic_params'])
-
-            self.best_model_params = copy.deepcopy(save_data['best_model_params'])
-            return True
-        except:
-            return False
 
     def _toggle_speed(self):
         if game_core.tick_speedup == 1:

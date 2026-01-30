@@ -8,11 +8,11 @@ import pygame
 
 class Track(Sprite):
 
-    def __init__(self, track_name, position = ((0,0), game_core.screen_dimensions)):
+    def __init__(self, anchors, controls, widths, position = ((0,0), game_core.screen_dimensions)):
         super().__init__()
         self.grid = SpatialHashGrid()
 
-        anchors, controls, widths = r.load_bezier_track(track_name, enforce_centering= True)
+
         self.track_spine = r.generate_bezier_track_spine(anchors, controls)
         if 1.0 not in widths:
             widths[1.0] = widths[0.0]
@@ -191,39 +191,3 @@ class SpatialHashGrid:
         for element in cell_elements:
             indices.extend(element)
         return indices
-
-
-
-# grid = SpatialHashGrid()
-#
-# walls = [
-#     ((0, 0), (200, 0)),
-#     ((0, 0), (0, 200)),
-#     ((0, 0), (200, 200)),
-#     ((230, 20), (120, 175)),
-# ]
-#
-# for i, seg in enumerate(walls):
-#     grid.hash_segment(seg, i)
-#
-# print()
-# print("Testing ray intersection")
-# print()
-#
-# print("Test 1: dx > dy")
-# ray1 = ((100, 50), (250, 100))
-# hit1 = grid.return_collision_point(ray1, walls)
-# print("Collision point:", hit1)
-# print()
-#
-# print("Test 2: dy > dx")
-# ray2 = ((100, 20), (130, 250))
-# hit2 = grid.return_collision_point(ray2, walls)
-# print("Collision point:", hit2)
-# print()
-#
-# print("Test 3: no collision")
-# ray3 = ((250, 250), (400, 400))
-# hit3 = grid.return_collision_point(ray3, walls)
-# print(" Collision point:", hit3)
-
