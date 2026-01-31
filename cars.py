@@ -1,44 +1,81 @@
+"""
+Car objects:
+
+Defines base Car class that handles physics simulation, collision detection and controlling of throttle and steering.
+PlayerCar extends Car and implements methods and GUI elements to allow the player to control the car movement.
+AICar implements methods for ray casting, that returns sensor data for the RL model. It also implements method for
+computing rewards for each action.
+
+Classes:
+    Car: Abstract base class for both car types with physics simulation and collision detection
+    PlayerCar: Human-controlled car with GUI elements (HUD, controls)
+    AICar: AI-controlled car with sensors and reward computation
+"""
+
+
 import math
-import numpy as np
-import resources as r
-import pygame
-from resources import game_core
-from gui_custom_elements import UIGaugeMeter
-from pygame import Vector2
 from abc import ABC, abstractmethod
+
+import numpy as np
+import pygame
+from pygame import Vector2
 from pygame_gui.elements import UIPanel, UIProgressBar, UIHorizontalSlider
 
+import resources as r
+from resources import game_core
+from gui_custom_elements import UIGaugeMeter
+
 class Car(pygame.sprite.Sprite, ABC):
+    """
+    Implements car physics including throttle/brake, steering, velocity, and angular motion. Subclasses must implement 
+    update() and reset() for centralised control.
 
-    def __init__(self, starting_position=(game_core.screen_dimensions[0]/2, game_core.screen_dimensions[1]/2),
-            starting_orientation =270, car_proportions=pygame.Vector2(272, 429) / (1.1*game_core.meter_pixel_conversion) ,
+    Attributes:
+        is_crashed (bool): Whether car has collided with track walls
+        position (Vector2): Current position in pixels
+        velocity (Vector2): Current velocity vector in pixels/second
+        acceleration (Vector2): Current acceleration vector
+        direction (float): Heading angle in degrees (0 = up)
+        progress (float): Cumulative laps completed (e.g., 2.5 = 2.5 laps)
+        current_throttle_input (float): Target throttle [-1, 1]
+        current_steer_input (float): Target steering [-1, 1]
+        throttle (float): Actual throttle force being applied
+        steer (float): Actual steering angle in radians
+        hitbox (list[tuple]): Four corner coordinates for collision detection
+    """
+    DRIVING_FORCE = 50
+    BRAKING_FORCE = 90
+    MAX_SPEED = 400
+    MAX_STEER_RAD = math.radians(30)
+    WHEELBASE = 3.6
+    MAX_LATERAL_ACCELERATION = 20.00
+
+    STEER_RESPONSE = 0.3
+    THROTTLE_RESPONSE = 0.1
+    BRAKE_RESPONSE = 0.04
+    FRICTION_DECAY = 0.992
+    GRIP = 0.5
+    
+    def __init__(self,
+                 starting_position=(game_core.screen_dimensions[0]/2,
+                                    game_core.screen_dimensions[1]/2),
+                 starting_orientation =270,
+                 car_proportions=pygame.Vector2(272, 429) / (1.1*game_core.meter_pixel_conversion),
                  image = "Mclaren"):
+        """Initialize car with starting state.
+
+        Args:
+            starting_position (tuple): (x, y) coordinates of start line
+            starting_orientation (float): Initial direction to face in degrees.
+            car_proportions (Vector2): (width, height) in pixels
+            image (str): Car sprite filename
+        """
         super().__init__()
-        self.is_crashed = False
+
+        # Default parameters
         self.starting_position = starting_position
-        self.position = pygame.Vector2(starting_position)
-        self.velocity = pygame.Vector2(0, 0)
-        self.acceleration = pygame.Vector2(0, 0)
         self.direction = starting_orientation
-        self.progress = 0
-
-        self.current_throttle_input = 0.0
-        self.current_steer_input = 0.0
-        self.throttle = 0.0
-        self.steer = 0.0
-
-        self.driving_force = 50
-        self.braking_force = 90
-        self.max_speed = 400
-        self.max_steer = math.radians(30)
         self.car_proportions = car_proportions
-
-        self.steer_response = 0.3
-        self.throttle_factor = 0.1
-        self.brake_factor = 0.04
-        self.wheelbase = 3.6
-        self.max_lateral_accel = 20.0
-
         """
         The '_original_car' variable is necessary for rotating the sprite properly since the car sprite is rotated
         to an angle with respect to the natural orientation of the sprite on the screen.
@@ -46,81 +83,146 @@ class Car(pygame.sprite.Sprite, ABC):
         self._original_car = r.set_image(image)
         self._original_car = pygame.transform.scale(self._original_car, car_proportions)
         self._original_car = pygame.transform.rotate(self._original_car, 180)
-        self._update_car_sprite_position()
 
-        """
-        hitbox -> Stores coordinates of 4 corners of hitbox
-        """
+        # State variables
+        self.is_crashed = False
+        self.position = pygame.Vector2(starting_position)
+        self.velocity = pygame.Vector2(0, 0)
+        self.acceleration = pygame.Vector2(0, 0)
+        self.progress = 0
         self.hitbox = []
-        self._update_hitbox()
 
-    def set_car_position(self, position, orientation):
-        self.position = position
-        self.direction = orientation
+        # Control inputs
+        self.current_throttle_input = 0.0
+        self.current_steer_input = 0.0
+
+        # Controls states
+        self.throttle = 0.0
+        self.steer = 0.0
+
+        self._update_car_sprite_position()
+        self._update_hitbox()
 
     @abstractmethod
     def update(self, *args, **kwargs):
+        """
+        Update car state for one timestep.
+        Subclasses must implement this.
+        """
         pass
 
     def collision_detection(self, track):
+        """
+        Check if car's hitbox collides with track walls. Updates is_crashed state if collision detected.
+
+        Args:
+            track (Track): Track object with collision detection methods
+        """
         self._update_hitbox()
         if not self.is_crashed:
             self.is_crashed = track.hitbox_collision_detection(self.hitbox)
 
     def _car_movement(self, target_steer, target_throttle):
+        """
+        Update car state based on inputs.
+
+        Smoothly increments throttle and steer inputs, calculates forces, updates velocity and position, then updates
+        sprite and hitbox.
+
+        Args:
+            target_steer (float): Desired steering input [-1, 1]
+            target_throttle (float): Desired throttle input [-1, 1]
+        """
         self._update_controls(target_steer, target_throttle)
         self._update_steer_and_throttle()
         self._update_car_vector_values()
         self._update_car_sprite_position()
 
-    def _update_steer_and_throttle(self):
-        target_steer = self.max_steer * self.current_steer_input
-        self.steer += (target_steer - self.steer) * self.steer_response
-
-        if self.current_throttle_input > 0:
-            self.throttle = self.driving_force * self.current_throttle_input
-        else:
-            self.throttle = self.braking_force * self.current_throttle_input
 
     def _update_controls(self, target_steer, target_throttle):
+        """
+        Smooth control inputs toward target values. Limits rate of increase with response factors.
+
+        Args:
+            target_steer (float): Desired steering [-1, 1]
+            target_throttle (float): Desired throttle [-1, 1]
+        """
+
+        # Increment steer input
         d_steer_input = target_steer - self.current_steer_input
-        d_throttle_input = target_throttle - self.current_throttle_input
         if abs(d_steer_input) > 0.05:
             self.current_steer_input += 0.15 * r.sign(d_steer_input)
         else:
             self.current_steer_input = target_steer
         self.current_steer_input = max(-1.0, min(1.0, self.current_steer_input))
-        if abs(d_throttle_input) > 0.1:
-            throttle_update_factor = self.throttle_factor if target_throttle >= 0 else self.brake_factor
+
+        # Increment throttle input
+        d_throttle_input = target_throttle - self.current_throttle_input
+        if abs(d_throttle_input) > 0.05:
+            throttle_update_factor = self.THROTTLE_RESPONSE if target_throttle >= 0 else self.BRAKE_RESPONSE
             self.current_throttle_input += throttle_update_factor * r.sign(d_throttle_input)
         else:
             self.current_throttle_input = target_throttle
         self.current_throttle_input = max(-1.0, min(1.0, self.current_throttle_input))
 
+    def _update_steer_and_throttle(self):
+        """Convert control inputs to steering angle and throttle force."""
+
+        target_steer = self.MAX_STEER_RAD * self.current_steer_input
+        self.steer += (target_steer - self.steer) * self.STEER_RESPONSE
+
+        if self.current_throttle_input > 0:
+            self.throttle = self.DRIVING_FORCE * self.current_throttle_input
+        else:
+            self.throttle = self.BRAKING_FORCE * self.current_throttle_input
+
     def _update_car_vector_values(self):
+        """
+        Update velocity, position, and heading based on physics.
+
+        Implements simplified car physics with:
+        - Velocity decay when no throttle
+        - Grip (smoothly interpolates velocity)
+        - Bicycle model for turning
+        """
+
         dt = 1 / game_core.frame_rate
+
+        # Update acceleration in heading direction
         direction_unit_vector = pygame.Vector2(0, 1).rotate(self.direction)
         self.acceleration = self.throttle * direction_unit_vector
+
+        # Update velocity
         if self.throttle == 0:
             self.velocity *= 0.992
         else:
             self.velocity += self.acceleration * dt
-
         if self.velocity.length_squared() != 0:
-            self.velocity.clamp_magnitude_ip(self.max_speed)
+            self.velocity.clamp_magnitude_ip(self.MAX_SPEED)
+
+        # Apply grip
         speed = self.velocity.magnitude()
-        grip = 0.5
-        self.velocity = self.velocity.lerp(direction_unit_vector * speed, grip)
+        self.velocity = self.velocity.lerp(direction_unit_vector * speed, self.GRIP)
+
+        # Update position
         self.position += self.velocity * dt
-        speed_m = speed / game_core.meter_pixel_conversion
+
+        # Update direction based on bicycle model
+        speed_m = speed / game_core.meter_pixel_conversion      # Speed in m/s
         if speed_m > 0.1:
-            max_angular_velocity = self.max_lateral_accel / speed_m
+            # Calculate clamped angular velocity
+            max_angular_velocity = self.MAX_LATERAL_ACCELERATION / speed_m
             angular_velocity = max(-max_angular_velocity,
                                    min(max_angular_velocity,
-                                                    (math.tan(self.steer) * speed_m) / self.wheelbase))
+                                                    (math.tan(self.steer) * speed_m) / self.WHEELBASE))
+
+            # Update direction
             self.direction += math.degrees(angular_velocity) * dt
 
     def _update_hitbox(self):
+        """
+        Recalculate hitbox corners based on current position and rotation.
+        """
         center_x, center_y = self.rect.center
         width, length = self.car_proportions / 2
         width -= 5
@@ -133,23 +235,41 @@ class Car(pygame.sprite.Sprite, ABC):
                           center_y + x * math.sin(angle) + y * math.cos(angle))
         self.hitbox[:] = corners
 
-    def set_progress(self, progress):
-        self.progress = progress
-
     def update_and_get_progress(self, track_spine):
+        """
+        Calculate car's progress along track and detect lap completion.
+
+        Finds nearest point on track spine to calculates fractional progress (0-1). Handles wraparound at track
+        boundaries, and detects lap completion or wrong-way driving.
+
+        Args:
+            track_spine (list[Vector2]): Ordered list of track centerline points
+
+        Returns:
+            tuple[float, bool]: (cumulative_progress, is_lap_finished)
+                - cumulative_progress: Total laps + fractional progress (e.g., 2.5)
+                - is_lap_finished: True if lap boundary was just crossed
+        """
+
+        # Calculate fractional progress by finding the nearest track spine point
         center = Vector2(self.rect.center)
         closest_point = min(track_spine, key=lambda point: (center - point).length_squared())
         current_progress = track_spine.index(closest_point) / (len(track_spine) - 1)
 
+        # Handle wrap-around by checking change in progress
         change_in_progress = current_progress - (self.progress % 1)
         if change_in_progress > 0.5:
             change_in_progress -= 1.0
         elif change_in_progress <= -0.5:
             change_in_progress += 1.0
 
+        # Update progress
         new_progress = self.progress + change_in_progress
+
+
         is_lap_finished = False
         if new_progress > self.progress:
+            # Check if lap was completed
             if math.floor(new_progress) - math.floor(self.progress) > 0:
                 print("lap completed!")
                 self.progress = new_progress
@@ -157,20 +277,27 @@ class Car(pygame.sprite.Sprite, ABC):
             else:
                 self.progress = new_progress
         else:
+            # Check if car is travelling wrong way
             if new_progress <= -0.5:
                 print("Wrong way! Please reset")
                 self.is_crashed = True
                 self.progress = 0
             else:
                 self.progress = new_progress
+
         return self.progress, is_lap_finished
 
     def _update_car_sprite_position(self):
+        """Rotate sprite and update position."""
         self.image = pygame.transform.rotate(self._original_car, -self.direction)
         self.rect = self.image.get_rect(center=(int(self.position.x), int(self.position.y)))
 
     @abstractmethod
     def reset(self):
+        """
+        Reset car to starting state.
+        Subclasses must call this base implementation and then reset their specific attributes.
+        """
         self.is_crashed = False
         self.position = pygame.Vector2(self.starting_position)
         self.velocity = pygame.Vector2(0, 0)
@@ -187,8 +314,23 @@ class Car(pygame.sprite.Sprite, ABC):
 
 
 class PlayerCar(Car):
-    def __init__(self, starting_position = None, image = "purple_car",
+    """
+    Human-controlled car with control panel.
+    Displays HUD panel with speedometer, throttle meter, and optional steering slider. Controlled via keyboard (WASD)
+    by default.
+
+    Attributes:
+        hud_panel (UIPanel): Container of all HUD elements
+        speedometer (UIGaugeMeter): Gauge speed display
+        throttle_and_braking_meter (UIProgressBar): Indicates current throttle/brake input
+        steering_slider (UIHorizontalSlider): Optional slider to control steering
+        is_slider_enabled (bool): Indicates whether user steers with keyboard or slider.
+    """
+    def __init__(self,
+                 starting_position = None,
+                 image = "purple_car",
                  car_proportions=pygame.Vector2(272, 429) / (0.8*game_core.meter_pixel_conversion)):
+
         super().__init__(starting_position, image= image, car_proportions=  car_proportions)
 
         self.hud_panel = UIPanel(
@@ -363,7 +505,7 @@ class AICar(Car):
 
         if distance_moved > 1e-4:
             speed = self.velocity.magnitude()
-            normalized_speed = speed / self.max_speed
+            normalized_speed = speed / self.MAX_SPEED
             speed_reward = 0.025 * normalized_speed**2
             # efficiency_reward = 0.15 *  np.sqrt(distance_moved * 70 + speed_reward)
             efficiency_reward = distance_moved * 40 + speed_reward

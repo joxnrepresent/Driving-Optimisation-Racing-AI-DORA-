@@ -9,7 +9,8 @@ import pygame_gui
 import cars
 import resources as r
 from resources import game_core, RaceTimeManager
-from gui_custom_elements import UIGaugeMeter, UITrackCanvas, UIFileSelector, UIOptionSelector, UIEndScreen, UIModelCreator
+from gui_custom_elements import (UIGaugeMeter, UITrackCanvas, UIFileSelector,
+                                 UIOptionSelector, UIEndScreen, UIModelCreator)
 from track import Track
 from cars import PlayerCar, AICar
 from rl_model import MCACModel, REINFORCEModel
@@ -215,7 +216,7 @@ class MainMenu(GameMode):
             game_core.set_game_mode(RacingSim)
 
         elif self.ai_sim_button in game_core.pressed_buttons:
-            game_core.set_game_mode(AICarSim)
+            game_core.set_game_mode(AITrainingEnvironment)
 
         elif self.ack_error_button in game_core.pressed_buttons:
             self.hide_error()
@@ -782,7 +783,7 @@ class RacingSim(CarSimulation):
                 if isinstance(car, AICar):
                     sensors = car.ray_cast(self.track, 0)
                     state = sensors + [car.velocity.magnitude() / car.max_speed, car.steer / car.max_steer]
-                    actions = self.rl_model.get_deterministic_actions(state)
+                    actions = self.rl_model.get_stochastic_actions(state)
                     car.update(actions[0])
                 else:
                     car.update()
@@ -818,7 +819,7 @@ class RacingSim(CarSimulation):
                                       return_mode= MainMenu
                                       )
 
-class AICarSim(CarSimulation):
+class AITrainingEnvironment(CarSimulation):
     """AI-powered car simulation with reinforcement learning."""
 
     def __init__(self, simulation_size=12, state_size=15):

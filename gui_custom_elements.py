@@ -9,7 +9,8 @@ import numpy as np
 from track import SpatialHashGrid
 from pygame.math import Vector2
 from pygame_gui.core import UIElement
-from pygame_gui.elements import UIPanel,UILabel,UIButton,UISelectionList,UITextEntryLine, UIDropDownMenu, UITextBox, UIScrollingContainer
+from pygame_gui.elements import (UIPanel, UILabel, UIButton, UISelectionList, UITextEntryLine,
+                                 UIDropDownMenu, UITextBox, UIScrollingContainer)
 import pygame_gui
 
 """

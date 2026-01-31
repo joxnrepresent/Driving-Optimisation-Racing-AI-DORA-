@@ -30,26 +30,13 @@ class RLModel(ABC):
         actions = np.clip(pre_squash, -1, 1)
         return actions, pre_squash
 
-    def get_deterministic_actions(self, state_vector):
-        # x: input vector
-        x = np.array(state_vector, np.float32)
-        if x.ndim == 1:
-            x = np.expand_dims(x, axis=0)
-
-        mu = self.actor.forward_propagation(x)
-        sigma = np.exp(self.actor.log_std)
-        noise = np.random.randn(*mu.shape) * sigma
-        pre_squash = mu + noise
-        actions = np.clip(pre_squash, -1, 1)
-        return actions
-
     def update_trajectory(self, state, action, reward):
         self.states.append(state)
         self.pre_squash_actions.append(action)
         self.rewards.append(reward)
 
 
-    def compute_return(self):
+    def compute_monte_carlo_return(self):
         rewards = np.array(self.rewards, np.float32)
 
         time_steps, batch = rewards.shape
@@ -105,7 +92,7 @@ class REINFORCEModel(RLModel):
     def update_params(self):
         states = np.vstack(self.states)
         pre_squash_actions = np.vstack(self.pre_squash_actions)
-        returns = self.compute_return()
+        returns = self.compute_monte_carlo_return()
         advantage = (returns - returns.mean()) / (returns.std() + 1e-8)
         self.update_actor(advantage, states, pre_squash_actions)
         avg_rewards = np.array(self.rewards).mean()
@@ -139,7 +126,7 @@ class MCACModel(RLModel):
         states = np.vstack(self.states)
         actions = np.vstack(self.pre_squash_actions)
         values = self.critic.forward_propagation(states).reshape(-1)
-        returns = self.compute_return()
+        returns = self.compute_monte_carlo_return()
         advantage = returns - values
         advantage = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
 
