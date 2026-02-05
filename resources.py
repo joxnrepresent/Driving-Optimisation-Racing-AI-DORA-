@@ -16,11 +16,11 @@ functions/methods used throughout the project.
 class GameCore:
     def __init__(self):
         # Program constants
-        self.is_debugging = True
+        self.is_debugging = False
         self.unexpected_error_msg = None
         self.is_paused = False
         self.load_model = False
-        self.frame_rate = 50
+        self.frame_rate = 60
         self.tick_speedup = 1
         self.screen_fill = (18, 20, 28)
         self.current_model = None
@@ -57,25 +57,20 @@ class GameCore:
             if self.debug_elements:
                 for element_type, elements in self.debug_elements.items():
                     for element in elements:
-                        # if element_type == "hitboxes":
-                        #     pygame.draw.polygon(self.main_screen, "red", element, 2)
-                        # elif element_type == "AABB":
-                        #     pygame.draw.rect(self.main_screen, "red", element.rect, 2)
-                        if element_type == "rays":
-                            try:
-                                for ray in element:
-                                    pygame.draw.line(self.main_screen, (200, 0, 0), ray[0], ray[1])
-                            except:
-                                pass
-                        # elif element_type == "track spine":
-                        #     for i in range(len(element) - 1):
-                        #         draw_line(self.main_screen, "Blue", element[i], element[i + 1])
-                        # if element_type == "grid lines":
-                        #     if element:
-                        #         draw_grid(self.main_screen)
+                        if element_type == "hitboxes":
+                            pygame.draw.polygon(self.main_screen, "red", element, 2)
+                        elif element_type == "AABB":
+                            pygame.draw.rect(self.main_screen, "red", element.rect, 2)
+                        elif element_type == "track spine":
+                            for i in range(len(element) - 1):
+                                draw_line(self.main_screen, "Blue", element[i], element[i + 1])
+                        if element_type == "grid lines":
+                            if element:
+                                draw_grid(self.main_screen)
+
         self.gui_manager.draw_ui(self.main_screen)
         pygame.display.flip()
-        self.dt_ms = self.clock.tick(game_core.frame_rate)
+
 
     def cache_events(self, event):
         self.gui_manager.process_events(event)
@@ -189,48 +184,39 @@ def wrap_value(value, lower_limit, upper_limit):
     return ((value - lower_limit) % (upper_limit-lower_limit)) + lower_limit
 
 def load_track_from_file(filename):
-    try:
-        with open("Tracks/"+filename + ".txt", "r") as file:
-            for line in file:
-                coordinates = line.split(',')
-                points = []
-                for i in range(0, len(coordinates) - 1, 2):
-                    points.append((float(coordinates[i]), float(coordinates[i + 1])))
-                strokes.append(points)
-            return strokes
-    except FileNotFoundError:
-        print("File not found")
-        return None
+    with open("Tracks/"+filename + ".txt", "r") as file:
+        for line in file:
+            coordinates = line.split(',')
+            points = []
+            for i in range(0, len(coordinates) - 1, 2):
+                points.append((float(coordinates[i]), float(coordinates[i + 1])))
+            strokes.append(points)
+        return strokes
 
 def load_bezier_track(filename, enforce_centering = False):
-    try:
-        with open(f"Tracks/{filename}.json", "r") as f:
-            data = json.load(f)
+    with open(f"Tracks/{filename}.json", "r") as f:
+        data = json.load(f)
 
-        anchor_points = [Vector2(point[0], point[1]) for point in data["anchors"]]
-        control_points = [Vector2(point[0], point[1]) for point in data["controls"]]
-        widths_dict = {float(k): v for k, v in data["widths"].items()}
+    anchor_points = [Vector2(point[0], point[1]) for point in data["anchors"]]
+    control_points = [Vector2(point[0], point[1]) for point in data["controls"]]
+    widths_dict = {float(k): v for k, v in data["widths"].items()}
 
-        if enforce_centering:
-            all_points = anchor_points + control_points
+    if enforce_centering:
+        all_points = anchor_points + control_points
 
-            min_x = min(point.x for point in all_points)
-            max_x = max(point.x for point in all_points)
-            min_y = min(point.y for point in all_points)
-            max_y = max(point.y for point in all_points)
+        min_x = min(point.x for point in all_points)
+        max_x = max(point.x for point in all_points)
+        min_y = min(point.y for point in all_points)
+        max_y = max(point.y for point in all_points)
 
-            track_center = Vector2((min_x + max_x) / 2, (min_y + max_y) / 2)
-            screen_center = (game_core.screen_dimensions[0] / 2, (game_core.screen_dimensions[1] - 200)/2)
-            translation = screen_center - track_center
+        track_center = Vector2((min_x + max_x) / 2, (min_y + max_y) / 2)
+        screen_center = (game_core.screen_dimensions[0] / 2, (game_core.screen_dimensions[1] - 200)/2)
+        translation = screen_center - track_center
 
-            anchor_points = [p + translation for p in anchor_points]
-            control_points = [p + translation for p in control_points]
+        anchor_points = [p + translation for p in anchor_points]
+        control_points = [p + translation for p in control_points]
 
-        return anchor_points, control_points, widths_dict
-
-    except FileNotFoundError:
-        print("File not found")
-        return None
+    return anchor_points, control_points, widths_dict
 
 
 def draw_line(surface, colour, p1, p2, width = 3):
@@ -249,13 +235,13 @@ def draw_alternating_line_segments(surface, points):
             pygame.draw.line(surface, colour, points[i], points[i+1], 4)
             is_black = not is_black
 
-def draw_grid(surface, color="green", cell_size = 20):
+def draw_grid(surface, color=(100,250,100, 100 ), cell_size = 20):
     w,h = surface.get_size()
     s = pygame.Surface((w,h), pygame.SRCALPHA)
     for x in range(0, w, cell_size):
-        pygame.draw.line(s, color, (x,0), (x,h))
+        pygame.draw.line(s, color, (x,0), (x,h), width=1)
     for y in range(0, h, cell_size):
-        pygame.draw.line(s, color, (0,y), (w,y))
+        pygame.draw.line(s, color, (0,y), (w,y), width=1)
     surface.blit(s, (0,0))
 
 def get_line_segments_intersection(seg1, seg2):

@@ -1034,7 +1034,7 @@ class UIGaugeMeter(UIElement):
         self.rebuild()
 
 class UITrackCanvas(UIElement):
-    def __init__(self, relative_rect, manager):
+    def __init__(self, relative_rect, manager, is_handles_enabled):
         super().__init__(relative_rect, manager, container=None, starting_height=0, layer_thickness=1)
 
         self.image = pygame.Surface((relative_rect.width + 10, relative_rect.height + 10))
@@ -1049,7 +1049,7 @@ class UITrackCanvas(UIElement):
         self.max_handle_length = 100
 
         self.mode = "anchor"
-        self.is_handles_enabled = False
+        self.is_handles_enabled = is_handles_enabled
         self.is_dragging = False
         self.is_track_complete = False
         self.validity_issues = None
@@ -1228,10 +1228,13 @@ class UITrackCanvas(UIElement):
 
     def create_width_point(self, mouse_pos):
         if len(self.track_spine) > 1:
+            # Minimum 2 anchors
             for i in range(len(self.track_spine) - 1):
+                # Iterate through all spine segments
                 segment = (self.track_spine[i], self.track_spine[i+1])
                 dist = r.point_segment_distance(mouse_pos, segment)
                 if dist <= 2:
+                    # Create points if the track spine point is close enough
                     track_proportion = i/(len(self.track_spine)-1)
                     self.widths_dict[track_proportion] = 60
                     self.selected_point = ('w', track_proportion)
@@ -1273,19 +1276,6 @@ class UITrackCanvas(UIElement):
 
         if mirror_point_index:
             self.control_points[mirror_point_index] = anchor_point - clamped_translation
-
-    def handle_width_point_movement(self, mouse_pos, point_position):
-        width_point_index = math.floor(max(min(point_position * len(self.track_spine), len(self.track_spine) - 1), 0))
-        min_distance = 100000
-        closest_index = width_point_index
-        for i in range(width_point_index-20, width_point_index+20):
-            mouse_distance = (mouse_pos - self.track_spine[i]).length_squared()
-            if mouse_distance < min_distance:
-                closest_index = i
-                min_distance = mouse_distance
-        new_position = closest_index/(len(self.track_spine)-1)
-        self.widths_dict[new_position] = self.widths_dict[point_position]
-        self.widths_dict.pop(point_position)
 
     def check_track_completion(self, moving_anchor_index = -1):
 
@@ -1358,7 +1348,7 @@ class UITrackCanvas(UIElement):
                 point = self.track_spine[int(width_point_index)]
             pygame.draw.circle(overlay, color=(137, 207, 240, 200), center=point, radius= self.point_size + 2)
 
-        invalid_walls = self.check_validity(outer_wall_points, inner_wall_points)
+        invalid_walls = self.get_validity_issues(outer_wall_points, inner_wall_points)
         for wall in invalid_walls:
             r.draw_line(overlay, (255, 0, 0, 150), wall[0], wall[1], 15)
         self.image.blit(overlay, (0, 0))
@@ -1373,16 +1363,33 @@ class UITrackCanvas(UIElement):
             if i != len(outer_wall_points) - 1:
                 self.shg_grid.hash_segment((hash_points[i], hash_points[i + 1]), i)
 
-
     def generate_all_controls(self):
         self.control_points.clear()
-        for i in range(len(self.anchor_points) -1):
-            p0 = self.anchor_points[i-1] if i > 0 else self.anchor_points[i]
-            p1 = self.anchor_points[i]
-            p2 = self.anchor_points[i+1]
-            p3 = self.anchor_points[i+2] if i < len(self.anchor_points) - 2 else self.anchor_points[i+1]
-            self.control_points.extend(self.get_bezier_points(p0, p1, p2, p3))
+        if len(self.anchor_points) < 2:
+            return
 
+        for i in range(len(self.anchor_points)  - 1):
+            p1 = self.anchor_points[i]
+            p2 = self.anchor_points[i + 1]
+
+            if self.is_track_complete:
+                # wrap neighbors for closed track:
+                p0 = self.anchor_points[i - 1] if i - 1 >= 0 else self.anchor_points[-2]
+                p3 = self.anchor_points[i + 2] if i + 2 < len(self.anchor_points)  else self.anchor_points[1]
+            else:
+                # keep current behaviour for open track
+                p0 = self.anchor_points[i - 1] if i - 1 >= 0 else p1
+                p3 = self.anchor_points[i + 2] if i + 2 < len(self.anchor_points)  else p2
+
+            b1, b2 = self.get_bezier_points(p0, p1, p2, p3)
+            self.control_points.append(b1)
+            self.control_points.append(b2)
+
+        # ensure the handle is mirrored at connection point for closed tracks
+        if self.is_track_complete and len(self.control_points) >= 2:
+            handle_point = self.anchor_points[0]  # anchor at seam
+            mirror_handle_translation = self.control_points[0] - handle_point
+            self.control_points[-1] = handle_point - mirror_handle_translation
 
     @staticmethod
     def get_bezier_points(p0, p1, p2, p3):
@@ -1390,26 +1397,30 @@ class UITrackCanvas(UIElement):
         b2 = p2 - (p3 - p1) / 6
         return b1, b2
 
-    def check_validity(self, outer_wall_points, inner_wall_points):
+    def get_validity_issues(self, outer_wall_points, inner_wall_points):
         self.hash_grid(outer_wall_points, inner_wall_points)
 
-        def check_wall_validity(wall_points, wall_start_index):
+        def check_wall_validity(wall_points, hashed_grid_start_index):
             hashed_points = outer_wall_points + inner_wall_points
             invalid_segments = []
             for i in range(len(wall_points) - 1):
                 segment = (wall_points[i], wall_points[i + 1])
                 collisions = self.shg_grid.return_all_collisions(segment, hashed_points)
-
-                actual_segment_index = wall_start_index + i
+                hashed_segment_index = hashed_grid_start_index + i
 
                 for collision_index in collisions:
-                    distance = min(abs(collision_index - actual_segment_index), len(wall_points) - 1 - abs(collision_index - actual_segment_index))
+                    distance = min(abs(collision_index - hashed_segment_index),
+                                   len(wall_points) - 1 - abs(collision_index - hashed_segment_index))
+
+                    # Checking for collision between walls that are not adjacent/very close (preventing false positives)
                     if ((0< collision_index < len(hashed_points)-1 and 0< i < len(hashed_points)-1)and
                             (distance > 4)):
                         invalid_segments.append((hashed_points[collision_index], hashed_points[collision_index + 1]))
 
+                # Checking for kinks in the track walls
                 if Vector2(segment[0] - segment[1]).length_squared() > 4000:
                     invalid_segments.append(segment)
+
             return invalid_segments
 
         invalid_outer_walls = check_wall_validity(outer_wall_points, 0)

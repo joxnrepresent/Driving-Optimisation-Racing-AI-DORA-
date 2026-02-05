@@ -35,6 +35,7 @@ class Track(Sprite):
 
         self.rect = Rect(position)
         self.image = Surface((self.rect.width, self.rect.height), SRCALPHA)
+        self.image.fill("white")
         self.draw_track()
 
     # Cast ray and return shortened ray up till nearest point of intersection
@@ -46,6 +47,7 @@ class Track(Sprite):
         if not hit_point:
             hit_point = ray_end
         normalised_distance = ((hit_point - ray_start).length_squared() / (ray_end-ray_start).length_squared())
+        pygame.draw.line(self.image, (0, 255, 255), ray_start, hit_point)
         return hit_point, sqrt(normalised_distance)
 
     # Checks each border of the hitbox for collision with track segments in the cells it passes through
@@ -60,21 +62,27 @@ class Track(Sprite):
     # Draws all track segments as lines
     # Colour alternates between black and red
     def draw_track(self):
-        self.image.fill((0, 0, 0, 0))
-        track_polygon = self.outer_wall_points + self.inner_wall_points
-        pygame.draw.polygon(self.image, (80, 80, 80), track_polygon)
-        self.draw_checkered_line()
-        self.draw_alternating_wall()
+        # self.image.fill((0, 0, 0, 0))
+        # track_polygon = self.outer_wall_points + self.inner_wall_points
+        # pygame.draw.polygon(self.image, (80, 80, 80), track_polygon)
+        # self.draw_checkered_line()
+        # self.draw_alternating_wall()
+        #
+        #
+        # game_core.game_mode.debug_elements["track spine"] = [self.track_spine]
+        pass
 
-
-        game_core.game_mode.debug_elements["track spine"] = [self.track_spine]
 
     def draw_alternating_wall(self,width=10):
         is_black = True
+        current_segment_length = 0
         for segment in self.wall_segments:
-            color = (0, 0, 0) if is_black else (200, 0, 0)
+            color = (200, 200, 200) if is_black else (200, 0, 0)
             pygame.draw.line(self.image, color, segment[0], segment[1], width)
-            is_black = not is_black
+            current_segment_length += Vector2(segment[0] - segment[1]).length()
+            if current_segment_length >= 50:
+                current_segment_length = 0
+                is_black = not is_black
 
     def draw_checkered_line(self, thickness = 20, checkered_rows = 10):
 
@@ -99,6 +107,14 @@ class Track(Sprite):
 
             pygame.draw.polygon(self.image, color, [p1, p2, p3, p4])
 
+    def get_starting_orientation(self):
+        start_line = Vector2(self.outer_wall_points[0] - self.inner_wall_points[0])
+        unit_vector = start_line.normalize()
+        normal_vector = Vector2(-unit_vector.y, unit_vector.x)
+        return normal_vector.as_polar()[1] + 270
+
+    def update(self, *args, **kwargs):
+        self.draw_track()
 
 class SpatialHashGrid:
     """
@@ -140,35 +156,49 @@ class SpatialHashGrid:
 
     def dda_grid_traverse(self, segment, on_visit):
         (x1, y1), (x2, y2) = segment
+
+        # Change in x and change in y
         dx = x2 - x1
         dy = y2 - y1
-        ix, iy = self.get_cell_index_of_point((x1, y1))
-        ex, ey = self.get_cell_index_of_point((x2, y2))
 
-        step_x = r.sign(dx)
+        # Start cell indices
+        start_cell_x, start_cell_y = self.get_cell_index_of_point((x1, y1))
+        end_cell_x, end_cell_y = self.get_cell_index_of_point((x2, y2))
+
+        """
+        parameter t -> distance along the segment [0,1]
+        """
+        cell_step_x = r.sign(dx)
         t_delta_x = (self.cell_size / abs(dx)) if dx != 0 else float('inf')
-        next_boundary_x = (ix + 1) * self.cell_size if step_x == 1 else ix * self.cell_size
+        next_boundary_x = (start_cell_x + 1) * self.cell_size if cell_step_x == 1 else start_cell_x * self.cell_size
         t_max_x = (next_boundary_x - x1) / dx if dx != 0 else float("inf")
 
-        step_y = r.sign(dy)
+        cell_step_y = r.sign(dy)
         t_delta_y = (self.cell_size / abs(dy)) if dy != 0 else float('inf')
-        next_boundary_y = (iy + 1) * self.cell_size if step_y == 1 else iy * self.cell_size
+        next_boundary_y = (start_cell_y + 1) * self.cell_size if cell_step_y == 1 else start_cell_y * self.cell_size
         t_max_y = (next_boundary_y - y1) / dy if dy != 0 else float("inf")
 
-        max_steps = (abs(ex - ix) + abs(ey - iy) + 10)
+        # Set maximum number of steps
+        max_steps = (abs(end_cell_x - start_cell_x) + abs(end_cell_y - start_cell_y) + 10)
         for i in range(max_steps):
-            result = on_visit(ix, iy)
+
+            # Call on visit function at each step
+            result = on_visit(start_cell_x, start_cell_y)
+
             if result is not None:
+                # Return if the required value has been found (Like collision point).
                 return result
 
-            if ix == ex and iy == ey:
+            if start_cell_x == end_cell_x and start_cell_y == end_cell_y:
+                # Exit if end of segment is reached
                 break
 
+            # Step in the x or y direction depending upon distance to boundary
             if t_max_x < t_max_y:
-                ix += step_x
+                start_cell_x += cell_step_x
                 t_max_x += t_delta_x
             else:
-                iy += step_y
+                start_cell_y += cell_step_y
                 t_max_y += t_delta_y
 
     def hash_segment(self, wall_segment, segment_index):

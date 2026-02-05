@@ -146,5 +146,3 @@ class MCACModel(RLModel):
                 f"Value:{avg_value:.3f} \n"
                 f"Critic Loss:{avg_critic_loss:.3f} \n"
                 f"Exploration (Std) :{avg_std:.3f} \n")
-
-        # print(f"Value range: [{values.min():.2f}, {values.max():.2f}] | Return range: [{returns.min():.2f}, {returns.max():.2f}]")
