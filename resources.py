@@ -8,25 +8,52 @@ from numpy import  exp
 from abc import  ABC, abstractmethod
 
 """
-This module contains shared resources like constants, game-state variables (singletons), and utility 
-functions/methods used throughout the project.
+Shared resources and utilities.
+
+GameCore object for managing program rendering and event handling. 
+RaceTimeManager for lap timing.
+Utility functions for geometry, track generation, and rendering.
+
+Classes:
+    GameCore: Central game state manager
+    RaceTimeManager: Lap timing and race statistics
+
+Functions:
+    Utility functions for images, maths, geometry, and track generation
 """
+
 #---------------------------------------------------------------------------------------------------------------------#
 
 class GameCore:
+    """
+    Central game state manager.
+
+    Attributes:
+        main_screen (Surface): Pygame main display
+        screen_dimensions (tuple): Screen width and height (pixels)
+        clock (Clock): Pygame clock for frame timing
+        sim_time_ms (int): Accumulated simulation time (including speedup)
+        dt_ms (int): time between frames
+        pressed_keys (set): Currently pressed keyboard keys
+        pressed_buttons (set): Currently pressed buttons
+        game_mode (GameMode): Current game mode
+        current_model (str): Currently loaded model file name
+        current_track (str): Currently loaded track file name
+        gui_manager (UIManager): pygame_gui manager
+        game_sprites (Group): Current sprites on screen
+        debug_elements (dict): Debug visualisation elements
+    """
+    # Program constants
+    FRAME_RATE = 60
+    TICK_SPEEDUP = 1
+    SCREEN_FILL = (18, 20, 28)
+    METER_PIXEL_CONVERSION = 9
     def __init__(self):
-        # Program constants
+        # Program flags
         self.is_debugging = False
-        self.unexpected_error_msg = None
         self.is_paused = False
         self.load_model = False
-        self.frame_rate = 60
-        self.tick_speedup = 1
-        self.screen_fill = (18, 20, 28)
-        self.current_model = None
-        self.current_track = None
-        self.meter_pixel_conversion = 9
-        self.eps = 1e-9
+        self.unexpected_error_msg = None
 
         # Core program components
         self.main_screen = pygame.display.set_mode((0,0), pygame.FULLSCREEN)
@@ -37,12 +64,21 @@ class GameCore:
         self.pressed_keys = set()
         self.pressed_buttons = set()
         self.game_mode = None
+        self.current_model = None
+        self.current_track = None
 
+        # Render sets
         self.gui_manager = None
         self.game_sprites = pygame.sprite.Group()
         self.debug_elements = defaultdict(list)
 
     def set_game_mode(self, new_mode):
+        """
+        Clean up sprites, gui and debugger and switch to new game mode
+
+        Args:
+            new_mode (GameMode): Game mode class to initialise
+        """
         self.game_sprites.empty()
         self.debug_elements.clear()
         self.gui_manager.clear_and_reset()
@@ -50,7 +86,8 @@ class GameCore:
         self.game_mode = new_mode()
 
     def render(self):
-        self.main_screen.fill(self.screen_fill)
+        """Render sprites, GUI and debug overlays to screen."""
+        self.main_screen.fill(self.SCREEN_FILL)
         self.game_sprites.draw(self.main_screen)
         # Debug graphics
         if self.is_debugging:
@@ -73,6 +110,12 @@ class GameCore:
 
 
     def cache_events(self, event):
+        """
+        Process user event and cache inputs.
+
+        Args:
+            event (pygame.Event): Event to process
+        """
         self.gui_manager.process_events(event)
         if event.type == pygame.QUIT:
             exit()
@@ -84,12 +127,20 @@ class GameCore:
             self.pressed_buttons.add(event.ui_element)
 
     def process_frame(self):
+        """Process single frame of game logic."""
         if self.game_mode:
             self.game_mode.event_handle()
             self.game_mode.update()
         game_core.pressed_buttons.clear()
 
     def set_file(self, directory, filename):
+        """
+        Set current selected file.
+
+        Args:
+            directory (str): File directory (Tracks or Models)
+            filename (str): Filename (no extension)
+        """
         if directory == "Tracks":
             self.current_track = f"{directory}/{filename}.json"
         else:
@@ -99,6 +150,18 @@ game_core = GameCore()
 
 
 class RaceTimeManager:
+    """
+    Lap timer.
+
+    Tracks lap completion times for multiple cars and compute race statistics.
+
+    Attributes:
+        start_time (int): Race start time in milliseconds
+        is_all_laps_finished (list[bool]): Completion flags for each car
+        lap_times (list[list[int]]): Lap completion times for each lap of each car
+        num_of_laps (int): Number of laps in race
+    """
+
     def __init__(self):
         self.start_time = None
         self.is_all_laps_finished = [False]
@@ -106,6 +169,7 @@ class RaceTimeManager:
         self.num_of_laps = 0
 
     def initialise_manager(self, num_of_cars):
+        """Initialise race time manager."""
         self.start_time = game_core.sim_time_ms
         self.is_all_laps_finished  = [False] * num_of_cars
         self.lap_times = [
@@ -114,6 +178,12 @@ class RaceTimeManager:
         ]
 
     def get_stats(self):
+        """
+        Get lap time statistics.
+
+        Returns:
+            dict: Lap times (seconds) for each car and total time (seconds)
+        """
         results = {}
 
         for car_index, car_laps in enumerate(self.lap_times):
@@ -122,20 +192,29 @@ class RaceTimeManager:
 
             for lap_i, lap_time in enumerate(car_laps):
 
-                if lap_i == 0:
-                    lap_s = (lap_time - self.start_time) / 1000
+                if lap_time is not None:
+                    if lap_i == 0:
+                        lap_s = (lap_time - self.start_time) / 1000
+                    else:
+                        lap_s = (lap_time - car_laps[lap_i - 1]) / 1000
                 else:
-                    lap_s = (lap_time - car_laps[lap_i - 1]) / 1000
+                    lap_s = None
 
                 lap_times_s.append(lap_s)
 
-            total_time_s = (car_laps[-1] - self.start_time) / 1000
+            total_time_s = (car_laps[-1] - self.start_time) / 1000 if car_laps[-1] is not None else None
 
             results[f"car {car_index}"] = lap_times_s + [total_time_s]
 
         return results
 
     def get_average_lap_time(self):
+        """
+        Calculate average lap time across all completed laps.
+
+        Returns:
+            float: Average lap time in seconds (return None if no laps completed)
+        """
         lap_durations = []
 
         for car_laps in self.lap_times:
@@ -155,6 +234,14 @@ class RaceTimeManager:
         return sum(lap_durations) / len(lap_durations) / 1000
 
     def update(self, i, laps_completed, is_lap_completed):
+        """
+        Update lap time for car.
+
+        Args:
+            i (int): Car index
+            laps_completed (int): Number of laps completed
+            is_lap_completed (bool): if lap was completed
+        """
         if is_lap_completed:
             self.lap_times[i][laps_completed - 1] = game_core.sim_time_ms
             if laps_completed >= self.num_of_laps:
@@ -162,12 +249,30 @@ class RaceTimeManager:
 
 """Utility functions"""
 
-# Loads an image using the file name (png only)
+
 def set_image(image):
+    """
+    Load image (.png only).
+
+    Args:
+        image (str): Image filename
+
+    Returns:
+        Surface: Loaded image with correct format
+    """
     return pygame.image.load(f'Images/{image}.png').convert_alpha()
 
-# Returns the sign of the input
+
 def sign(x):
+    """
+    Sign of input.
+
+    Args:
+        x (float): Number
+
+    Returns:
+        int: 1 if positive, -1 if negative, 0 if zero
+    """
     if x > 0:
         return 1
     elif x < 0:
@@ -175,25 +280,45 @@ def sign(x):
     else:
         return 0
 
-# Keeps input value within a range with an upper and lower limit
 def clamp_value(value, lower_limit, upper_limit):
+    """
+       Clamp value within range.
+
+       Args:
+           value (float): current value
+           lower_limit (float): min value
+           upper_limit (float): max value
+
+       Returns:
+           float: clamped value
+       """
     return max(lower_limit, min(value, upper_limit))
 
-# Wraps a value by looping to the lower limit when the upper limit is crossed
 def wrap_value(value, lower_limit, upper_limit):
+    """
+    Wrap value within range.
+
+    Args:
+       value (float): current value
+       lower_limit (float): min value
+       upper_limit (float): max value
+
+    Returns:
+       float: wrapped value
+    """
     return ((value - lower_limit) % (upper_limit-lower_limit)) + lower_limit
 
-def load_track_from_file(filename):
-    with open("Tracks/"+filename + ".txt", "r") as file:
-        for line in file:
-            coordinates = line.split(',')
-            points = []
-            for i in range(0, len(coordinates) - 1, 2):
-                points.append((float(coordinates[i]), float(coordinates[i + 1])))
-            strokes.append(points)
-        return strokes
-
 def load_bezier_track(filename, enforce_centering = False):
+    """
+    Load bezier track from JSON file.
+
+    Args:
+        filename (str): Track filename
+        enforce_centering (bool): Whether track is centered on screen
+
+    Returns:
+        tuple: (anchor_points, control_points, widths_dict)
+    """
     with open(f"Tracks/{filename}.json", "r") as f:
         data = json.load(f)
 
@@ -201,6 +326,7 @@ def load_bezier_track(filename, enforce_centering = False):
     control_points = [Vector2(point[0], point[1]) for point in data["controls"]]
     widths_dict = {float(k): v for k, v in data["widths"].items()}
 
+    # Calculate bounding box
     if enforce_centering:
         all_points = anchor_points + control_points
 
@@ -213,6 +339,7 @@ def load_bezier_track(filename, enforce_centering = False):
         screen_center = (game_core.screen_dimensions[0] / 2, (game_core.screen_dimensions[1] - 200)/2)
         translation = screen_center - track_center
 
+        #Translate all points
         anchor_points = [p + translation for p in anchor_points]
         control_points = [p + translation for p in control_points]
 
@@ -225,6 +352,13 @@ def draw_line(surface, colour, p1, p2, width = 3):
 
 
 def draw_alternating_line_segments(surface, points):
+    """
+    Draw alternating black and red segments.
+
+    Args:
+        surface (Surface): Surface to draw line segments on to
+        points (list[Vector2]): Points to be connected by lines.
+    """
     is_black = True
     if points:
         for i in range(len(points)-1):
@@ -236,6 +370,14 @@ def draw_alternating_line_segments(surface, points):
             is_black = not is_black
 
 def draw_grid(surface, color=(100,250,100, 100 ), cell_size = 20):
+    """
+    Draw light grid lines overlay on screen
+
+    Args:
+        surface (Surface): screen to draw on to
+        colour (tuple): Grid lines colour
+        cell_size (int): Side length of each grid cell.
+    """
     w,h = surface.get_size()
     s = pygame.Surface((w,h), pygame.SRCALPHA)
     for x in range(0, w, cell_size):
@@ -245,6 +387,15 @@ def draw_grid(surface, color=(100,250,100, 100 ), cell_size = 20):
     surface.blit(s, (0,0))
 
 def get_line_segments_intersection(seg1, seg2):
+    """
+    Gets the intersection point of two line segments
+
+    Args:
+        seg1 (tuple), seg2 (tuple) : end points of line segment ((x1,y1), (x2,y2))
+
+    Returns:
+        tuple: x-y coordinates of intersection point. None if no intersection.
+    """
     (x1, y1), (x2, y2) = seg1
     (x3, y3), (x4, y4) = seg2
 
@@ -257,8 +408,9 @@ def get_line_segments_intersection(seg1, seg2):
     alpha_numerator = (x3 - x1) * (y4 - y3) - (y3 - y1) * (x4 - x3)
     beta_numerator = (x3 - x1) * (y2 - y1) - (y3 - y1) * (x2 - x1)
 
-    if abs(denominator) < game_core.eps:
-        if abs(alpha_numerator) < game_core.eps and abs(beta_numerator) < game_core.eps:
+    # Check for parallel
+    if abs(denominator) < 1e-12:
+        if abs(alpha_numerator) < 1e-12 and abs(beta_numerator) < game_core.eps:
 
             dot_prod = (x2 - x1) * (x4 - x3) + (y2 - y1) * (y4 - y3)
 
@@ -267,6 +419,7 @@ def get_line_segments_intersection(seg1, seg2):
             overlap_start_y = max(min(y1, y2), min(y3, y4))
             overlap_end_y = min(max(y1, y2), max(y3, y4))
 
+            # Check for overlap
             if overlap_start_x <= overlap_end_x and overlap_start_y <= overlap_end_y:
 
                 if min(x3, x4) <= x1 <= max(x3, x4) and min(y3, y4) <= y1 <= max(y3, y4):
@@ -280,6 +433,7 @@ def get_line_segments_intersection(seg1, seg2):
                     return p2
         return None
 
+    # Standard intersection
     alpha = alpha_numerator/denominator
     beta = beta_numerator/denominator
 
@@ -292,6 +446,16 @@ def get_line_segments_intersection(seg1, seg2):
 
 
 def point_segment_distance(point, segment):
+    """
+    Gets pythagorean distance from point to a line segment
+
+    Args:
+        point (tuple): (x,y) coordinates of a point
+        segment (tuple): End points of a line segment ((x1,x2),(y1,y2))
+
+    Returns:
+        float: Closest distance
+    """
     a, b = segment
     ap = point - a
     ab = a - b
@@ -302,11 +466,17 @@ def point_segment_distance(point, segment):
     closest_point = a + ab * t
     return (point - closest_point).length()
 
-
-def transformed_sigmoid(x):
-    return (2.0 / (1.0 + exp(-x)))-1
-
 def generate_bezier_track_spine(anchor_points, control_points):
+    """
+    Generate track spine from anchor and control points
+
+    Args:
+        anchor_points (list[Vector2]): anchor point coordinates
+        control_points(list[Vector2]): control points coordinates
+
+    Returns:
+        list[Vector2]: Points to connect to form spine
+    """
     track_spine = []
     for i in range(len(anchor_points) - 1):
         p1, p2 = anchor_points[i], anchor_points[i + 1]
@@ -314,12 +484,24 @@ def generate_bezier_track_spine(anchor_points, control_points):
         track_spine.extend(generate_spine_points(p1, b1, b2, p2))
 
     cleaned_track_spine = []
+    # Remove points that are too close together
     for point in track_spine:
         if not cleaned_track_spine or (point - cleaned_track_spine[-1]).length_squared() > 15:
             cleaned_track_spine.append(point)
     return cleaned_track_spine
 
 def generate_spine_points(p1, b1,b2,p2, resolution = 100):
+    """
+    Generate spine points for one bezier segment
+
+    Args:
+        p1, p2: anchor end points
+        b1, b2: control points
+        resolution: max points for the segment
+
+    Returns:
+        list[Vector2]: Points of spine segment.
+    """
     spine_points = []
     for i in range(resolution + 1):
         t = i/resolution
@@ -329,6 +511,16 @@ def generate_spine_points(p1, b1,b2,p2, resolution = 100):
     return spine_points
 
 def de_casteljau(points, t):
+    """
+    Evaluate bezier curve
+
+    Args:
+        points (list[Vector2]): control points
+        t (float): Parameter [0, 1]
+
+    Returns:
+        list: Points of bezier curve.
+    """
     if len(points) == 1:
         # Base case
         return points[0]
@@ -340,7 +532,20 @@ def de_casteljau(points, t):
     return de_casteljau(new_points, t)
 
 def generate_catmull_rom_track_spine(anchor_points, is_complete):
+    """
+    Generate catmull-rom spline from anchors
+
+    Args:
+        anchor_points (list[Vector2]): anchor point  coordinates.
+        is_complete (boolean): Whether to generate track as continuous loop.
+
+    Returns:
+        list[Vector2]: Spline curve points
+    """
     def catmull_rom(p0, p1, p2, p3, resolution = 100):
+        """
+        Helper function to generate each segment
+        """
         # Caching coefficients of cubic in terms of t (at^3 + bt^2 + ct + d)
         a = -p0 + 3*p1 - 3*p2 + p3
         b = 2*p0 - 5*p1 + 4*p2 - p3
@@ -359,6 +564,7 @@ def generate_catmull_rom_track_spine(anchor_points, is_complete):
 
     track_spine = []
     if is_complete:
+        # Handle wraparound
         for i in range(len(anchor_points)-1):
             p0 = anchor_points[(i - 1) % (len(anchor_points)-1)]
             p1 = anchor_points[i]
@@ -390,15 +596,28 @@ def generate_catmull_rom_track_spine(anchor_points, is_complete):
 
 
 def generate_track_walls(track_spine, widths_dict, is_track_complete = False):
+    """
+    Generate track walls from spine.
+
+    Args:
+        track_spine (list[Vector2]): Track spine points
+        widths_dict (dict): Width values (fractional positions)
+        is_track_complete (bool): Whether to connect walls as continuous loop.
+
+    Returns:
+        tuple(list[Vector2], list[Vector2]): lists of outer and inner wall point coordinates.
+    """
     outer_wall_points = []
     inner_wall_points = []
+
+    # Convert width position to track spine indices.
     width_point_locations = list(widths_dict.keys())
     width_point_locations.sort()
     width_indices = []
     for location in width_point_locations:
         width_indices.append(math.floor(location * (len(track_spine)-1)))
 
-
+    # Interpolate between width points
     for i in range(1, len(width_indices)):
         start_width_index, end_width_index = width_point_locations[i - 1], width_point_locations[i]
         start_track_index, end_track_index = width_indices[i - 1], width_indices[i]
@@ -428,6 +647,8 @@ def generate_track_walls(track_spine, widths_dict, is_track_complete = False):
 
 
             def check_wall_point_validity(wall_point):
+                """Check if wall point is too close to track spine. Ensures smooth corners."""
+
                 valid_distance = (segment_width - 3) ** 2  # Included padding
                 tollerence_limit = 80
                 for j in range(t - tollerence_limit, t + tollerence_limit):

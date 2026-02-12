@@ -27,7 +27,7 @@ import pygame_gui
 import cars
 import resources as r
 from resources import game_core, RaceTimeManager
-from gui_custom_elements import (UIGaugeMeter, UITrackCanvas, UIFileSelector,
+from gui_custom_elements import (UIGaugeMeter, UITrackCanvas, UIFileBrowser,
                                  UIOptionSelector, UIEndScreen, UIModelCreator)
 from track import Track
 from cars import PlayerCar, AICar
@@ -55,7 +55,7 @@ class GameMode(ABC):
 
     def __init__(self):
         """Initialise game mode with pause menu and manager."""
-        game_core.tick_speedup = 1
+        game_core.TICK_SPEEDUP = 1
         self.game_sprites = game_core.game_sprites
         self.debug_elements = game_core.debug_elements
         self.gui_manager = game_core.gui_manager
@@ -158,6 +158,7 @@ class MainMenu(GameMode):
         super().__init__()
 
         screen_w, screen_h = game_core.screen_dimensions
+        game_core.is_debugging = False
 
         self.options_panel = UIPanel(
             relative_rect=pygame.Rect(0, 0, screen_w, screen_h),
@@ -263,7 +264,7 @@ class MainMenu(GameMode):
 
     def update(self, *args):
         """Update GUI manager."""
-        self.gui_manager.update(1 / game_core.frame_rate)
+        self.gui_manager.update(1 / game_core.FRAME_RATE)
 
     def show_error(self, error_msg):
         """
@@ -304,7 +305,7 @@ class TrackMakerUI(GameMode):
         menu_button (UIButton): Returns to main menu
         error_label (UILabel): Displays errors if there are issues with saving/loading tracks
         ack_error_button (UIButton): Acknowledges error
-        file_selector (UIFileSelector): File selector screen for saving and loading
+        file_selector (UIFileBrowser): File selector screen for saving and loading
         width_slider (UIHorizontalSlider): Slider for changing track width.
     """
 
@@ -411,7 +412,7 @@ class TrackMakerUI(GameMode):
 
     def update(self):
         """Update GUI manager. Create width slider if in width mode,"""
-        self.gui_manager.update(1 / game_core.frame_rate)
+        self.gui_manager.update(1 / game_core.FRAME_RATE)
         if self.canvas.mode == "width":
             self.changing_widths()
 
@@ -523,19 +524,19 @@ class TrackMakerUI(GameMode):
 
     def save_track(self):
         """Open file selector screen for saving track."""
-        self.file_selector = UIFileSelector(pygame.Rect((0, 0), game_core.screen_dimensions),
-                                            self.gui_manager,
+        self.file_selector = UIFileBrowser(pygame.Rect((0, 0), game_core.screen_dimensions),
+                                           self.gui_manager,
                                             "Tracks",
                                             "save",
-                                            lambda filename: self.write_track_data(filename))
+                                           lambda filename: self.write_track_data(filename))
 
     def load_track(self):
         """Open file selector screen for loading track."""
-        self.file_selector = UIFileSelector(pygame.Rect((0, 0), game_core.screen_dimensions),
-                                            self.gui_manager,
+        self.file_selector = UIFileBrowser(pygame.Rect((0, 0), game_core.screen_dimensions),
+                                           self.gui_manager,
                                             "Tracks",
                                             "load",
-                                            lambda filename: self.load_track_data(filename),)
+                                           lambda filename: self.load_track_data(filename), )
 
     def write_track_data(self, filename=game_core.current_track):
         """
@@ -593,7 +594,7 @@ class CarSimulation(GameMode):
         reset_button (UIButton): Restart simulation
         debugger_button (UIButton): Toggle debugger visuals
         menu_button (UIButton): Return to main menu
-        track_loader (UIFileSelector): File screen for track selection
+        track_loader (UIFileBrowser): File screen for track selection
         num_of_laps_setter (UIOptionSelector): Option screen for setting laps
         track (Track): Track sprite
         cars (list[Car]): Cars being simulated
@@ -654,12 +655,12 @@ class CarSimulation(GameMode):
 
     def initialise_track(self):
         """Open file selector for track loading."""
-        self.track_loader = UIFileSelector(pygame.Rect((0, 0), game_core.screen_dimensions),
-                                           self.gui_manager,
+        self.track_loader = UIFileBrowser(pygame.Rect((0, 0), game_core.screen_dimensions),
+                                          self.gui_manager,
                                            "Tracks",
                                            "load",
-                                           callback=lambda filename: self.set_track(filename),
-                                           return_mode= MainMenu)
+                                          callback=lambda filename: self.set_track(filename),
+                                          return_mode= MainMenu)
 
 
     def set_track(self, filename):
@@ -714,7 +715,7 @@ class CarSimulation(GameMode):
         check for race completion and updates time manager on lap completions
         Skips updates if paused or race finished.
         """
-        self.gui_manager.update(1 / game_core.frame_rate)
+        self.gui_manager.update(1 / game_core.FRAME_RATE)
 
         if game_core.is_paused or self.end_screen is not None:
             return
@@ -911,10 +912,12 @@ class RacingAI(CarSimulation):
     Attributes:
        state_size (int): Size of state vector for AI (sensors + speed + steering)
        rl_model (REINFORCEModel): Loaded AI model
-       model_loader (UIFileSelector): File selector screen for model selection
+       controls_toggle_button (UIButton): Switch between keyboard and slider steering
+       model_loader (UIFileBrowser): File selector screen for model selection
     """
 
     def __init__(self, state_size=15):
+        """Initialise racing mode with player controls."""
         super().__init__(num_of_cars=2)
 
         self.state_size = state_size
@@ -931,20 +934,32 @@ class RacingAI(CarSimulation):
         self.model_loader = None
 
     def set_track(self, filename):
+        """
+        Load track and initialise RL model selection.
 
+        Args:
+            filename (str): Track file to load
+        """
         super().set_track(filename)
         if r.game_core.unexpected_error_msg is None:
             self.initialise_rl_model()
 
     def initialise_rl_model(self):
-        self.model_loader = UIFileSelector(pygame.Rect((0, 0), game_core.screen_dimensions),
-                                           self.gui_manager,
+        """Open file selector for loading raceable AI model."""
+        self.model_loader = UIFileBrowser(pygame.Rect((0, 0), game_core.screen_dimensions),
+                                          self.gui_manager,
                                            "Models",
                                            "load raceable",
-                                           callback=lambda filename: self.set_model(filename),
-                                           return_mode=MainMenu)
+                                          callback=lambda filename: self.set_model(filename),
+                                          return_mode=MainMenu)
 
     def set_model(self, filename=None):
+        """
+        Load AI model from file and extract architecture.
+
+        Args:
+            filename (str): Model file to load
+        """
         try:
             save_data = np.load(f"Models/{filename}.npy", allow_pickle=True).item()
             hidden_layer_sizes = []
@@ -965,20 +980,26 @@ class RacingAI(CarSimulation):
 
 
     def init_cars(self):
+        """Create player car and AI car at track start position."""
         if self.cars:
             self.game_sprites.remove(self.cars[0], self.cars[1])
             self.cars[0].delete_control_panel()
-        self.cars = [PlayerCar(self.track.track_spine[0]), AICar(self.track.track_spine[0])]
+        self.cars = [PlayerCar(self.track.track_spine[0],starting_orientation=self.track.get_starting_orientation()),
+                     AICar(self.track.track_spine[0],starting_orientation=self.track.get_starting_orientation())]
         self.game_sprites.add(self.cars[0], self.cars[1])
         self.debug_elements["hitboxes"].extend([self.cars[0].hitbox, self.cars[1].hitbox])
 
 
     def update(self, *args):
+        """Update both cars. AI car controlled by model, player by input. Reset individually on crash."""
         super().update()
         if game_core.is_paused or self.end_screen is not None:
             return
         for i, car in enumerate(self.cars):
             if self.time_manager.is_all_laps_finished[i]:
+                if game_core.sim_time_ms - self.time_manager.lap_times[i][-1] > 60 * 1000:
+                    results = self.get_results()
+                    self.display_end_screen(results)
                 continue
             if self.is_crashed[i]:
                 car.reset()
@@ -995,16 +1016,22 @@ class RacingAI(CarSimulation):
 
 
     def event_handle(self):
+        """Handle steering control toggle for player car."""
         if self.controls_toggle_button in game_core.pressed_buttons:
             self.cars[0].toggle_slider()
             if self.cars[0].is_slider_enabled:
                 self.controls_toggle_button.set_text("Disable steer slider")
             else:
                 self.controls_toggle_button.set_text("Enable steer slider")
-
         super().event_handle()
 
     def display_end_screen(self, results):
+        """
+        Display winner and comparative lap times.
+
+        Args:
+            results (dict): Contains lap times for both player (car 0) and AI (car 1)
+        """
         player_lap_times = results["car 0"]
         player_results_content = ""
         for i in range(len(player_lap_times) - 1):
@@ -1017,7 +1044,10 @@ class RacingAI(CarSimulation):
             ai_results_content += f"Lap {i+1}: {ai_lap_times[i]} \n"
         ai_results_content += f"\nTotal Time: {ai_lap_times[-1]}"
 
-        winner = "Player" if player_lap_times[-1] < ai_lap_times[-1] else "AI"
+        if player_lap_times[-1] is not None and ai_lap_times[-1] is not None:
+            winner = "Player" if player_lap_times[-1] < ai_lap_times[-1] else "AI"
+        else:
+            winner = "Player" if ai_lap_times[-1] is None else "AI"
 
         end_screen_content = (f"Player Lap times: \n" + player_results_content + "\n\n" +
                               f"AI Lap times: \n" + ai_results_content)
@@ -1031,9 +1061,50 @@ class RacingAI(CarSimulation):
                                       )
 
 class AITrainingEnvironment(CarSimulation):
-    """AI-powered car simulation with reinforcement learning."""
+    """
+    Reinforcement learning training mode with performance tracking.
 
-    def __init__(self, simulation_size=12, state_size=15):
+    Trains RL models (REINFORCE or MCAC) by simulating multiple AI cars simultaneously.
+    Tracks performance metrics, implements model rollback on performance degradation, and displays real-time training
+    statistics.
+
+    Attributes:
+        tick_speedup_button (UIButton): Adjust simulation speed
+        save_ai_button (UIButton): Save current model
+        episode_num (int): Current episode number
+        actions (ndarray): Actions for all cars
+        stuck_timer (list[int]): Number of consecutive frames each car has been idle for
+        prev_progress (list[float]): Previous progress for each car
+        max_epoch_progress (list[float]): Maximum progress achieved this episode
+        historic_progress (list[float]): Rolling window of max progress values
+        time_step_rewards_breakdown (list): Reward components per timestep
+        epoch_rewards_breakdown (ndarray): Total rewards of current episode
+        performance_history (list[float]): Recent performance history
+        best_hist_avg (float): Best historical average performance
+        best_model_params (dict): Parameters of best model
+        rollback_counter (int): Number of times model has been rolled back
+        avg_progress (float): Average progress achieved
+        max_progress (float): Maximum progress achieved
+        avg_lap_time (float): Average lap time
+        best_lap_time (float): Best lap time
+        model_type (str): Model type
+        rl_model (RLModel): RL model being trained
+        is_model_raceable (bool): Whether model has achieved sufficient efficiency
+        model_type_selector (UIOptionSelector): Model type selection screen
+        model_loader (UIFileBrowser): Model loading screen
+        hyper_param_setter (UIModelCreator): Hyperparameter configuration screen
+        model_saver (UIFileBrowser): Model saving screen
+    """
+
+    HISTORY_WINDOW = 10
+    ROLLBACK_THRESHOLD = 0.7
+    REWARD_SIZE = 8
+    STUCK_LIMIT = 1000
+    STATE_SIZE = 15
+
+    PROGRESS_THRESHOLD = None
+    LAP_TIME_THRESHOLD = None
+    def __init__(self, simulation_size=12):
         super().__init__(num_of_cars=simulation_size)
         self.episode_num = 0
         self.episodes_completed_label = pygame_gui.elements.UILabel(
@@ -1046,7 +1117,7 @@ class AITrainingEnvironment(CarSimulation):
 
         self.speed_label = pygame_gui.elements.UILabel(
             relative_rect=pygame.Rect((10, 80), (280, 25)),
-            text=f'Speed: {game_core.tick_speedup}X',
+            text=f'Speed: {game_core.TICK_SPEEDUP}X',
             manager=self.gui_manager,
             container=self.pause_menu,
             object_id='#info_label'
@@ -1096,10 +1167,6 @@ class AITrainingEnvironment(CarSimulation):
             container=self.stats_panel
         )
 
-        # AI Configuration
-        self.state_size = state_size
-        self.reward_size = 8
-
         # Simulation state
         self.actions = np.zeros([self.num_of_cars, 2], np.float32)
 
@@ -1107,40 +1174,28 @@ class AITrainingEnvironment(CarSimulation):
         self.stuck_timer = [0] * self.num_of_cars
         self.prev_progress = [0.0] * self.num_of_cars
         self.max_epoch_progress = [0.0] * self.num_of_cars
-        self.stuck_limit = 1000
         self.historic_progress = [0]
+        self.performance_history = []
+        self.best_hist_avg = 0
+        self.best_model_params = None
 
         # Reward tracking
         self.time_step_rewards_breakdown = []
-        self.epoch_rewards_breakdown = np.zeros([self.num_of_cars, self.reward_size], float)
-
-        # Model management
-        self.performance_history = []
-        self.history_window = 20
-        self.rollback_threshold = 0.7
-        self.best_hist_avg = 0
-        self.best_model_params = None
+        self.epoch_rewards_breakdown = np.zeros([self.num_of_cars, self.REWARD_SIZE], float)
 
         self.rollback_counter = 0
         self.avg_progress = 0
         self.max_progress = 0
         self.avg_lap_time = None
         self.best_lap_time = None
-
-
-        self.model_type_selector = None
-        self.model_loader = None
-        self.num_of_laps_setter = None
-        self.model_saver = None
-        self.hyper_param_setter = None
-        self.model_type = None
-        self.rl_model = None
-        self.is_model_raceable= False
+        self.is_model_raceable = False
 
         self.learning_log_data = (f"Average progress: {self.avg_progress:.2f}% \n"
                                   f"Best progress: {self.max_progress:.2f}% \n"
                                   f"Average lap time: None \n"
                                   f"Fastest lap time: None \n"
+                                  f"Minimum progress threshold:{self.PROGRESS_THRESHOLD} \n" 
+                                  f"Maximum lap time threshold:{self.LAP_TIME_THRESHOLD} \n" 
                                   f"Model ready?: {self.is_model_raceable} \n"
                                   f"Number of rollback: {self.rollback_counter} \n")
 
@@ -1148,16 +1203,36 @@ class AITrainingEnvironment(CarSimulation):
 
         self.episodic_log_data = ["-----------------"]
         self.model_training_log = ("Average return: None \n"
-                                   "Average reward: None")
+                                   "Average reward: None"
+                                   f"Exploration (Std): None \n")
         self.model_training_box.set_text(self.model_training_log)
-        # Debug setup
+
+        self.model_type = None
+        self.rl_model = None
+
+        self.model_type_selector = None
+        self.model_loader = None
+        self.num_of_laps_setter = None
+        self.model_saver = None
+        self.hyper_param_setter = None
+
+
+
+
 
     def set_track(self, filename):
-        success = super().set_track(filename)
-        if success:
-            self.initialise_model_type()
+        """
+        Load track and initialise model.
+
+       Args:
+           filename (str): Track file to load
+       """
+        super().set_track(filename)
+        self.initialise_model_type()
+        self.LAP_TIME_THRESHOLD = len(self.track.track_spine) / 10
 
     def initialise_model_type(self):
+        """Open selector screen for selecting model type (REINFORCE or MCAC)."""
         self.model_type_selector = UIOptionSelector(pygame.Rect((0, 0), game_core.screen_dimensions),
                                                     self.gui_manager,
                                                     ["REINFORCE", "Monte Carlo Actor Critic (MCAC)"],
@@ -1165,18 +1240,30 @@ class AITrainingEnvironment(CarSimulation):
                                                     return_mode=MainMenu)
 
     def set_model_type(self, model_type):
+        """
+        Set model type and proceed to model loading.
+
+        Args:
+            model_type (str): Selected model type
+        """
         self.model_type = model_type
         self.initialise_rl_model()
 
     def initialise_rl_model(self):
-        self.model_loader = UIFileSelector(pygame.Rect((0, 0), game_core.screen_dimensions),
-                                           self.gui_manager,
+        """Open selector screen for loading existing model or creating new one."""
+        self.model_loader = UIFileBrowser(pygame.Rect((0, 0), game_core.screen_dimensions),
+                                          self.gui_manager,
                                            "Models",
                                            f"load {self.model_type}",
-                                           callback=lambda filename: self.set_model(filename))
-
+                                          callback=lambda filename: self.set_model(filename))
 
     def set_model(self, filename):
+        """
+        Load model from file or initialise hyperparameter configuration.
+
+        Args:
+            filename (str): Model file to load (None to create new model)
+        """
         if filename is None:
             self.initialise_hyper_params()
         else:
@@ -1189,6 +1276,7 @@ class AITrainingEnvironment(CarSimulation):
                 game_core.set_game_mode(MainMenu)
 
     def initialise_hyper_params(self):
+        """Open hyperparameter configuration screen for new model."""
         self.hyper_param_setter = UIModelCreator(
             pygame.Rect((0, 0), game_core.screen_dimensions),
             self.gui_manager,
@@ -1198,21 +1286,28 @@ class AITrainingEnvironment(CarSimulation):
         )
 
     def load_model(self, save_data):
+        """
+        Load model architecture and parameters from save data.
+
+        Args:
+            save_data (dict): Saved model parameters and configuration
+        """
         actor_layer_sizes = []
         weights = save_data["actor_params"]["weights"]
 
         for w in weights[:-1]:
             actor_layer_sizes.append(w.shape[1])
 
-        # Load basic info
+        # Load environment data
         self.is_model_raceable = save_data['is_model_raceable']
         self.episode_num = save_data['episode_num']
         self.num_of_cars = save_data.get('num_of_cars', 12)
+        self.best_model_params = copy.deepcopy(save_data['best_model_params'])
 
-        # Create the appropriate model
+        # Create model
         if save_data['model_type'] == 'REINFORCE':
             self.rl_model = REINFORCEModel(
-                input_size=self.state_size,
+                input_size=self.STATE_SIZE,
                 output_size=2,
                 hidden_layer_sizes=actor_layer_sizes,
                 activations=save_data.get('actor_activations', ['elu'] * len(actor_layer_sizes) + ['linear']),
@@ -1225,7 +1320,7 @@ class AITrainingEnvironment(CarSimulation):
                 beta2=save_data.get('actor_beta2', 0.999)
             )
         else:
-            # Extract critic architecture
+            # Critic architecture
             critic_layer_sizes = []
             weights = save_data["critic_params"]["weights"]
 
@@ -1233,7 +1328,7 @@ class AITrainingEnvironment(CarSimulation):
                 critic_layer_sizes.append(w.shape[1])
 
             self.rl_model = MCACModel(
-                input_size=self.state_size,
+                input_size=self.STATE_SIZE,
                 output_size=2,
                 actor_layer_sizes=actor_layer_sizes,
                 actor_activations=save_data.get('actor_activations', ['elu'] * len(actor_layer_sizes) + ['linear']),
@@ -1257,13 +1352,18 @@ class AITrainingEnvironment(CarSimulation):
         if hasattr(self.rl_model, 'critic') and 'critic_params' in save_data:
             self.rl_model.critic.set_params(save_data['critic_params'])
 
-        self.best_model_params = copy.deepcopy(save_data['best_model_params'])
 
     def create_model(self, config):
+        """
+        Create new RL model from configuration.
+
+        Args:
+            config (dict): Model hyperparameters and architecture
+        """
         try:
             self.num_of_cars = config['num_of_cars']
             if self.model_type == "REINFORCE":
-                self.rl_model = REINFORCEModel(input_size=self.state_size,
+                self.rl_model = REINFORCEModel(input_size=self.STATE_SIZE,
                                                output_size= 2,
                                                gamma=config['gamma'],
                                                entropy_bonus=config['entropy'],
@@ -1275,7 +1375,7 @@ class AITrainingEnvironment(CarSimulation):
                                                beta2=config['actor_adam_beta2'],
                                                init_log_std=config['actor_init_log_std'])
             else:
-                self.rl_model = MCACModel(input_size=self.state_size,
+                self.rl_model = MCACModel(input_size=self.STATE_SIZE,
                                           output_size=2,
                                           gamma=config['gamma'],
                                           l2_lambda=config['l2_lambda'],
@@ -1298,24 +1398,27 @@ class AITrainingEnvironment(CarSimulation):
             game_core.unexpected_error_msg  = f"ERROR LOADING MODEL:{str(e)}"
             game_core.set_game_mode(MainMenu)
 
-
+    def initialise_num_of_laps(self):
+        super().initialise_num_of_laps()
+        self.PROGRESS_THRESHOLD = 0.75 * self.time_manager.num_of_laps
 
     def init_cars(self):
+        """Create AI cars at track start position."""
         if self.cars:
             for car in self.cars:
                 self.game_sprites.remove(car)
-                self.debug_elements["hitboxes"].remove(car.hitbox)
+                # self.debug_elements["hitboxes"].remove(car.hitbox)
 
         self.cars = []
         for i in range(self.num_of_cars):
-            car = AICar(self.track.track_spine[0])
+            car = AICar(self.track.track_spine[0],starting_orientation=self.track.get_starting_orientation())
             self.cars.append(car)
             self.game_sprites.add(car)
             self.debug_elements["hitboxes"].append(car.hitbox)
 
 
     def update(self, *args):
-        """Update AI simulation."""
+        """Update AI simulation and handle episode completion."""
         super().update()
         if not game_core.is_paused and self.rl_model is not None:
             self._update_ai_step()
@@ -1328,9 +1431,9 @@ class AITrainingEnvironment(CarSimulation):
 
 
     def _update_ai_step(self):
-        """Perform one AI training step."""
+        """Perform single AI training step for active cars."""
         # Get current states
-        states = np.zeros((self.num_of_cars, self.state_size), np.float32)
+        states = np.zeros((self.num_of_cars, self.STATE_SIZE), np.float32)
 
         for i, car in enumerate(self.cars):
             if not self.is_crashed[i]:
@@ -1343,7 +1446,7 @@ class AITrainingEnvironment(CarSimulation):
         for i, car in enumerate(self.cars):
             if not self.is_crashed[i]:
                 car.update(self.actions[i])
-                # Get sensors again for reward computation (they're computed after the action)
+                # Get sensors again for reward computation
                 sensors = car.get_sensors(self.track, i)
                 rewards[i] = self._process_car_reward(i, car, sensors)
 
@@ -1398,7 +1501,7 @@ class AITrainingEnvironment(CarSimulation):
         else:
             self.stuck_timer[i] = 0
 
-        if self.stuck_timer[i] > self.stuck_limit:
+        if self.stuck_timer[i] > self.STUCK_LIMIT:
             self.cars[i].is_crashed = True
             return True
         return False
@@ -1435,7 +1538,7 @@ class AITrainingEnvironment(CarSimulation):
         for car in self.cars:
             car.progress = math.floor(car.progress)
         # Always reset reward tracking
-        self.epoch_rewards_breakdown = np.zeros([self.num_of_cars, self.reward_size], float)
+        self.epoch_rewards_breakdown = np.zeros([self.num_of_cars, self.REWARD_SIZE], float)
         self.time_step_rewards_breakdown = []
 
         self.reinitialise_simulation()
@@ -1460,6 +1563,8 @@ class AITrainingEnvironment(CarSimulation):
                                   f"Best progress: {self.max_progress:.2f}% \n"
                                   f"Average lap time: {rounded_avg_lap_time} \n"
                                   f"Fastest lap time: {rounded_best_lap_time} \n"
+                                  f"Minimum progress threshold: {self.PROGRESS_THRESHOLD} \n" 
+                                  f"Maximum lap time threshold: {self.LAP_TIME_THRESHOLD} \n" 
                                   f"Model ready?: {self.is_model_raceable} \n"
                                   f"Number of rollback: {self.rollback_counter} \n")
 
@@ -1483,12 +1588,12 @@ class AITrainingEnvironment(CarSimulation):
 
     def _check_rollback(self):
         """Check if model should be rolled back due to poor performance."""
-        if len(self.performance_history) < self.history_window:
+        if len(self.performance_history) < self.HISTORY_WINDOW:
             return ""
 
-        recent_performance = np.mean(self.performance_history[-self.history_window:])
+        recent_performance = np.mean(self.performance_history[-self.HISTORY_WINDOW:])
 
-        if recent_performance < self.rollback_threshold * self.best_hist_avg:
+        if recent_performance < self.ROLLBACK_THRESHOLD * self.best_hist_avg:
             # Rollback to best model
             self.rl_model.actor.set_params(self.best_model_params['actor'])
             if hasattr(self.rl_model, 'critic'):
@@ -1510,27 +1615,31 @@ class AITrainingEnvironment(CarSimulation):
         """Cache performance metrics and update best model if improved."""
         self.avg_progress = sum(car.progress for car in self.cars) / len(self.cars) * 100
         self.max_progress = max(self.max_progress, self.avg_progress)
-        self.avg_lap_time = self.time_manager.get_average_lap_time() * game_core.tick_speedup
+        if self.time_manager.get_average_lap_time() is not None:
+            self.avg_lap_time = self.time_manager.get_average_lap_time() * game_core.TICK_SPEEDUP
+        else:
+            self.avg_lap_time = None
         if self.avg_lap_time is not None:
             if self.best_lap_time is not None:
                 self.best_lap_time = min(self.best_lap_time, self.avg_lap_time)
             else:
                 self.best_lap_time = self.avg_lap_time
 
-
-        if self.avg_progress/100 > 0.75 * self.time_manager.num_of_laps:
-            self.is_model_raceable = True
+        if self.avg_progress is not None and self.avg_lap_time is not None:
+            if (self.avg_progress/100 > self.PROGRESS_THRESHOLD and
+                    self.avg_lap_time <= self.LAP_TIME_THRESHOLD):
+                self.is_model_raceable = True
         else:
             self.is_model_raceable = False
         self.performance_history.append(avg_total)
 
         # Maintain performance history window
-        if len(self.performance_history) > 2 * self.history_window:
+        if len(self.performance_history) > 2 * self.HISTORY_WINDOW:
             self.performance_history.pop(0)
 
         # Calculate relevant historical average
-        if len(self.performance_history) >= self.history_window:
-            relevant_hist = self.performance_history[-self.history_window:]
+        if len(self.performance_history) >= self.HISTORY_WINDOW:
+            relevant_hist = self.performance_history[-self.HISTORY_WINDOW:]
         else:
             relevant_hist = self.performance_history
 
@@ -1545,7 +1654,7 @@ class AITrainingEnvironment(CarSimulation):
             self.best_model_params = copy.deepcopy(cache_params)
 
         self.historic_progress.append(max(epoch_progresses))
-        if len(self.historic_progress) > self.history_window:
+        if len(self.historic_progress) > self.HISTORY_WINDOW:
             self.historic_progress.pop(0)
 
 
@@ -1568,11 +1677,11 @@ class AITrainingEnvironment(CarSimulation):
 
 
     def initialise_model_saver(self):
-        self.model_saver = UIFileSelector(pygame.Rect((0, 0), game_core.screen_dimensions),
-                                          self.gui_manager,
+        self.model_saver = UIFileBrowser(pygame.Rect((0, 0), game_core.screen_dimensions),
+                                         self.gui_manager,
                                           "Models",
                                           "save",
-                                          callback= lambda filename: self.save_model(filename))
+                                         callback= lambda filename: self.save_model(filename))
 
     def reset_cars(self):
         """Reset all AI cars."""
@@ -1623,17 +1732,20 @@ class AITrainingEnvironment(CarSimulation):
         self.model_saver = None
 
     def _toggle_speed(self):
-        if game_core.tick_speedup == 1:
-            game_core.tick_speedup = 2
-        elif game_core.tick_speedup == 2:
-            game_core.tick_speedup = 5
-        elif game_core.tick_speedup == 5:
-            game_core.tick_speedup = 10
+        """Set simulation speedup factor."""
+        if game_core.TICK_SPEEDUP == 1:
+            game_core.TICK_SPEEDUP = 2
+        elif game_core.TICK_SPEEDUP == 2:
+            game_core.TICK_SPEEDUP = 5
+        elif game_core.TICK_SPEEDUP == 5:
+            game_core.TICK_SPEEDUP = 10
         else:
-            game_core.tick_speedup = 1
+            # Cycle value
+            game_core.TICK_SPEEDUP = 1
 
-        self.speed_label.set_text(f"Speed: {game_core.tick_speedup}X")
+        self.speed_label.set_text(f"Speed: {game_core.TICK_SPEEDUP}X")
 
     def display_end_screen(self, results):
+        """No end screen displayed at end of each episode"""
         pass
 

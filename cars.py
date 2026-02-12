@@ -57,7 +57,7 @@ class Car(pygame.sprite.Sprite, ABC):
                  starting_position=(game_core.screen_dimensions[0]/2,
                                     game_core.screen_dimensions[1]/2),
                  starting_orientation =270,
-                 car_proportions=pygame.Vector2(272, 429) / (1.1*game_core.meter_pixel_conversion),
+                 car_proportions=pygame.Vector2(272, 429) / (1.1 * game_core.METER_PIXEL_CONVERSION),
                  image = "Mclaren"):
         """initialise car with starting state.
 
@@ -71,6 +71,7 @@ class Car(pygame.sprite.Sprite, ABC):
 
         # Default parameters
         self.starting_position = starting_position
+        self.starting_orientation = starting_orientation
         self.direction = starting_orientation
         self.car_proportions = car_proportions
         """
@@ -116,8 +117,8 @@ class Car(pygame.sprite.Sprite, ABC):
             track (Track): Track object with collision detection methods
         """
         self._update_hitbox()
-        # if not self.is_crashed:
-        #     self.is_crashed = track.hitbox_collision_detection(self.hitbox)
+        if not self.is_crashed:
+            self.is_crashed = track.hitbox_collision_detection(self.hitbox)
 
     def drive_car(self, target_steer, target_throttle):
         """
@@ -205,7 +206,7 @@ class Car(pygame.sprite.Sprite, ABC):
         self.position += self.velocity * dt
 
         # Update direction based on bicycle model
-        speed_m = speed / game_core.meter_pixel_conversion      # Speed in m/s
+        speed_m = speed / game_core.METER_PIXEL_CONVERSION      # Speed in m/s
         if speed_m > 0.1:
             # Calculate clamped angular velocity
             max_angular_velocity = self.MAX_LATERAL_ACCELERATION / speed_m
@@ -282,7 +283,7 @@ class Car(pygame.sprite.Sprite, ABC):
             else:
                 self.progress = new_progress
 
-        print(self.progress)
+        # print(self.progress)
         return self.progress, is_lap_finished
 
     def _update_car_sprite_position(self):
@@ -298,13 +299,13 @@ class Car(pygame.sprite.Sprite, ABC):
         """
         self.is_crashed = False
         self.position = pygame.Vector2(self.starting_position)
+        self.direction = self.starting_orientation
         self.velocity = pygame.Vector2(0, 0)
         self.acceleration = pygame.Vector2(0, 0)
         self.current_throttle_input = 0
         self.current_steer_input = 0
         self.throttle = 0
         self.steer = 0
-        self.direction = 270
         self.progress = math.floor(self.progress)
 
         self._update_car_sprite_position()
@@ -327,7 +328,7 @@ class PlayerCar(Car):
                  starting_position = None,
                  starting_orientation = 270,
                  image = "purple_car",
-                 car_proportions=pygame.Vector2(272, 429) / (0.8*game_core.meter_pixel_conversion)):
+                 car_proportions=pygame.Vector2(272, 429) / (0.8 * game_core.METER_PIXEL_CONVERSION)):
         """
         Initialise player cor with player control GUI elements
 
@@ -487,10 +488,10 @@ class AICar(Car):
     RAY_CAST_ANGLES = [15, 30, 45, 60, 75, 60]
     MAX_RAY_CAST = game_core.screen_dimensions[0] * 0.8
 
-    CRASH_PENALTY = -50.0
+    CRASH_PENALTY = -40.0
     STUCK_PENALTY = -10.0
     SPEED_REWARD_COEF = 0.025
-    PROGRESS_REWARD_COEF = 40
+    PROGRESS_REWARD_COEF = 45
     ALIGNED_STEERING_REWARD_COEF  = 0.55
     WALL_PROXIMITY_PENALTY_COEF = -14
     WALL_PROXIMITY_THRESHOLD = 0.01
@@ -504,7 +505,7 @@ class AICar(Car):
                  starting_position=None,
                  starting_orientation=270,
                  image="black_car",
-                 car_proportions = pygame.Vector2(272, 429) / (1*game_core.meter_pixel_conversion)):
+                 car_proportions = pygame.Vector2(272, 429) / (1 * game_core.METER_PIXEL_CONVERSION)):
         """
         Initialise AI Car
 

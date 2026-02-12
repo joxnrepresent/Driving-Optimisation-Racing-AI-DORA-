@@ -1,5 +1,6 @@
 from neural_network import  NeuralNetwork
 import numpy as np
+from numpy import e
 import matplotlib
 matplotlib.use("TkAgg")
 
@@ -7,13 +8,41 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
 
-test_layer_configs = [[1,1],
-                      [1, 4, 1],
-                      [1, 64, 1],
+def sin_x(x):
+    return np.sin(x)
+
+def trig_f_1(x):
+    return np.sin(x)+0.2*np.sin(5*x)
+
+def goldilocks(x):
+    return np.sin(x) + 0.1* x* np.sin(2*x)
+
+def fourier_hard(x):
+    return 2 * (
+        np.sin(x)
+        + 0.5*np.sin(3*x)
+        + 0.25*np.sin(7*x)
+        + 0.125*np.sin(15*x)
+    )
+
+def fourier_modulated(x):
+    return (
+        np.sin(x)
+        * (1 + 0.3*np.sin(3*x) + 0.2*np.sin(7*x))
+    )
+def hierarchical_fourier(x):
+    return (
+        np.sin(x)
+        * (1 + 0.3*np.sin(3*x))                 # coarse modulation
+        + 0.15*np.sin(7*x) * np.sin(0.5*x)     # medium detail
+        + 0.05*np.sin(15*x) * np.sin(0.2*x)    # fine detail
+    )
+test_layer_configs = [[1, 4, 1],
+                      [1, 32, 1],
                       [1, 4, 4, 4, 1],
-                      [1, 4, 16, 4, 1],
-                      [1, 8, 32, 32, 1],
-                      [1, 32, 32, 32, 1]]
+                      [1, 8, 16, 8, 1],
+                      [1,16,16,16,1],
+                      [1, 16, 32, 32, 16, 1]]
 
 activation_options = ["relu", "elu", "tanh"]
 
@@ -29,11 +58,11 @@ for activation in activation_options:
             seed=42
         )
 
-        epochs_list = [10, 1000, 10000]
+        epochs_list = [10, 1000, 10000, 50000]
         max_epochs = max(epochs_list)
 
         batch_size = 10
-        x_min, x_max = -5 * np.pi, 5 * np.pi
+        x_min, x_max = -20, 20
 
         saved_predictions = {}
 
@@ -41,7 +70,7 @@ for activation in activation_options:
 
             # Sample random inputs
             x = np.random.uniform(x_min, x_max, (batch_size, 1))
-            y_true = np.sin(x)
+            y_true = fourier_hard(x)
 
             # Forward pass
             y_pred = neural_net.forward_propagation(x)
@@ -66,15 +95,14 @@ for activation in activation_options:
 
 
         x_true = np.linspace(x_min, x_max, 400)
-        y_true = np.sin(x_true)
-
+        y_true = fourier_hard(x_true)
         plt.figure(figsize=(10, 6))
         plt.plot(
             x_true, y_true,
             linestyle="-.",
             color="grey",
             linewidth=2,
-            label="sin(x)"
+            label="f(x)"
         )
 
         colors = cm.viridis(np.linspace(0, 1, len(saved_predictions)))
@@ -88,7 +116,7 @@ for activation in activation_options:
                 alpha=0.7,
                 color=colors[i],
                 label=f"NN @ {epoch} epochs",
-                markevery=10
+                markevery=3
             )
 
         plt.legend()

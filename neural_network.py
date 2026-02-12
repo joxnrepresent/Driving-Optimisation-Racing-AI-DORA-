@@ -15,7 +15,7 @@ class Layer:
         self.last_a = None
 
     def initialise_weights(self):
-        if self.activation_name == 'relu':
+        if self.activation_name in ['relu', 'elu']:
             sigma = np.sqrt(2/self.input_size)
             return np.random.randn(self.input_size, self.output_size) * sigma
         else:
@@ -51,14 +51,14 @@ class Layer:
         return a
 
     def layer_backward_pass(self, d_a):
-        batch_size = d_a.shape[0]                           #d_a is dA/d_a
-        d_z = d_a * self.activation_derivative(self.last_z) #dA/d_z = dA/d_a * d_a/d_z
-        d_W = self.last_x.T.dot(d_z) / batch_size                      #dA/d_W = x.T * dA/d_z
+        batch_size = d_a.shape[0]
+        d_z = d_a * self.activation_derivative(self.last_z)
+        d_W = self.last_x.T.dot(d_z) / batch_size
         """x.t has shape (input_size, batch_size)
         d_z has shape (batch_size, output_size) 
         So x.T.dot(d_z) will have shape (input_size, output_size), same as weights"""
-        d_b = d_z.mean(axis=0)                               #dA/d_b = mean of dA/d_z
-        d_x = d_z.dot(self.weights.T)                        #dA/d_x = dA/d_z * W.t
+        d_b = d_z.mean(axis=0)
+        d_x = d_z.dot(self.weights.T)
 
         return d_W, d_b, d_x
 

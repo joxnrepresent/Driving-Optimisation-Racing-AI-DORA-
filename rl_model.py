@@ -97,9 +97,11 @@ class REINFORCEModel(RLModel):
         self.update_actor(advantage, states, pre_squash_actions)
         avg_rewards = np.array(self.rewards).mean()
         avg_returns = np.array(returns).mean()
+        avg_std = np.exp(self.actor.log_std).mean()
         self.clear_trajectory()
-        return (f"Reward:{avg_rewards:.3f} \n"
-                f"Returns:{avg_returns:.3f} \n")
+        return (f"Reward: {avg_rewards:.3f} \n"
+                f"Returns: {avg_returns:.3f} \n"
+                f"Exploration (Std): {avg_std:.3f} \n")
 
 class MCACModel(RLModel):
     def __init__(self, input_size, actor_activations= None, critic_activations = None, output_size=2, gamma=0.98, l2_lambda=0.02, entropy_bonus=0.02,
@@ -141,8 +143,8 @@ class MCACModel(RLModel):
         avg_std = np.exp(self.actor.log_std).mean()
         self.clear_trajectory()
 
-        return (f"Reward:{avg_rewards:.3f} \n"
-                f"Returns:{avg_returns:.3f} \n"
-                f"Value:{avg_value:.3f} \n"
-                f"Critic Loss:{avg_critic_loss:.3f} \n"
-                f"Exploration (Std) :{avg_std:.3f} \n")
+        return (f"Reward: {avg_rewards:.3f} \n"
+                f"Returns: {avg_returns:.3f} \n"
+                f"Value: {avg_value:.3f} \n"
+                f"Critic Loss: {avg_critic_loss:.3f} \n"
+                f"Exploration (Std): {avg_std:.3f} \n")

@@ -4,6 +4,9 @@ from resources import game_core
 import pygame
 """
 Main module for running the program.
+
+Initialises pygame and GUI manager, then runs the main game loop with frame processing
+and rendering at the specified frame rate.
 """
 #---------------------------------------------------------------------------------------------------------------------#
 
@@ -22,12 +25,12 @@ def game_loop():
             game_core.cache_events(event)
 
         # Update clock: dt_ms is the time between clock updates
-        game_core.dt_ms = game_core.clock.tick(game_core.frame_rate)
+        game_core.dt_ms = game_core.clock.tick(game_core.FRAME_RATE)
 
         # dt_per_step is time per frame processing call -> handles speedups
-        dt_per_step = game_core.dt_ms / game_core.tick_speedup
+        dt_per_step = game_core.dt_ms / game_core.TICK_SPEEDUP
 
-        for _ in range(game_core.tick_speedup):
+        for _ in range(game_core.TICK_SPEEDUP):
             """
             When tick speedup is used, many frames of the program are processed and are only rendered once. This helps
             reduce bottleneck caused by rendering.

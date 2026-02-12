@@ -14,16 +14,47 @@ from pygame_gui.elements import (UIPanel, UILabel, UIButton, UISelectionList, UI
 import pygame_gui
 
 """
-This module contains custom GUI elements not included in the pygame_gui library
+Custom GUI elements for racing simulation. Custom elements extend pygame_gui UIElement class to carry out more
+specialised tasks
+
+Classes:
+    UIModelCreator: AI model hyperparameter and training environment configuration interface
+    UIEndScreen: Race completion results display
+    UIOptionSelector: Option selection dialogue
+    UIFileBrowser: Used to save and load track and model files
+    UIGaugeMeter: Gauge meter (used as speedometer)
+    UITrackCanvas: Track editor canvas with bezier curve tool
 """
 
-
 class UIModelCreator(UIElement):
-    """UI for creating and configuring new RL models with custom hyperparameters."""
+    """
+    RL model hyperparameter and environment configuration dialogue.
+
+    Provides text input fields or dropdown menus for configuring REINFORCE or MCAC models with validation.
+    Supports custom layer architectures and per-layer activation functions.
+
+    Attributes:
+        model_type (str): Model type (determines whether critic configurations are provided)
+        return_mode (GameMode): Instance of Game Mode to return to
+        panel (UIPanel): Main dialogue panel
+        scroll_container (UIScrollingContainer): Container holding all configuration fields.
+        [various input fields]: Text entry and dropdown fields for individual hyperparameters
+        create_button (UIButton): Confirm and create model
+        cancel_button (UIButton): Cancel configuration
+    """
 
     def __init__(self, relative_rect, manager, model_type, callback, return_mode=None):
-        super().__init__(relative_rect, manager, container=None,
-                         starting_height=999, layer_thickness=1)
+        """
+        Initialise model configuration dialogue.
+
+        Args:
+            relative_rect (Rect): Config screen area
+            manager (UIManager): GUI manager
+            model_type (str): "REINFORCE" or "Monte Carlo Actor Critic (MCAC)"
+            callback (callable): Function to call with validated config (creates a model with specified configurations)
+            return_mode (GameMode): Mode to return to on cancel
+        """
+        super().__init__(relative_rect, manager, container=None, starting_height=999, layer_thickness=1)
 
         r.game_core.is_paused = True
         self.model_type = model_type
@@ -48,11 +79,11 @@ class UIModelCreator(UIElement):
 
 
         self.title_label = UILabel(
-            relative_rect=pygame.Rect((panel_w / 2 - 150, 10), (300, 30)),
+            relative_rect=pygame.Rect((panel_w / 2 - 150, 10), (500, 30)),
             text=f"Configure {self.model_type} Model",
             manager=manager,
             container=self.panel,
-            object_id='#selector_title'
+            object_id='#title'
         )
 
         self.scroll_container = UIScrollingContainer(
@@ -111,7 +142,7 @@ class UIModelCreator(UIElement):
             manager=manager,
             container=self.scroll_container
         )
-        self.entropy_input.set_text("0.02")
+        self.entropy_input.set_text("0.005")
         y += row_height
 
 
@@ -359,7 +390,7 @@ class UIModelCreator(UIElement):
 
             # Custom Critic Activation Input
             self. critic_activation_custom_label = UILabel(
-                relative_rect=pygame.Rect((x, y), (label_width + 20, 25)),
+                relative_rect=pygame.Rect((x, y), (label_width + 30, 25)),
                 text="Custom Critic Activations:",
                 manager=manager,
                 container=self.scroll_container,
@@ -407,9 +438,16 @@ class UIModelCreator(UIElement):
         )
 
     def get_config_from_inputs(self):
-        """Get configuration from all input fields and validate."""
+        """
+        Extract and validate configuration from all input fields. Any invalid configuration displays an appropriate
+        error message to the user.
+
+        Returns:
+            dict: Validated model configurations, or None if validation fails
+        """
         try:
             config = {}
+            # Parse hyperparameters
             config['num_of_cars'] = int(self.num_of_cars_input.get_text())
             config['gamma'] = float(self.gamma_input.get_text())
             config['l2_lambda'] = float(self.l2_lambda_input.get_text())
@@ -419,6 +457,7 @@ class UIModelCreator(UIElement):
             config['actor_adam_beta1'] = float(self.actor_adam_beta1_input.get_text())
             config['actor_adam_beta2'] = float(self.actor_adam_beta2_input.get_text())
 
+            # Extract actor layer settings
             actor_layer_settings = self.actor_layers_input.get_text().strip().split(',')
             config['actor_hidden_layers'] = []
             for layer in actor_layer_settings:
@@ -426,6 +465,7 @@ class UIModelCreator(UIElement):
                 if layer:
                     config['actor_hidden_layers'].append(int(layer))
 
+            # Extract actor activation function settings
             actor_activation_choice = self.actor_activation_dropdown.selected_option[0]
             if actor_activation_choice == 'Custom':
                 actor_activation_text = self.actor_activation_custom_input.get_text()
@@ -442,30 +482,41 @@ class UIModelCreator(UIElement):
                 num_actor_layers = len(config['actor_hidden_layers'])
                 config['actor_activations'] = [actor_activation_choice] * num_actor_layers + ['linear']
 
-
-
-            if config['num_of_cars'] <= 0:
-                raise ValueError("Number of cars must be positive")
+            # Validate ranges of numerical hyperparameters. Return appropriate errors for invalid ranges.
+            if config['num_of_cars'] <= 0 or config['num_of_cars'] > 20 :
+                raise ValueError("Number of cars must be a number between 1 and 20")
 
             if not 0 <= config['gamma'] <= 1:
                 raise ValueError("Gamma must be between 0 and 1")
 
-            if not 0 <= config['actor_adam_beta1'] < 1:
-                raise ValueError("Adam Beta1 must be between 0 and 1")
+            if not 0 <= config['entropy'] < 1:
+                raise ValueError("Entropy must be between 0 and 1")
 
+            if not 0 <= config['l2_lambda'] < 1:
+                raise ValueError("L2 Regularisation Lambda must be between 0 and 1")
+
+            if not -5 <= config['actor_init_log_std'] < 5:
+                raise ValueError("Actor init log std must be between -5 and 5")
+
+            if not 0 <= config['actor_learning_rate'] < 1:
+                raise ValueError("Actor learning rate must be between 0 and 1")
+
+            if not 0 <= config['actor_adam_beta1'] < 1:
+                raise ValueError("Actor Adam Beta1 must be between 0 and 1")
 
             if not 0 <= config['actor_adam_beta2'] < 1:
-                raise ValueError("Adam Beta2 must be between 0 and 1")
+                raise ValueError("Actor Adam Beta2 must be between 0 and 1")
 
-
+            # Validate layer sizes and activation functions settings to match number of layers.
             if not config['actor_hidden_layers'] or any(x <= 0 for x in config['actor_hidden_layers']):
                 raise ValueError("Actor layers must contain positive integers")
 
             if not config['actor_activations'] or len(config['actor_activations']) != len(config['actor_hidden_layers']) + 1:
                 raise ValueError("Activations do not match hidden layers")
 
-            # Get MCAC-specific parameters if applicable
+            # MCAC specific hyperparameters:
             if self.model_type == "Monte Carlo Actor Critic (MCAC)":
+                # Parse numeric parameters
                 config['critic_init_log_std'] = float(self.critic_init_log_std_input.get_text())
                 config['critic_learning_rate'] = float(self.critic_learning_rate_input.get_text())
                 config['critic_adam_beta1'] = float(self.critic_adam_beta1_input.get_text())
@@ -477,6 +528,7 @@ class UIModelCreator(UIElement):
                     if layer:
                         config['critic_hidden_layers'].append(int(layer))
 
+                # Parse activation settings
                 critic_activation_choice = self.critic_activation_dropdown.selected_option[0]
                 if critic_activation_choice == 'Custom':
                     critic_activation_text = self.critic_activation_custom_input.get_text()
@@ -494,6 +546,20 @@ class UIModelCreator(UIElement):
                     num_critic_layers = len(config['critic_hidden_layers'])
                     config['critic_activations'] = [critic_activation_choice] * num_critic_layers + ['linear']
 
+                # Validate critic numeric parameter ranges and display appropriate error message
+                if not -5 <= config['critic_init_log_std'] < 5:
+                    raise ValueError("Critic init log std must be between -5 and 5")
+
+                if not 0 <= config['critic_learning_rate'] < 1:
+                    raise ValueError("Critic learning rate must be between 0 and 1")
+
+                if not 0 <= config['critic_adam_beta1'] < 1:
+                    raise ValueError("Critic Adam Beta1 must be between 0 and 1")
+
+                if not 0 <= config['critic_adam_beta2'] < 1:
+                    raise ValueError("Critic Adam Beta2 must be between 0 and 1")
+
+                # Validate critic hidden layer sizes and activation functions.
                 if not config['critic_hidden_layers'] or any(x <= 0 for x in config['critic_hidden_layers']):
                     raise ValueError("Critic layers must contain positive integers")
 
@@ -504,10 +570,13 @@ class UIModelCreator(UIElement):
             return config
 
         except ValueError as e:
-            self.error_label.set_text(f"Error: {str(e)}")
+            # Catch and display error for unparsable input
+            self.error_label.set_text(f"Error: Invalid input format in one or more fields")
+            print(e)
             return None
 
     def process_event(self, event):
+        """Handle UI events for configuration inputs and buttons."""
         super().process_event(event)
 
         if event.type == pygame_gui.UI_TEXT_ENTRY_CHANGED:
@@ -545,14 +614,12 @@ class UIModelCreator(UIElement):
                     r.game_core.set_game_mode(self.return_mode)
 
     def kill(self):
+        """Clean up all UI elements and unpause game."""
         r.game_core.is_paused = False
 
-        # Kill all UI elements
         self.panel.kill()
         self.title_label.kill()
         self.scroll_container.kill()
-
-        # Common inputs
         self.num_of_cars_input.kill()
         self.gamma_input.kill()
         self.entropy_input.kill()
@@ -767,7 +834,26 @@ class UIOptionSelector(UIElement):
 
         super().kill()
 
-class UIFileSelector(UIElement):
+class UIFileBrowser(UIElement):
+    """
+    File browser with save/load modes.
+
+    Lists files from directory, validates filenames, and handles overwrite confirmation.
+    Filters models by type (REINFORCE/MCAC) or model competence when loading.
+
+    Attributes:
+        directory (str): Directory to browse (Tracks or Models)
+        mode (str): Operation mode (save/load)
+        callback (callable): Function to call depending on function
+        return_mode (GameMode): Mode to return to on cancel
+        confirm_overwrite (bool): Overwrite confirmation
+        panel (UIPanel): Main container panel
+        file_list (UISelectionList): List of relevant files
+        text_entry (UITextEntryLine): Text input field to enter file name
+        ok_button (UIButton): Confirm selection
+        cancel_button (UIButton): Cancel selection
+    """
+
     def __init__(self, relative_rect, manager, directory, mode,
                  callback= lambda directory, filename: print(directory, filename), return_mode = None):
         super().__init__(relative_rect, manager, container=None,
@@ -1430,7 +1516,7 @@ class UITrackCanvas(UIElement):
             self.validity_issues = "invalid walls"
         elif not self.is_track_complete:
             self.validity_issues = "incomplete"
-        elif len(outer_wall_points) < 300 or len(inner_wall_points) < 300:
+        elif len(outer_wall_points) < 0 or len(inner_wall_points) < 0:
             self.validity_issues = "too short"
         else:
             self.validity_issues = None
