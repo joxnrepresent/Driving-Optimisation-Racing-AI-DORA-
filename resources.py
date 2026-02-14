@@ -246,6 +246,9 @@ class RaceTimeManager:
             self.lap_times[i][laps_completed - 1] = game_core.sim_time_ms
             if laps_completed >= self.num_of_laps:
                 self.is_all_laps_finished[i] = True
+            print(f"Lap time updated: Car{i}, lap{laps_completed}")
+            print(f"Lap time (ms): {self.lap_times[i][laps_completed - 1] - self.start_time}")
+            print()
 
 """Utility functions"""
 
@@ -410,7 +413,7 @@ def get_line_segments_intersection(seg1, seg2):
 
     # Check for parallel
     if abs(denominator) < 1e-12:
-        if abs(alpha_numerator) < 1e-12 and abs(beta_numerator) < game_core.eps:
+        if abs(alpha_numerator) < 1e-12 and abs(beta_numerator) < 1e-12:
 
             dot_prod = (x2 - x1) * (x4 - x3) + (y2 - y1) * (y4 - y3)
 

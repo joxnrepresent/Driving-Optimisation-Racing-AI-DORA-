@@ -79,7 +79,7 @@ class UIModelCreator(UIElement):
 
 
         self.title_label = UILabel(
-            relative_rect=pygame.Rect((panel_w / 2 - 150, 10), (500, 30)),
+            relative_rect=pygame.Rect((panel_w / 2 - 200, 10), (400, 30)),
             text=f"Configure {self.model_type} Model",
             manager=manager,
             container=self.panel,
@@ -475,8 +475,7 @@ class UIModelCreator(UIElement):
                     if activation:
                         config['actor_activations'].append(activation)
                 if len(config['actor_activations']) != len(config['actor_hidden_layers']):
-                    raise ValueError(
-                        "Activations must match hidden layers)")
+                    raise ValueError("Actor activations must match hidden layers")
                 config['actor_activations'].append('linear')
             else:
                 num_actor_layers = len(config['actor_hidden_layers'])
@@ -507,12 +506,9 @@ class UIModelCreator(UIElement):
             if not 0 <= config['actor_adam_beta2'] < 1:
                 raise ValueError("Actor Adam Beta2 must be between 0 and 1")
 
-            # Validate layer sizes and activation functions settings to match number of layers.
+            # Validate layer sizes.
             if not config['actor_hidden_layers'] or any(x <= 0 for x in config['actor_hidden_layers']):
                 raise ValueError("Actor layers must contain positive integers")
-
-            if not config['actor_activations'] or len(config['actor_activations']) != len(config['actor_hidden_layers']) + 1:
-                raise ValueError("Activations do not match hidden layers")
 
             # MCAC specific hyperparameters:
             if self.model_type == "Monte Carlo Actor Critic (MCAC)":
@@ -539,8 +535,7 @@ class UIModelCreator(UIElement):
                             config['critic_activations'].append(activation)
 
                     if len(config['critic_activations']) != len(config['critic_hidden_layers']):
-                        raise ValueError(
-                            "Activations must match hidden layers")
+                        raise ValueError("Critic activations must match hidden layers")
                     config['critic_activations'].append('linear')
                 else:
                     num_critic_layers = len(config['critic_hidden_layers'])
@@ -563,16 +558,12 @@ class UIModelCreator(UIElement):
                 if not config['critic_hidden_layers'] or any(x <= 0 for x in config['critic_hidden_layers']):
                     raise ValueError("Critic layers must contain positive integers")
 
-                if not config['critic_activations'] or len(config['critic_activations']) != len(
-                        config['critic_hidden_layers']) + 1:
-                    raise ValueError("Activations do not match hidden layers")
 
             return config
 
         except ValueError as e:
             # Catch and display error for unparsable input
-            self.error_label.set_text(f"Error: Invalid input format in one or more fields")
-            print(e)
+            self.error_label.set_text(f"Error: {e}")
             return None
 
     def process_event(self, event):
@@ -651,7 +642,31 @@ class UIModelCreator(UIElement):
         super().kill()
 
 class UIEndScreen(UIElement):
+    """
+    End screen displayed at end of a race.
+
+    Displays individual lap times of Player and AI (if AI is racing).
+    User can return to menu, or race again.
+
+    Attributes:
+        panel (UIPanel): Results panel
+        content_box (UITextBox): Lap time and race time details
+        restart_button (UIButton): Restart race
+        menu_button (UIButton): Return to menu
+    """
+
+
     def __init__(self, relative_rect, manager, callback, title, subtitle, content, return_mode=None):
+        """
+        Initialise end screen dialogue
+
+        Args:
+            relative_rect (Rect): End screen area
+            manager (UIManager): GUI manager
+            callback (callable): Function to call when confirmed by user (Reinitialise race)
+            title, subtitle (str): Titles to be displayed
+            return_mode (GameMode): Mode to return to on cancel
+        """
         super().__init__(relative_rect,manager,container=None,starting_height=999,layer_thickness=1)
 
         # Pause game
@@ -685,7 +700,7 @@ class UIEndScreen(UIElement):
         )
 
         self.subtitle_label = UILabel(
-            relative_rect=pygame.Rect((0, 55), (panel_w, 30)),
+            relative_rect=pygame.Rect((0, 35), (panel_w, 30)),
             text=subtitle,
             manager=manager,
             container=self.panel,
@@ -693,7 +708,7 @@ class UIEndScreen(UIElement):
         )
         self.content_box = UITextBox(
             html_text=content.replace("\n", "<br>"),
-            relative_rect=pygame.Rect((20, 90), (panel_w - 40, 120)),
+            relative_rect=pygame.Rect((20, 60), (panel_w - 40, 150)),
             manager=manager,
             container=self.panel,
             object_id="#end_screen_content"
@@ -741,7 +756,31 @@ class UIEndScreen(UIElement):
 
 
 class UIOptionSelector(UIElement):
+    """
+    Dropdown option selection dialogue.
+
+    User can select one option from the list provided
+
+    Attributes:
+        options (list[str]): Allowed options
+        callback (callable): Function to call to initialise environment parameter with selected option
+        selected_option (str): Currently selected option
+        panel (UIPanel): Main container panel
+        option_list (UIDropDownMenu): Option dropdown
+        ok_button (UIButton): Confirm selection
+        cancel_button (UIButton): Cancel dialogue
+    """
     def __init__(self, relative_rect, manager, options, callback, title="Select an option", return_mode=None):
+        """
+        Initialise option selector.
+
+        Args:
+            relative_rect (Rect): Option selector screen area
+            manager (UIManager): GUI manager
+            options (list[str]): Options for the user to choose from
+            callback (callable): Function to call with the selected option (initialise required parameter)
+            return_mode (GameMode): Mode to return to on cancel
+        """
         super().__init__(relative_rect, manager, container=None, starting_height=999, layer_thickness=1)
 
         # Pause game
@@ -838,24 +877,34 @@ class UIFileBrowser(UIElement):
     """
     File browser with save/load modes.
 
-    Lists files from directory, validates filenames, and handles overwrite confirmation.
-    Filters models by type (REINFORCE/MCAC) or model competence when loading.
+    Lists relevant files from directory, validates filenames, and handles overwrite confirmation.
 
     Attributes:
-        directory (str): Directory to browse (Tracks or Models)
-        mode (str): Operation mode (save/load)
-        callback (callable): Function to call depending on function
-        return_mode (GameMode): Mode to return to on cancel
+        directory (str): Directory to browse ("Tracks" or "Models")
+        mode (str): Operation ("save" or "load")
         confirm_overwrite (bool): Overwrite confirmation
         panel (UIPanel): Main container panel
         file_list (UISelectionList): List of relevant files
         text_entry (UITextEntryLine): Text input field to enter file name
         ok_button (UIButton): Confirm selection
-        cancel_button (UIButton): Cancel selection
+        cancel_button (UIButton): Cancel browser
     """
 
     def __init__(self, relative_rect, manager, directory, mode,
                  callback= lambda directory, filename: print(directory, filename), return_mode = None):
+
+        """
+        Initialise file browser
+
+        Args:
+            relative_rect (Rect): File browser area
+            manager (UIManager): GUI manager
+            directory (str): The directory being accessed ("Track" or "Model"),
+            mode (str): Browser mode ("save", "load REINFORCE", "load Monte Carlo Actor Critic (MCAC)" or
+                                            "load raceable")
+            callback (callable): Function to call with selected file (save to directory, or load to environment)
+            return_mode (GameMode): Mode to return to on cancel
+        """
         super().__init__(relative_rect, manager, container=None,
                          starting_height=999, layer_thickness=1)
 
@@ -1067,12 +1116,33 @@ class UIFileBrowser(UIElement):
 
 class UIGaugeMeter(UIElement):
     """
-    This class is for a meter that displays values as a gauge needle rotating (like a speedometer/rpm meter)
+    Speedometer display.
+
+    Displays numeric values as rotating needle on semicircular gauge.
+
+    Attributes:
+        min_value, max_value, value (float): The minimum, maximum and current value of the gauge
+        fill_colour (str): Background colour
+        dial_colour (str): Dial colour
+        border_colour (str): Border colour
+        border_width (int): Border thickness
+        dial_thickness (int): DIal thickness
     """
     def __init__(self, relative_rect, manager,
                  min_value=0, max_value=300, starting_value=0,
                  fill_colour="black", dial_colour='red',
                  border_colour="grey", border_width=3, dial_thickness=2, container = None):
+        """
+        Initialise gauge meter.
+
+        Args:
+            relative_rect (Rect): Gauge area
+            manager (UIManager): GUI manager
+            min_value, max_value (float): Min and max values
+            starting_value (float): Initial value
+            [styling attributes] (str/int): Parameters for styling the meter.
+            container (UIElement): Parent container
+        """
         super().__init__(relative_rect, manager, container=container, starting_height=0, layer_thickness=1)
 
         self.min_value = min_value
@@ -1120,7 +1190,35 @@ class UIGaugeMeter(UIElement):
         self.rebuild()
 
 class UITrackCanvas(UIElement):
+    """
+    Track editor with bezier curve tool.
+
+    Allows creation of unique track shapes using bezier curve with automatic control point generation.
+    Can optionally enable curvature control handles.
+    Handles validation of track shapes to ensure no overlaps/kinks.
+
+    Attributes:
+        shg_grid (SpatialHashGrid): Spatial hash for collision detection
+        anchor_points (list[Vector2]): List of bezier anchor points
+        control_points (list[Vector2]): List of bezier control points
+        widths_dict (dict): Width values at fractional positions
+        track_spine (list[Vector2]): Generated centerline
+        max_handle_length (int): Maximum curvature handle length
+        mode (str): Current mode ("anchor" or "width")
+        is_dragging (bool): Whether user is currently dragging a points
+        is_track_complete (bool): Flag for if track forms closed loop
+        validity_issues (str): Current validity issue preventing saving
+        selected_point (tuple): (type, index) of selected point
+    """
     def __init__(self, relative_rect, manager, is_handles_enabled):
+        """
+        Initialise track canvas
+
+        Args:
+            relative_rect (Rect): Canvas area
+            manager (UIManager): GUI manager
+            is_handles_enabled (bool): Initial state of handles
+        """
         super().__init__(relative_rect, manager, container=None, starting_height=0, layer_thickness=1)
 
         self.image = pygame.Surface((relative_rect.width + 10, relative_rect.height + 10))

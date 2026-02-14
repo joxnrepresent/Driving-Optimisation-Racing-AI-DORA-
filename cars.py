@@ -529,7 +529,7 @@ class AICar(Car):
         self.drive_car(*target_actions)
 
 
-    def get_sensors(self, track, car_index):
+    def get_sensors(self, track):
         """
         Computes and returns a list of sensor values.
         Sensors values are the distance to the nearest wall in different directions. Distances are determined using
@@ -537,8 +537,6 @@ class AICar(Car):
 
         Args:
             track (Track): The track which the car is currently driving on.
-            car_index (int): The index of the car in the array of cars being simulated. (Ensures that the cast rays are
-                            drawn from the center of the correct car).
         """
         center = pygame.Vector2(self.rect.center)
         rays = []
@@ -600,7 +598,6 @@ class AICar(Car):
             #                       math.log(abs(exploration_coef * progress_change) + 1))
             # reward += exploration_reward
             # rewards_breakdown.append(exploration_reward)
-            # exploration_reward = 0
 
             rewards_breakdown = [stopped_penalty, 0, 0 , 0 , 0 , 0 , 0, 0]
             return sum(rewards_breakdown), rewards_breakdown

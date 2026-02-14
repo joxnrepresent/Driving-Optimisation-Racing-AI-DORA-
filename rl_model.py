@@ -57,11 +57,12 @@ class RLModel(ABC):
         mu = self.actor.forward_propagation(states)
         sigma = np.exp(self.actor.log_std)
 
-        d_mu = -((pre_squash_actions - mu) / (sigma ** 2 + game_core.eps)) * advantage[:, None]
+        d_mu = -((pre_squash_actions - mu) / (sigma ** 2 + 1e-12)) * advantage[:, None]
         d_mu += self.l2_lambda * mu
         d_mu = np.clip(d_mu, -1, 1)
 
-        d_log_std = np.mean(-(((pre_squash_actions - mu) ** 2) / (sigma ** 2) - 1) * advantage[:, None], axis = 0) + self.entropy
+        d_log_std = (np.mean(-(((pre_squash_actions - mu) ** 2) / (sigma ** 2) - 1) * advantage[:, None], axis = 0) +
+                     self.entropy)
         self.actor.update_params(d_mu, d_log_std)
 
     def clear_trajectory(self):
@@ -104,7 +105,8 @@ class REINFORCEModel(RLModel):
                 f"Exploration (Std): {avg_std:.3f} \n")
 
 class MCACModel(RLModel):
-    def __init__(self, input_size, actor_activations= None, critic_activations = None, output_size=2, gamma=0.98, l2_lambda=0.02, entropy_bonus=0.02,
+    def __init__(self, input_size, actor_activations= None, critic_activations = None, output_size=2,
+                 gamma=0.98, l2_lambda=0.02, entropy_bonus=0.02,
                  actor_layer_sizes=[32, 32, 64, 64, 64, 32, 32],  actor_init_log_std=0.3,
                  actor_learning_rate=3e-3, actor_beta1=0.9, actor_beta2=0.999,
                  critic_layer_sizes=[16, 16], critic_init_log_std=0.3,

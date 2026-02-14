@@ -37,6 +37,7 @@ def hierarchical_fourier(x):
         + 0.15*np.sin(7*x) * np.sin(0.5*x)     # medium detail
         + 0.05*np.sin(15*x) * np.sin(0.2*x)    # fine detail
     )
+
 test_layer_configs = [[1, 4, 1],
                       [1, 32, 1],
                       [1, 4, 4, 4, 1],

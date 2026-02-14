@@ -24,6 +24,8 @@ import sys
 import numpy as np
 import pygame
 import pygame_gui
+from sklearn.externals.array_api_extra.testing import override
+
 import cars
 import resources as r
 from resources import game_core, RaceTimeManager
@@ -122,7 +124,7 @@ class GameMode(ABC):
         self.pause_button.set_relative_position((370, 50))
         self.pause_button.set_text('\u25B6')
 
-
+    @abstractmethod
     def event_handle(self):
         """Handle pause button press and error screen. Child classes add on their own event handling."""
         if self.pause_button in game_core.pressed_buttons:
@@ -236,7 +238,7 @@ class MainMenu(GameMode):
         if game_core.unexpected_error_msg is not None:
             self.show_error(game_core.unexpected_error_msg)
 
-
+    @override
     def event_handle(self):
         """Handle mode selection."""
 
@@ -459,6 +461,7 @@ class TrackMakerUI(GameMode):
             self.width_slider = None
             self.width_label = None
 
+    @override
     def event_handle(self):
         """Handles button presses."""
         if self.anchor_toggle_button in game_core.pressed_buttons:
@@ -701,10 +704,6 @@ class CarSimulation(GameMode):
         self.time_manager.initialise_manager(self.num_of_cars)
         self.init_cars()
 
-    @abstractmethod
-    def init_cars(self):
-        """Initialise cars. Child classes must implement."""
-        pass
 
     def update(self):
         """
@@ -743,6 +742,11 @@ class CarSimulation(GameMode):
             return
 
     @abstractmethod
+    def init_cars(self):
+        """Initialise cars. Child classes must implement."""
+        pass
+
+    @abstractmethod
     def display_end_screen(self, results):
         """
         Handle end screen display of race statistics. Child classes must implement this
@@ -773,6 +777,7 @@ class CarSimulation(GameMode):
         else:
             game_core.set_game_mode(MainMenu)
 
+    @override
     def event_handle(self):
         """Handles simulation buttons"""
         super().event_handle()
@@ -787,7 +792,6 @@ class CarSimulation(GameMode):
     def reset_environment(self):
         """Reset time manager for new race."""
         self.time_manager.initialise_manager(self.num_of_cars)
-        game_core.debug_elements["hitboxes"].clear()
 
 
     def reset_gui(self):
@@ -856,6 +860,7 @@ class SoloCarSim(CarSimulation):
         if game_core.unexpected_error_msg is None:
             self.initialise_num_of_laps()
 
+    @override
     def event_handle(self):
         """Handle steering control toggle."""
         if self.controls_toggle_button in game_core.pressed_buttons:
@@ -1006,15 +1011,14 @@ class RacingAI(CarSimulation):
                 self.is_crashed[i] = False
             else:
                 if isinstance(car, AICar):
-                    sensors = car.get_sensors(self.track, 0)
+                    sensors = car.get_sensors(self.track)
                     state = sensors + [car.velocity.magnitude() / car.MAX_SPEED, car.steer / car.MAX_STEER_RAD]
                     actions = self.rl_model.get_stochastic_actions(state)[0]
                     car.update(actions[0])
                 else:
                     car.update()
 
-
-
+    @override
     def event_handle(self):
         """Handle steering control toggle for player car."""
         if self.controls_toggle_button in game_core.pressed_buttons:
@@ -1153,13 +1157,13 @@ class AITrainingEnvironment(CarSimulation):
             container= self.stats_panel
         )
 
-        self.learning_log_box = pygame_gui.elements.UITextBox(
+        self.performance_log_box = pygame_gui.elements.UITextBox(
             html_text="",
             relative_rect=pygame.Rect((game_core.screen_dimensions[0] / 3+10, 5), (game_core.screen_dimensions[0] / 3-10, 190)),
             manager=self.gui_manager,
             container=self.stats_panel
         )
-        self.model_training_box = pygame_gui.elements.UITextBox(
+        self.training_log_box = pygame_gui.elements.UITextBox(
             html_text="",
             relative_rect=pygame.Rect((game_core.screen_dimensions[0] * 2/ 3 + 10, 5),
                                       (game_core.screen_dimensions[0] / 3 - 25, 190)),
@@ -1190,22 +1194,19 @@ class AITrainingEnvironment(CarSimulation):
         self.best_lap_time = None
         self.is_model_raceable = False
 
-        self.learning_log_data = (f"Average progress: {self.avg_progress:.2f}% \n"
+        self.performance_log_box.set_text((f"Average progress: {self.avg_progress:.2f}% \n"
                                   f"Best progress: {self.max_progress:.2f}% \n"
                                   f"Average lap time: None \n"
                                   f"Fastest lap time: None \n"
                                   f"Minimum progress threshold:{self.PROGRESS_THRESHOLD} \n" 
                                   f"Maximum lap time threshold:{self.LAP_TIME_THRESHOLD} \n" 
                                   f"Model ready?: {self.is_model_raceable} \n"
-                                  f"Number of rollback: {self.rollback_counter} \n")
-
-        self.learning_log_box.set_text(self.learning_log_data)
+                                  f"Number of rollback: {self.rollback_counter} \n"))
 
         self.episodic_log_data = ["-----------------"]
-        self.model_training_log = ("Average return: None \n"
+        self.training_log_box.set_text(("Average return: None \n"
                                    "Average reward: None"
-                                   f"Exploration (Std): None \n")
-        self.model_training_box.set_text(self.model_training_log)
+                                   f"Exploration (Std): None \n"))
 
         self.model_type = None
         self.rl_model = None
@@ -1421,38 +1422,37 @@ class AITrainingEnvironment(CarSimulation):
         """Update AI simulation and handle episode completion."""
         super().update()
         if not game_core.is_paused and self.rl_model is not None:
-            self._update_ai_step()
+            self.update_ai_step()
 
         if all(self.is_crashed):
             super().update()
-            self._handle_episode_end()
+            self.reinitialise_simulation()
             return
 
-
-
-    def _update_ai_step(self):
+    def update_ai_step(self):
         """Perform single AI training step for active cars."""
-        # Get current states
         states = np.zeros((self.num_of_cars, self.STATE_SIZE), np.float32)
-
         for i, car in enumerate(self.cars):
             if not self.is_crashed[i]:
-                sensors = car.get_sensors(self.track, i)
+                # State vector: sensors + current speed + current steering.
+                sensors = car.get_sensors(self.track)
                 states[i] = sensors + [car.velocity.magnitude() / car.MAX_SPEED, car.steer / car.MAX_STEER_RAD]
 
+        # Get batch actions
         self.actions, pre_squash = self.rl_model.get_stochastic_actions(states)
         rewards = np.zeros(self.num_of_cars, np.float32)
 
         for i, car in enumerate(self.cars):
+            # Iterate through active cars.
             if not self.is_crashed[i]:
                 car.update(self.actions[i])
-                # Get sensors again for reward computation
-                sensors = car.get_sensors(self.track, i)
-                rewards[i] = self._process_car_reward(i, car, sensors)
+                # Get sensors at new position for reward computation
+                sensors = car.get_sensors(self.track)
+                rewards[i] = self.process_car_and_get_reward(i, car, sensors)
 
         self.rl_model.update_trajectory(states, pre_squash, rewards)
 
-    def _process_car_reward(self, i, car, sensors):
+    def process_car_and_get_reward(self, i, car, sensors):
         """Process a single car's reward after action is taken."""
         car.collision_detection(self.track)
         progress, is_lap_finished = car.update_and_get_progress(self.track.track_spine)
@@ -1463,38 +1463,31 @@ class AITrainingEnvironment(CarSimulation):
             if self.time_manager.lap_times[i][laps_completed - 1] is None:
                 self.time_manager.update(i, laps_completed, is_lap_finished)
 
-
-        is_stuck = self._check_if_stuck(i, progress)
+        is_stuck = self.check_stuck(i, progress)
 
         # Compute reward
-        reward, rewards_array = car.compute_reward(
-            is_stuck,
-            is_lap_finished,
-            self.prev_progress[i],
-            sensors
-        )
+        reward, rewards_array = car.compute_reward(is_stuck, is_lap_finished, self.prev_progress[i], sensors)
 
         # Check if completed max laps
         if car.progress >= self.time_manager.num_of_laps:
-            self.is_crashed[i] = True  # Mark as finished
-            car.is_crashed = True  # Actually stop the car
+            self.is_crashed[i] = True  #
+            car.is_crashed = True
             reward += 80
             rewards_array[-1] += 80
 
         clipped_reward = np.clip(reward, -50, 100 * self.time_manager.num_of_laps)
 
-        # Tracks rewards
+        # Log rewards for debugging
         reward_breakdown = np.array(rewards_array)
         self.epoch_rewards_breakdown[i] += reward_breakdown
         self.time_step_rewards_breakdown.append(reward_breakdown)
 
-        # Update progress tracking
         self.max_epoch_progress[i] = max(progress, self.max_epoch_progress[i])
         self.prev_progress[i] = progress
 
         return clipped_reward
 
-    def _check_if_stuck(self, i, current_progress):
+    def check_stuck(self, i, current_progress):
         """Check if car is stuck and update stuck timer."""
         if current_progress - self.prev_progress[i] < 0.001:
             self.stuck_timer[i] += 1
@@ -1515,35 +1508,33 @@ class AITrainingEnvironment(CarSimulation):
 
     def reinitialise_simulation(self):
         """Reinitialise simulation and update model parameters."""
+
+        if len(self.rl_model.states) > 0:
+            self.episode_num += 1
+            self.episodes_completed_label.set_text(f'Episodes completed: {self.episode_num}')
+            episode_log = self.get_episode_log()
+
+            avg_progress = np.mean(self.max_epoch_progress)
+            self.update_metrics(avg_progress, self.max_epoch_progress)
+            episode_log += self.check_rollback()
+            self.update_episode_log(episode_log)
+
+        for car in self.cars:
+            car.progress = math.floor(car.progress)
+
+        self.epoch_rewards_breakdown = np.zeros([self.num_of_cars, self.REWARD_SIZE], float)
+        self.time_step_rewards_breakdown = []
+
         # Only update params if there's actual trajectory data
         if len(self.rl_model.states) > 0 and len(self.rl_model.rewards) > 0:
-            self.model_training_log = self.rl_model.update_params()
-            self.model_training_box.set_text(self.model_training_log)
+            training_log_data= self.rl_model.update_params()
+            self.training_log_box.set_text(training_log_data)
 
         self.max_epoch_progress = [0.0] * self.num_of_cars
         super().reinitialise_simulation()
 
-    def _handle_episode_end(self):
-        """Handle end of episode - logging, rollback check, reset."""
-        # Only process episode if we have trajectory data
-        if len(self.rl_model.states) > 0:
-            self.episode_num += 1
-            self.episodes_completed_label.set_text(f'Episodes completed: {self.episode_num}')
-            log_msg = self._log_episode_results()
 
-            avg_progress = np.mean(self.max_epoch_progress)
-            self._cache_performance(avg_progress, self.max_epoch_progress)
-            log_msg += self._check_rollback()
-            self.update_logger(log_msg)
-        for car in self.cars:
-            car.progress = math.floor(car.progress)
-        # Always reset reward tracking
-        self.epoch_rewards_breakdown = np.zeros([self.num_of_cars, self.REWARD_SIZE], float)
-        self.time_step_rewards_breakdown = []
-
-        self.reinitialise_simulation()
-
-    def update_logger(self, log_msg):
+    def update_episode_log(self, log_msg):
         self.episodic_log_data.append(log_msg)
 
         if len(self.episodic_log_data) > 40:
@@ -1553,22 +1544,20 @@ class AITrainingEnvironment(CarSimulation):
         if self.episodic_log_box.scroll_bar:
             self.episodic_log_box.scroll_bar.set_scroll_from_start_percentage(1.0)
 
-        self.log_learning_progress()
-        self.learning_log_box.set_text(self.learning_log_data)
-
-    def log_learning_progress(self):
         rounded_avg_lap_time = round(self.avg_lap_time, 5) if self.avg_lap_time else None
         rounded_best_lap_time = round(self.best_lap_time, 5) if self.best_lap_time else None
-        self.learning_log_data = (f"Average progress: {self.avg_progress:.2f}% \n"
-                                  f"Best progress: {self.max_progress:.2f}% \n"
-                                  f"Average lap time: {rounded_avg_lap_time} \n"
-                                  f"Fastest lap time: {rounded_best_lap_time} \n"
-                                  f"Minimum progress threshold: {self.PROGRESS_THRESHOLD} \n" 
-                                  f"Maximum lap time threshold: {self.LAP_TIME_THRESHOLD} \n" 
-                                  f"Model ready?: {self.is_model_raceable} \n"
-                                  f"Number of rollback: {self.rollback_counter} \n")
+        performance_log_data = (f"Average progress: {self.avg_progress:.2f}% \n"
+                                f"Best progress: {self.max_progress:.2f}% \n"
+                                f"Average lap time: {rounded_avg_lap_time} \n"
+                                f"Fastest lap time: {rounded_best_lap_time} \n"
+                                f"Minimum progress threshold: {self.PROGRESS_THRESHOLD} \n"
+                                f"Maximum lap time threshold: {self.LAP_TIME_THRESHOLD} \n"
+                                f"Model ready?: {self.is_model_raceable} \n"
+                                f"Number of rollback: {self.rollback_counter} \n")
 
-    def _log_episode_results(self):
+        self.performance_log_box.set_text(performance_log_data)
+
+    def get_episode_log(self):
         """Log episode statistics."""
         print(f"Episode: {self.episode_num}")
 
@@ -1586,7 +1575,7 @@ class AITrainingEnvironment(CarSimulation):
                 f"Avg progress: {avg_progress:.2f} \n"
                 f"Avg reward: {sum(avg_epoch_rewards.tolist()):.2f} \n")
 
-    def _check_rollback(self):
+    def check_rollback(self):
         """Check if model should be rolled back due to poor performance."""
         if len(self.performance_history) < self.HISTORY_WINDOW:
             return ""
@@ -1611,7 +1600,7 @@ class AITrainingEnvironment(CarSimulation):
             return "----xx" * 5 + "\n" + "Model Rolled Back" + "\n" + "----xx" * 5 + "\n \n"
         return  ""
 
-    def _cache_performance(self, avg_total, epoch_progresses):
+    def update_metrics(self, avg_total, epoch_progresses):
         """Cache performance metrics and update best model if improved."""
         self.avg_progress = sum(car.progress for car in self.cars) / len(self.cars) * 100
         self.max_progress = max(self.max_progress, self.avg_progress)
@@ -1657,8 +1646,6 @@ class AITrainingEnvironment(CarSimulation):
         if len(self.historic_progress) > self.HISTORY_WINDOW:
             self.historic_progress.pop(0)
 
-
-
     def event_handle(self):
         """Handle user input events."""
         # Reset simulation
@@ -1668,12 +1655,11 @@ class AITrainingEnvironment(CarSimulation):
 
         # Speed control
         if self.tick_speedup_button in game_core.pressed_buttons:
-            self._toggle_speed()
+            self.toggle_speedup()
 
         # Save model
         if self.save_ai_button in game_core.pressed_buttons:
             self.initialise_model_saver()
-
 
 
     def initialise_model_saver(self):
@@ -1731,7 +1717,7 @@ class AITrainingEnvironment(CarSimulation):
         np.save(f"Models/{filename}.npy", save_data, allow_pickle=True)
         self.model_saver = None
 
-    def _toggle_speed(self):
+    def toggle_speedup(self):
         """Set simulation speedup factor."""
         if game_core.TICK_SPEEDUP == 1:
             game_core.TICK_SPEEDUP = 2

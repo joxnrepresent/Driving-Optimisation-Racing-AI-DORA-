@@ -5,8 +5,33 @@ from pygame import Surface, Rect, SRCALPHA, Vector2
 from collections import defaultdict
 from resources import game_core
 import pygame
+"""
+Track class and Spacial Hash Grid data structure 
+
+Implements race track sprite with optimised collision detection.
+Supports hitbox collision for wall detection and ray casting for distance sensors.
+Spatial hash grid enables optimised collision point checks.
+Classes:
+    Track: Race track sprite with collision detection and ray casting
+    SpatialHashGrid: Spatial hash grid for efficient collision queries
+"""
 
 class Track(Sprite):
+    """
+    Track sprite with collision detection methods.
+
+    Generates track spine from bezier curve data. Generates track walls from the generated track spine and the width
+    point data. Renders track with finish line and walls.
+
+    Attributes:
+        grid (SpatialHashGrid): Spatial hash for collision queries
+        track_spine (list[Vector2]): Track centerline points
+        outer_wall_points (list[Vector2]): Outer wall vertices
+        inner_wall_points (list[Vector2]): Inner wall vertices
+        wall_segments (list[tuple]): All wall segments for collision
+        rect (Rect): Track bounding rectangle
+        image (Surface): Track rendering surface
+    """
 
     def __init__(self, anchors, controls, widths, position = ((0,0), game_core.screen_dimensions)):
         super().__init__()
@@ -59,10 +84,12 @@ class Track(Sprite):
                 return True
         return False
 
-    # Draws all track segments as lines
-    # Colour alternates between black and red
+
     def draw_track(self):
+        """Draw track graphics with walls, road and finish line."""
         self.image.fill((0, 0, 0, 0))
+
+        # Draw road in grey
         track_polygon = self.outer_wall_points + self.inner_wall_points
         pygame.draw.polygon(self.image, (80, 80, 80), track_polygon)
         self.draw_checkered_line()
@@ -71,6 +98,13 @@ class Track(Sprite):
         game_core.game_mode.debug_elements["track spine"] = [self.track_spine]
 
     def draw_alternating_wall(self,width=10):
+        """
+        Draw walls with alternating colours.
+
+        Args:
+            width (int): Wall line width
+        """
+
         is_black = True
         current_segment_length = 0
         for segment in self.wall_segments:
@@ -82,7 +116,13 @@ class Track(Sprite):
                 is_black = not is_black
 
     def draw_checkered_line(self, thickness = 20, checkered_rows = 10):
+        """
+        Draw checkered finish line across track start.
 
+        Args:
+            thickness (int): Line thickness perpendicular to track
+            checkered_rows (int): Number of checker squares
+        """
         finish_line = self.inner_wall_points[0] - self.outer_wall_points[0]
         length = finish_line.length()
 
@@ -97,6 +137,7 @@ class Track(Sprite):
 
             color = (255, 255, 255) if i % 2 == 0 else (0, 0, 0)
 
+            # Get checkered square corners
             p1 = start + normal_vector * (thickness / 2)
             p2 = end + normal_vector * (thickness / 2)
             p3 = end - normal_vector * (thickness / 2)

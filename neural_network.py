@@ -179,8 +179,10 @@ class NeuralNetwork:
     @staticmethod
     def adam_estimation(m, v, grad, t, alpha, beta1, beta2):
         m = beta1 * m + (1 - beta1) * grad
-        v = beta2 * v + (1 - beta2) * grad * grad
+        v = beta2 * v + (1 - beta2) * grad ** 2
         m_hat = m / (1 - beta1 ** t)
         v_hat = v / (1 - beta2 ** t)
         update_value = -alpha * m_hat / (np.sqrt(v_hat) + 1e-8)
         return (m, v), update_value
+
+
