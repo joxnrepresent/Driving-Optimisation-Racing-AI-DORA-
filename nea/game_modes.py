@@ -1,3 +1,22 @@
+import math
+import copy
+import json
+from typing import override
+
+import numpy as np
+import pygame
+import pygame_gui
+
+import nea.resources as r
+from nea.resources import game_core, RaceTimeManager
+from nea.gui_custom_elements import (UITrackCanvas, UIFileBrowser,
+                                 UIOptionSelector, UIEndScreen, UIModelCreator)
+from nea.track import Track
+from nea.cars import PlayerCar, AICar
+from nea.rl_model import MCACModel, REINFORCEModel
+from pygame_gui.elements import UIPanel, UILabel, UIButton
+from abc import ABC, abstractmethod
+
 """
 Game mode classes for racing simulation.
 
@@ -14,31 +33,6 @@ Classes:
     RacingAI: Player vs AI racing mode
     AITrainingEnvironment: Reinforcement learning training mode with performance tracking
 """
-
-
-import math
-import copy
-import pickle
-import json
-import sys
-import numpy as np
-import pygame
-import pygame_gui
-from sklearn.externals.array_api_extra.testing import override
-
-import cars
-import resources as r
-from resources import game_core, RaceTimeManager
-from gui_custom_elements import (UIGaugeMeter, UITrackCanvas, UIFileBrowser,
-                                 UIOptionSelector, UIEndScreen, UIModelCreator)
-from track import Track
-from cars import PlayerCar, AICar
-from rl_model import MCACModel, REINFORCEModel
-from pygame_gui.elements import UIPanel, UILabel, UIButton
-from abc import ABC, abstractmethod
-
-"""This module contains classes """
-#---------------------------------------------------------------------------------------------------------------------#
 
 class GameMode(ABC):
     """
@@ -126,7 +120,6 @@ class GameMode(ABC):
 
     @abstractmethod
     def event_handle(self):
-        """Handle pause button press and error screen. Child classes add on their own event handling."""
         if self.pause_button in game_core.pressed_buttons:
             if game_core.unexpected_error_msg is not None:
                 game_core.set_game_mode(MainMenu)
@@ -238,10 +231,8 @@ class MainMenu(GameMode):
         if game_core.unexpected_error_msg is not None:
             self.show_error(game_core.unexpected_error_msg)
 
-    @override
     def event_handle(self):
         """Handle mode selection."""
-
         if self.track_maker_button in game_core.pressed_buttons:
             game_core.set_game_mode(TrackMakerUI)
 
@@ -265,7 +256,6 @@ class MainMenu(GameMode):
         super().event_handle()
 
     def update(self, *args):
-        """Update GUI manager."""
         self.gui_manager.update(1 / game_core.FRAME_RATE)
 
     def show_error(self, error_msg):
@@ -312,7 +302,6 @@ class TrackMakerUI(GameMode):
     """
 
     def __init__(self):
-        """Initialise track maker with canvas and buttons."""
         super().__init__()
 
         self.canvas = UITrackCanvas(
@@ -413,7 +402,6 @@ class TrackMakerUI(GameMode):
         self.canvas.width_mode = False
 
     def update(self):
-        """Update GUI manager. Create width slider if in width mode,"""
         self.gui_manager.update(1 / game_core.FRAME_RATE)
         if self.canvas.mode == "width":
             self.changing_widths()
@@ -461,32 +449,17 @@ class TrackMakerUI(GameMode):
             self.width_slider = None
             self.width_label = None
 
-    @override
+
     def event_handle(self):
-        """Handles button presses."""
         if self.anchor_toggle_button in game_core.pressed_buttons:
-            self.canvas.mode = "anchor"
-            self.canvas.selected_point = None
-            self.anchor_toggle_button.disable()
-            self.width_toggle_button.enable()
+            self.toggle_anchor_mode()
 
         if self.width_toggle_button in game_core.pressed_buttons:
-            self.canvas.mode = "width"
-            self.canvas.selected_point = None
-            self.width_toggle_button.disable()
-            self.anchor_toggle_button.enable()
+            self.toggle_width_mode()
 
         if self.save_button in game_core.pressed_buttons:
-            # Only allows track to be saved if there are no validity issues. Else, informs user of what the issue is.
             if self.canvas.validity_issues is not None:
-                self.error_label.show()
-                self.ack_error_button.show()
-                if self.canvas.validity_issues == "invalid walls":
-                    self.error_label.set_text("Tracks has overlapping/ kinked walls")
-                elif self.canvas.validity_issues == "incomplete":
-                    self.error_label.set_text("Tracks is incomplete")
-                elif self.canvas.validity_issues == "too short":
-                    self.error_label.set_text("Tracks is too short")
+                self.display_validity_issues()
             else:
                 self.save_track()
 
@@ -494,36 +467,60 @@ class TrackMakerUI(GameMode):
             self.load_track()
 
         if self.clear_button in game_core.pressed_buttons:
-            # Kills old canvas and makes new one
-            handle_status = self.canvas.is_handles_enabled
-            self.canvas.kill()
-            self.canvas = UITrackCanvas(
-                relative_rect=pygame.Rect((0, 80),
-                                          (game_core.screen_dimensions[0], game_core.screen_dimensions[1] - 160)),
-                manager=self.gui_manager,
-                is_handles_enabled = handle_status
-            )
+            self.reset_canvas()
 
         if self.menu_button in game_core.pressed_buttons:
             game_core.set_game_mode(MainMenu)
 
         if self.toggle_handles_button in game_core.pressed_buttons:
-
-            # Sets the curve rendering mode based on if control handles are enabled
-            self.canvas.is_handles_enabled = not self.canvas.is_handles_enabled
-            self.canvas.selected_point = None
-            if self.canvas.is_handles_enabled:
-                self.canvas.generate_all_controls()
-                self.toggle_handles_button.set_text("Disable Handles")
-            else:
-                self.canvas.control_points.clear()
-                self.toggle_handles_button.set_text("Enable Handles")
+            self.toggle_handles()
 
         if self.ack_error_button in game_core.pressed_buttons:
             self.ack_error_button.hide()
             self.error_label.hide()
-
         super().event_handle()
+
+    def toggle_anchor_mode(self):
+        self.canvas.mode = "anchor"
+        self.canvas.selected_point = None
+        self.anchor_toggle_button.disable()
+        self.width_toggle_button.enable()
+
+    def toggle_width_mode(self):
+        self.canvas.mode = "width"
+        self.canvas.selected_point = None
+        self.width_toggle_button.disable()
+        self.anchor_toggle_button.enable()
+
+    def display_validity_issues(self):
+        self.error_label.show()
+        self.ack_error_button.show()
+        if self.canvas.validity_issues == "invalid walls":
+            self.error_label.set_text("Tracks has overlapping/ kinked walls")
+        elif self.canvas.validity_issues == "incomplete":
+            self.error_label.set_text("Tracks is incomplete")
+        elif self.canvas.validity_issues == "too short":
+            self.error_label.set_text("Tracks is too short")
+
+    def toggle_handles(self):
+        self.canvas.is_handles_enabled = not self.canvas.is_handles_enabled
+        self.canvas.selected_point = None
+        if self.canvas.is_handles_enabled:
+            self.canvas.generate_all_controls()
+            self.toggle_handles_button.set_text("Disable Handles")
+        else:
+            self.canvas.control_points.clear()
+            self.toggle_handles_button.set_text("Enable Handles")
+
+    def reset_canvas(self):
+        handle_status = self.canvas.is_handles_enabled
+        self.canvas.kill()
+        self.canvas = UITrackCanvas(
+            relative_rect=pygame.Rect((0, 80),
+                                      (game_core.screen_dimensions[0], game_core.screen_dimensions[1] - 160)),
+            manager=self.gui_manager,
+            is_handles_enabled=handle_status
+        )
 
     def save_track(self):
         """Open file selector screen for saving track."""
@@ -543,7 +540,7 @@ class TrackMakerUI(GameMode):
 
     def write_track_data(self, filename=game_core.current_track):
         """
-        Create data frame with correct formatting and save it to a json file. Ensures handles are generated
+        Create data frame with correct formatting and save it to a JSON file. Ensures handles are generated
         before saving.
 
         Args:
@@ -562,7 +559,7 @@ class TrackMakerUI(GameMode):
 
     def load_track_data(self, filename=game_core.current_track):
         """
-        Load track from json file.
+        Load track from JSON file.
 
         Sets the canvas anchor points, control points and widths attributes to the data stored in the file.
         Displays error if file is corrupted.
@@ -610,12 +607,6 @@ class CarSimulation(GameMode):
 
 
     def __init__(self, num_of_cars):
-        """
-        Initialise car simulation.
-
-        Args:
-            num_of_cars (int): Number of cars to initialise
-        """
         super().__init__()
         self.reset_button = pygame_gui.elements.UIButton(
             relative_rect=pygame.Rect((5, 130), (285, 40)),
@@ -656,6 +647,51 @@ class CarSimulation(GameMode):
         self.initialise_track()
         self.starting_orientation = 0
 
+    def update(self):
+        """
+        Updates state of all active cars:
+        Skips updates if paused or race finished.
+        """
+        self.gui_manager.update(1 / game_core.FRAME_RATE)
+
+        if game_core.is_paused or self.end_screen is not None:
+            return
+
+        if self.track:
+            self.track.update()
+        for i, car in enumerate(self.cars):
+
+            # Skip crashed cars
+            if self.is_crashed[i] or self.time_manager.is_all_laps_finished[i]:
+                continue
+
+            car.collision_detection(self.track)
+            car.get_sensors(self.track)
+            if car.is_crashed:
+                self.debug_elements["hitboxes"].append(self.cars[0].hitbox.copy())
+                self.is_crashed[i] = True
+
+            progress, is_lap_completed = car.update_and_get_progress(self.track.track_spine)
+            laps_completed = math.floor(progress)
+            self.time_manager.update(i, laps_completed, is_lap_completed)
+            # if (pygame.K_q in game_core.pressed_keys):
+            #     pygame.draw.circle(self.track.image, (255, 0, 0), car.position, 2)
+
+        # If all laps finished, show end screen
+        if all(self.time_manager.is_all_laps_finished):
+            results = self.get_results()
+            self.display_end_screen(results)
+            return
+
+    def event_handle(self):
+        super().event_handle()
+        if self.reset_button in game_core.pressed_buttons:
+            self.reinitialise_simulation()
+        if self.menu_button in game_core.pressed_buttons:
+            game_core.set_game_mode(MainMenu)
+        if self.debugger_button in game_core.pressed_buttons:
+            game_core.is_debugging = not game_core.is_debugging
+
     def initialise_track(self):
         """Open file selector for track loading."""
         self.track_loader = UIFileBrowser(pygame.Rect((0, 0), game_core.screen_dimensions),
@@ -664,7 +700,6 @@ class CarSimulation(GameMode):
                                            "load",
                                           callback=lambda filename: self.set_track(filename),
                                           return_mode= MainMenu)
-
 
     def set_track(self, filename):
         """
@@ -704,43 +739,6 @@ class CarSimulation(GameMode):
         self.time_manager.initialise_manager(self.num_of_cars)
         self.init_cars()
 
-
-    def update(self):
-        """
-        Updates state of all active cars:
-
-        Calls collision detection
-        Updates progress
-        check for race completion and updates time manager on lap completions
-        Skips updates if paused or race finished.
-        """
-        self.gui_manager.update(1 / game_core.FRAME_RATE)
-
-        if game_core.is_paused or self.end_screen is not None:
-            return
-
-        if self.track:
-            self.track.update()
-        for i, car in enumerate(self.cars):
-
-            # Skip crashed cars
-            if self.is_crashed[i] or self.time_manager.is_all_laps_finished[i]:
-                continue
-
-            car.collision_detection(self.track)
-            if car.is_crashed:
-                self.is_crashed[i] = True
-
-            progress, is_lap_completed = car.update_and_get_progress(self.track.track_spine)
-            laps_completed = math.floor(progress)
-            self.time_manager.update(i, laps_completed, is_lap_completed)
-
-        # If all laps finished, show end screen
-        if all(self.time_manager.is_all_laps_finished):
-            results = self.get_results()
-            self.display_end_screen(results)
-            return
-
     @abstractmethod
     def init_cars(self):
         """Initialise cars. Child classes must implement."""
@@ -756,6 +754,20 @@ class CarSimulation(GameMode):
         """
         pass
 
+    def reset_gui(self):
+        """Reset GUI elements. Child classes must implement this."""
+        pass
+
+    def reset_environment(self):
+        """Reset time manager for new race."""
+        self.time_manager.initialise_manager(self.num_of_cars)
+
+    def reset_cars(self):
+        """Reset all cars to starting positions and progress and clear crash states."""
+        for car in self.cars:
+            car.reset()
+        self.is_crashed = [False] * self.num_of_cars
+
     def get_results(self):
         """
         Get race statistics from time manager.
@@ -766,46 +778,12 @@ class CarSimulation(GameMode):
         return self.time_manager.get_stats()
 
     def end_options(self, option):
-        """
-        Handle end screen options.
-
-        Args:
-            option (str): "restart" to reset simulation, otherwise return to menu
-        """
         if option == "restart":
             self.reinitialise_simulation()
         else:
             game_core.set_game_mode(MainMenu)
 
-    @override
-    def event_handle(self):
-        """Handles simulation buttons"""
-        super().event_handle()
-        if self.reset_button in game_core.pressed_buttons:
-            self.reinitialise_simulation()
-        if self.menu_button in game_core.pressed_buttons:
-            game_core.set_game_mode(MainMenu)
-        if self.debugger_button in game_core.pressed_buttons:
-            game_core.is_debugging = not game_core.is_debugging
-
-
-    def reset_environment(self):
-        """Reset time manager for new race."""
-        self.time_manager.initialise_manager(self.num_of_cars)
-
-
-    def reset_gui(self):
-        """Reset GUI elements. Child classes must implement this."""
-        pass
-
-    def reset_cars(self):
-        """Reset all cars to starting positions and progress and clear crash states."""
-        for car in self.cars:
-            car.reset()
-        self.is_crashed = [False] * self.num_of_cars
-
     def reinitialise_simulation(self):
-        """Reinitialise the entire simulation."""
         self.reset_gui()
         self.reset_environment()
         self.init_cars()
@@ -821,8 +799,6 @@ class SoloCarSim(CarSimulation):
     Attributes:
         controls_toggle_button (UIButton): Switch between keyboard and slider steering
     """
-
-
     def __init__(self):
         super().__init__(num_of_cars=1)
         """Initialise solo racing mode with player controls."""
@@ -834,35 +810,17 @@ class SoloCarSim(CarSimulation):
             object_id='#panel_button'
         )
 
-    def reset_gui(self):
-        """Remove and reinitialise player HUD elements."""
-        self.cars[0].speedometer.kill()
-        self.cars[0].throttle_and_braking_meter.kill()
-        self.cars[0].steering_slider.kill()
-
-    def init_cars(self):
-        """Create player car at track start position."""
+    def update(self, *args):
+        super().update()
+        if game_core.is_paused or self.end_screen is not None:
+            return
         if self.cars:
-            self.game_sprites.remove(self.cars[0])
-            self.cars[0].delete_control_panel()
-        self.cars = [PlayerCar(self.track.track_spine[0], starting_orientation=self.track.get_starting_orientation())]
-        self.game_sprites.add(self.cars[0])
-        self.debug_elements["hitboxes"].append(self.cars[0].hitbox)
+            self.cars[0].update()
+        if self.is_crashed[0]:
+            self.reset_cars()
+            self.cars[0].progress = math.floor(self.cars[0].progress)
 
-    def set_track(self, filename):
-        """
-        Load track initialise lap selection.
-
-        Args:
-            filename (str): Track file to load
-        """
-        super().set_track(filename)
-        if game_core.unexpected_error_msg is None:
-            self.initialise_num_of_laps()
-
-    @override
     def event_handle(self):
-        """Handle steering control toggle."""
         if self.controls_toggle_button in game_core.pressed_buttons:
             self.cars[0].toggle_slider()
             if self.cars[0].is_slider_enabled:
@@ -872,6 +830,17 @@ class SoloCarSim(CarSimulation):
 
         super().event_handle()
 
+    @override
+    def init_cars(self):
+        """Create 1 player car at track start position."""
+        if self.cars:
+            self.game_sprites.remove(self.cars[0])
+            self.cars[0].delete_control_panel()
+        self.cars = [PlayerCar(self.track.track_spine[0], starting_orientation=self.track.get_starting_orientation())]
+        self.game_sprites.add(self.cars[0])
+        self.debug_elements["hitboxes"].append(self.cars[0].hitbox)
+
+    @override
     def display_end_screen(self, results):
         """
         Display completion screen with lap times.
@@ -894,25 +863,39 @@ class SoloCarSim(CarSimulation):
                                       return_mode= MainMenu
         )
 
-    def update(self, *args):
-        """Update player car. Reset car to start of recent lap on crash."""
-        super().update()
-        if game_core.is_paused or self.end_screen is not None:
-            return
-        if self.cars:
-            self.cars[0].update()
-        if self.is_crashed[0]:
-            self.reset_cars()
-            self.cars[0].progress = math.floor(self.cars[0].progress)
+    @override
+    def reset_gui(self):
+        """Remove and reinitialise player HUD elements."""
+        self.cars[0].speedometer.kill()
+        self.cars[0].throttle_and_braking_meter.kill()
+        self.cars[0].steering_slider.kill()
+
+    @override
+    def reset_environment(self):
+        super().reset_environment()
+
+    @override
+    def reset_cars(self):
+        super().reset_cars()
 
 
+    def set_track(self, filename):
+        """
+        Load track initialise lap selection.
+
+        Args:
+            filename (str): Track file to load
+        """
+        super().set_track(filename)
+        if game_core.unexpected_error_msg is None:
+            self.initialise_num_of_laps()
 
 class RacingAI(CarSimulation):
     """
     Player vs AI racing mode.
 
-    Player races against AI opponent controlled by loaded RL model. Displays winner and comparative lap times
-    on completion. Cars reset individually on crash.
+    Player races against AI opponent controlled by loaded RL model. Displays winner and lap times.
+    Cars reset individually on crash.
 
     Attributes:
        state_size (int): Size of state vector for AI (sensors + speed + steering)
@@ -922,7 +905,6 @@ class RacingAI(CarSimulation):
     """
 
     def __init__(self, state_size=15):
-        """Initialise racing mode with player controls."""
         super().__init__(num_of_cars=2)
 
         self.state_size = state_size
@@ -937,6 +919,37 @@ class RacingAI(CarSimulation):
 
         self.rl_model = None
         self.model_loader = None
+
+    def update(self, *args):
+        super().update()
+        if game_core.is_paused or self.end_screen is not None:
+            return
+        for i, car in enumerate(self.cars):
+            if self.time_manager.is_all_laps_finished[i]:
+                if game_core.sim_time_ms - self.time_manager.lap_times[i][-1] > 60 * 1000:
+                    results = self.get_results()
+                    self.display_end_screen(results)
+                continue
+            if self.is_crashed[i]:
+                car.reset()
+                self.is_crashed[i] = False
+            else:
+                if isinstance(car, AICar):
+                    sensors = car.get_sensors(self.track)
+                    state = sensors + [car.velocity.magnitude() / car.MAX_SPEED, car.steer / car.MAX_STEER_RAD]
+                    actions = self.rl_model.get_stochastic_actions(state)[0]
+                    car.update(actions[0])
+                else:
+                    car.update()
+
+    def event_handle(self):
+        if self.controls_toggle_button in game_core.pressed_buttons:
+            self.cars[0].toggle_slider()
+            if self.cars[0].is_slider_enabled:
+                self.controls_toggle_button.set_text("Disable steer slider")
+            else:
+                self.controls_toggle_button.set_text("Enable steer slider")
+        super().event_handle()
 
     def set_track(self, filename):
         """
@@ -983,7 +996,6 @@ class RacingAI(CarSimulation):
             game_core.unexpected_error_msg  = f"ERROR LOADING MODEL:{str(e)}"
             game_core.set_game_mode(MainMenu)
 
-
     def init_cars(self):
         """Create player car and AI car at track start position."""
         if self.cars:
@@ -993,41 +1005,6 @@ class RacingAI(CarSimulation):
                      AICar(self.track.track_spine[0],starting_orientation=self.track.get_starting_orientation())]
         self.game_sprites.add(self.cars[0], self.cars[1])
         self.debug_elements["hitboxes"].extend([self.cars[0].hitbox, self.cars[1].hitbox])
-
-
-    def update(self, *args):
-        """Update both cars. AI car controlled by model, player by input. Reset individually on crash."""
-        super().update()
-        if game_core.is_paused or self.end_screen is not None:
-            return
-        for i, car in enumerate(self.cars):
-            if self.time_manager.is_all_laps_finished[i]:
-                if game_core.sim_time_ms - self.time_manager.lap_times[i][-1] > 60 * 1000:
-                    results = self.get_results()
-                    self.display_end_screen(results)
-                continue
-            if self.is_crashed[i]:
-                car.reset()
-                self.is_crashed[i] = False
-            else:
-                if isinstance(car, AICar):
-                    sensors = car.get_sensors(self.track)
-                    state = sensors + [car.velocity.magnitude() / car.MAX_SPEED, car.steer / car.MAX_STEER_RAD]
-                    actions = self.rl_model.get_stochastic_actions(state)[0]
-                    car.update(actions[0])
-                else:
-                    car.update()
-
-    @override
-    def event_handle(self):
-        """Handle steering control toggle for player car."""
-        if self.controls_toggle_button in game_core.pressed_buttons:
-            self.cars[0].toggle_slider()
-            if self.cars[0].is_slider_enabled:
-                self.controls_toggle_button.set_text("Disable steer slider")
-            else:
-                self.controls_toggle_button.set_text("Enable steer slider")
-        super().event_handle()
 
     def display_end_screen(self, results):
         """
@@ -1108,6 +1085,7 @@ class AITrainingEnvironment(CarSimulation):
 
     PROGRESS_THRESHOLD = None
     LAP_TIME_THRESHOLD = None
+
     def __init__(self, simulation_size=12):
         super().__init__(num_of_cars=simulation_size)
         self.episode_num = 0
@@ -1217,9 +1195,24 @@ class AITrainingEnvironment(CarSimulation):
         self.model_saver = None
         self.hyper_param_setter = None
 
+    def update(self, *args):
+        super().update()
+        if not game_core.is_paused and self.rl_model is not None:
+            self.update_ai_step()
 
+        if all(self.is_crashed):
+            super().update()
+            self.reinitialise_simulation()
+            return
 
-
+    def event_handle(self):
+        super().event_handle()
+        if self.reset_button in game_core.pressed_buttons:
+            self.reinitialise_simulation()
+        if self.tick_speedup_button in game_core.pressed_buttons:
+            self.toggle_speedup()
+        if self.save_ai_button in game_core.pressed_buttons:
+            self.initialise_model_saver()
 
     def set_track(self, filename):
         """
@@ -1230,7 +1223,6 @@ class AITrainingEnvironment(CarSimulation):
        """
         super().set_track(filename)
         self.initialise_model_type()
-        self.LAP_TIME_THRESHOLD = len(self.track.track_spine) / 10
 
     def initialise_model_type(self):
         """Open selector screen for selecting model type (REINFORCE or MCAC)."""
@@ -1395,20 +1387,21 @@ class AITrainingEnvironment(CarSimulation):
                                           critic_beta2=config['critic_adam_beta2'])
 
             self.initialise_num_of_laps()
-        except:
+        except Exception as e:
             game_core.unexpected_error_msg  = f"ERROR LOADING MODEL:{str(e)}"
             game_core.set_game_mode(MainMenu)
 
     def initialise_num_of_laps(self):
         super().initialise_num_of_laps()
-        self.PROGRESS_THRESHOLD = 0.75 * self.time_manager.num_of_laps
 
     def init_cars(self):
+        self.LAP_TIME_THRESHOLD = len(self.track.track_spine) / 10
+        self.PROGRESS_THRESHOLD = 0.75 * self.time_manager.num_of_laps
+
         """Create AI cars at track start position."""
         if self.cars:
             for car in self.cars:
                 self.game_sprites.remove(car)
-                # self.debug_elements["hitboxes"].remove(car.hitbox)
 
         self.cars = []
         for i in range(self.num_of_cars):
@@ -1417,20 +1410,10 @@ class AITrainingEnvironment(CarSimulation):
             self.game_sprites.add(car)
             self.debug_elements["hitboxes"].append(car.hitbox)
 
-
-    def update(self, *args):
-        """Update AI simulation and handle episode completion."""
-        super().update()
-        if not game_core.is_paused and self.rl_model is not None:
-            self.update_ai_step()
-
-        if all(self.is_crashed):
-            super().update()
-            self.reinitialise_simulation()
-            return
-
     def update_ai_step(self):
-        """Perform single AI training step for active cars."""
+        """
+        Perform single training step for active cars.
+        """
         states = np.zeros((self.num_of_cars, self.STATE_SIZE), np.float32)
         for i, car in enumerate(self.cars):
             if not self.is_crashed[i]:
@@ -1453,22 +1436,25 @@ class AITrainingEnvironment(CarSimulation):
         self.rl_model.update_trajectory(states, pre_squash, rewards)
 
     def process_car_and_get_reward(self, i, car, sensors):
-        """Process a single car's reward after action is taken."""
+        """
+        Process reward after action is taken.
+
+        Args:
+            i (int): car index
+            car (AICar): car instance
+            sensors (list[float]): sensor values
+        """
         car.collision_detection(self.track)
         progress, is_lap_finished = car.update_and_get_progress(self.track.track_spine)
 
         if is_lap_finished:
             laps_completed = math.floor(progress)
-            # Ensure we don't double count if super().update() also runs
             if self.time_manager.lap_times[i][laps_completed - 1] is None:
                 self.time_manager.update(i, laps_completed, is_lap_finished)
 
         is_stuck = self.check_stuck(i, progress)
 
-        # Compute reward
         reward, rewards_array = car.compute_reward(is_stuck, is_lap_finished, self.prev_progress[i], sensors)
-
-        # Check if completed max laps
         if car.progress >= self.time_manager.num_of_laps:
             self.is_crashed[i] = True  #
             car.is_crashed = True
@@ -1477,7 +1463,7 @@ class AITrainingEnvironment(CarSimulation):
 
         clipped_reward = np.clip(reward, -50, 100 * self.time_manager.num_of_laps)
 
-        # Log rewards for debugging
+        # Log rewards
         reward_breakdown = np.array(rewards_array)
         self.epoch_rewards_breakdown[i] += reward_breakdown
         self.time_step_rewards_breakdown.append(reward_breakdown)
@@ -1488,7 +1474,9 @@ class AITrainingEnvironment(CarSimulation):
         return clipped_reward
 
     def check_stuck(self, i, current_progress):
-        """Check if car is stuck and update stuck timer."""
+        """
+        Check if car is stuck and update stuck timer.
+        """
         if current_progress - self.prev_progress[i] < 0.001:
             self.stuck_timer[i] += 1
         else:
@@ -1500,24 +1488,25 @@ class AITrainingEnvironment(CarSimulation):
         return False
 
     def reset_environment(self):
-        """Reset the simulation environment."""
         super().reset_environment()
         self.stuck_timer = [0] * self.num_of_cars
         self.prev_progress = [0.0] * self.num_of_cars
         self.is_crashed = [False] * self.num_of_cars
 
     def reinitialise_simulation(self):
-        """Reinitialise simulation and update model parameters."""
-
+        """
+        Reinitialise the environemnt, cars and update RL model parameters.
+        """
         if len(self.rl_model.states) > 0:
             self.episode_num += 1
             self.episodes_completed_label.set_text(f'Episodes completed: {self.episode_num}')
             episode_log = self.get_episode_log()
 
             avg_progress = np.mean(self.max_epoch_progress)
-            self.update_metrics(avg_progress, self.max_epoch_progress)
+            self.update_metrics(avg_progress)
+            self.cache_best_params(self.max_epoch_progress)
             episode_log += self.check_rollback()
-            self.update_episode_log(episode_log)
+            self.update_logs(episode_log)
 
         for car in self.cars:
             car.progress = math.floor(car.progress)
@@ -1525,7 +1514,7 @@ class AITrainingEnvironment(CarSimulation):
         self.epoch_rewards_breakdown = np.zeros([self.num_of_cars, self.REWARD_SIZE], float)
         self.time_step_rewards_breakdown = []
 
-        # Only update params if there's actual trajectory data
+
         if len(self.rl_model.states) > 0 and len(self.rl_model.rewards) > 0:
             training_log_data= self.rl_model.update_params()
             self.training_log_box.set_text(training_log_data)
@@ -1534,7 +1523,7 @@ class AITrainingEnvironment(CarSimulation):
         super().reinitialise_simulation()
 
 
-    def update_episode_log(self, log_msg):
+    def update_logs(self, log_msg):
         self.episodic_log_data.append(log_msg)
 
         if len(self.episodic_log_data) > 40:
@@ -1558,7 +1547,11 @@ class AITrainingEnvironment(CarSimulation):
         self.performance_log_box.set_text(performance_log_data)
 
     def get_episode_log(self):
-        """Log episode statistics."""
+        """
+        Get episode log data.
+        Returns:
+            str: Episode log data.
+        """
         print(f"Episode: {self.episode_num}")
 
         avg_epoch_rewards = np.round(self.epoch_rewards_breakdown.mean(axis=0), 3)
@@ -1576,14 +1569,18 @@ class AITrainingEnvironment(CarSimulation):
                 f"Avg reward: {sum(avg_epoch_rewards.tolist()):.2f} \n")
 
     def check_rollback(self):
-        """Check if model should be rolled back due to poor performance."""
+        """
+        Check for degrading performance, and rollback model to the best parameters if necessary.
+
+        Returns:
+            str: Rollback message.
+        """
         if len(self.performance_history) < self.HISTORY_WINDOW:
             return ""
 
         recent_performance = np.mean(self.performance_history[-self.HISTORY_WINDOW:])
 
         if recent_performance < self.ROLLBACK_THRESHOLD * self.best_hist_avg:
-            # Rollback to best model
             self.rl_model.actor.set_params(self.best_model_params['actor'])
             if hasattr(self.rl_model, 'critic'):
                 self.rl_model.critic.set_params(self.best_model_params['critic'])
@@ -1600,8 +1597,13 @@ class AITrainingEnvironment(CarSimulation):
             return "----xx" * 5 + "\n" + "Model Rolled Back" + "\n" + "----xx" * 5 + "\n \n"
         return  ""
 
-    def update_metrics(self, avg_total, epoch_progresses):
-        """Cache performance metrics and update best model if improved."""
+    def update_metrics(self, avg_total_reward):
+        """
+        Update performance metrics and update best model if improved.
+
+        Args:
+            avg_total_reward (float): Average total reward.
+        """
         self.avg_progress = sum(car.progress for car in self.cars) / len(self.cars) * 100
         self.max_progress = max(self.max_progress, self.avg_progress)
         if self.time_manager.get_average_lap_time() is not None:
@@ -1618,11 +1620,20 @@ class AITrainingEnvironment(CarSimulation):
             if (self.avg_progress/100 > self.PROGRESS_THRESHOLD and
                     self.avg_lap_time <= self.LAP_TIME_THRESHOLD):
                 self.is_model_raceable = True
+            else:
+                self.is_model_raceable = False
         else:
             self.is_model_raceable = False
-        self.performance_history.append(avg_total)
+        self.performance_history.append(avg_total_reward)
 
-        # Maintain performance history window
+    def cache_best_params(self, epoch_progresses):
+        """
+        Save best model parameters to roll back to if historic average has improved.
+
+        Args:
+            epoch_progresses (list[float]): Epoch progresses.
+        """
+
         if len(self.performance_history) > 2 * self.HISTORY_WINDOW:
             self.performance_history.pop(0)
 
@@ -1646,22 +1657,6 @@ class AITrainingEnvironment(CarSimulation):
         if len(self.historic_progress) > self.HISTORY_WINDOW:
             self.historic_progress.pop(0)
 
-    def event_handle(self):
-        """Handle user input events."""
-        # Reset simulation
-        super().event_handle()
-        if self.reset_button in game_core.pressed_buttons:
-            self.reinitialise_simulation()
-
-        # Speed control
-        if self.tick_speedup_button in game_core.pressed_buttons:
-            self.toggle_speedup()
-
-        # Save model
-        if self.save_ai_button in game_core.pressed_buttons:
-            self.initialise_model_saver()
-
-
     def initialise_model_saver(self):
         self.model_saver = UIFileBrowser(pygame.Rect((0, 0), game_core.screen_dimensions),
                                          self.gui_manager,
@@ -1670,7 +1665,6 @@ class AITrainingEnvironment(CarSimulation):
                                          callback= lambda filename: self.save_model(filename))
 
     def reset_cars(self):
-        """Reset all AI cars."""
         self.stuck_timer = [0] * self.num_of_cars
         self.prev_progress = [0.0] * self.num_of_cars
 
@@ -1679,7 +1673,6 @@ class AITrainingEnvironment(CarSimulation):
             car.progress = 0
 
     def save_model(self, filename=None):
-        """Save the current model to disk."""
         if filename is None:
             return
 
@@ -1691,25 +1684,23 @@ class AITrainingEnvironment(CarSimulation):
             'model_type': 'MCAC' if hasattr(self.rl_model, 'critic') else 'REINFORCE',
             'episode_num': self.episode_num,
             'best_model_params': self.best_model_params,
+            'num_of_cars': self.num_of_cars,
 
             # Actor configuration
             'actor_params': self.rl_model.actor.get_params(),
-            'actor_activations': actor_activations,  # SAVE THIS
+            'actor_activations': actor_activations,
             'gamma': self.rl_model.gamma,
             'entropy': self.rl_model.entropy,
             'l2_lambda': self.rl_model.l2_lambda,
             'actor_learning_rate': self.rl_model.actor.alpha,
             'actor_beta1': self.rl_model.actor.beta1,
-            'actor_beta2': self.rl_model.actor.beta2,
-
-            # Number of cars
-            'num_of_cars': self.num_of_cars
+            'actor_beta2': self.rl_model.actor.beta2
         }
 
         if save_data['model_type'] == 'MCAC':
             critic_activations = [layer.activation_name for layer in self.rl_model.critic.layers]
             save_data['critic_params'] = self.rl_model.critic.get_params()
-            save_data['critic_activations'] = critic_activations  # SAVE THIS
+            save_data['critic_activations'] = critic_activations
             save_data['critic_learning_rate'] = self.rl_model.critic.alpha
             save_data['critic_beta1'] = self.rl_model.critic.beta1
             save_data['critic_beta2'] = self.rl_model.critic.beta2
@@ -1718,7 +1709,9 @@ class AITrainingEnvironment(CarSimulation):
         self.model_saver = None
 
     def toggle_speedup(self):
-        """Set simulation speedup factor."""
+        """
+        Set simulation speedup factor.
+        """
         if game_core.TICK_SPEEDUP == 1:
             game_core.TICK_SPEEDUP = 2
         elif game_core.TICK_SPEEDUP == 2:
@@ -1732,6 +1725,5 @@ class AITrainingEnvironment(CarSimulation):
         self.speed_label.set_text(f"Speed: {game_core.TICK_SPEEDUP}X")
 
     def display_end_screen(self, results):
-        """No end screen displayed at end of each episode"""
         pass
 

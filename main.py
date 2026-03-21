@@ -1,7 +1,8 @@
 from pygame_gui import UIManager
-from game_modes import MainMenu
-from resources import game_core
+from nea.game_modes import MainMenu
+from nea.resources import game_core
 import pygame
+
 """
 Main module for running the program.
 
@@ -20,14 +21,13 @@ def game_loop():
     Main game loop that runs the program. Repeats indefinitely until the user closes the program.
     """
     while True:
-        # Record user events into respective hash sets.
         for event in pygame.event.get():
             game_core.cache_events(event)
 
         # Update clock: dt_ms is the time between clock updates
         game_core.dt_ms = game_core.clock.tick(game_core.FRAME_RATE)
 
-        # dt_per_step is time per frame processing call -> handles speedups
+        # dt_per_step is time per frame processing call handles speedups
         dt_per_step = game_core.dt_ms / game_core.TICK_SPEEDUP
 
         for _ in range(game_core.TICK_SPEEDUP):

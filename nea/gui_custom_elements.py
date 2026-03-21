@@ -1,12 +1,11 @@
 import math
-import json
 import os
-import resources as r
+from nea import resources as r
 import re
 import pygame
 import numpy as np
 
-from track import SpatialHashGrid
+from nea.track import SpatialHashGrid
 from pygame.math import Vector2
 from pygame_gui.core import UIElement
 from pygame_gui.elements import (UIPanel, UILabel, UIButton, UISelectionList, UITextEntryLine,
@@ -113,7 +112,6 @@ class UIModelCreator(UIElement):
         self.num_of_cars_input.set_text("12")
         y += row_height
 
-        # Gamma
         UILabel(
             relative_rect=pygame.Rect((x, y), (label_width, 25)),
             text="Gamma (Discount):",
@@ -129,7 +127,6 @@ class UIModelCreator(UIElement):
         self.gamma_input.set_text("0.99")
         y += row_height
 
-        # Entropy
         UILabel(
             relative_rect=pygame.Rect((x, y), (label_width, 25)),
             text="Entropy Bonus:",
@@ -145,8 +142,6 @@ class UIModelCreator(UIElement):
         self.entropy_input.set_text("0.005")
         y += row_height
 
-
-        # L2 Lambda
         UILabel(
             relative_rect=pygame.Rect((x, y), (label_width, 25)),
             text="L2 Lambda:",
@@ -162,7 +157,6 @@ class UIModelCreator(UIElement):
         self.l2_lambda_input.set_text("0.01")
         y += row_height
 
-        # Init Log Std
         UILabel(
             relative_rect=pygame.Rect((x, y), (label_width, 25)),
             text="Init Log Std:",
@@ -178,7 +172,6 @@ class UIModelCreator(UIElement):
         self.actor_init_log_std_input.set_text("0.3")
         y += row_height
 
-        # Learning Rate
         UILabel(
             relative_rect=pygame.Rect((x, y), (label_width, 25)),
             text="Actor learning Rate:",
@@ -194,7 +187,6 @@ class UIModelCreator(UIElement):
         self.actor_learning_rate_input.set_text("0.003")
         y += row_height
 
-        # Adam Beta1
         UILabel(
             relative_rect=pygame.Rect((x, y), (label_width, 25)),
             text="Actor adam Beta1:",
@@ -210,7 +202,6 @@ class UIModelCreator(UIElement):
         self.actor_adam_beta1_input.set_text("0.9")
         y += row_height
 
-        # Adam Beta2
         UILabel(
             relative_rect=pygame.Rect((x, y), (label_width, 25)),
             text="Actor adam Beta2:",
@@ -226,7 +217,6 @@ class UIModelCreator(UIElement):
         self.actor_adam_beta2_input.set_text("0.999")
         y += row_height
 
-        # Actor Hidden Layers
         UILabel(
             relative_rect=pygame.Rect((x, y), (label_width, 25)),
             text="Actor Layers:",
@@ -242,7 +232,6 @@ class UIModelCreator(UIElement):
         self.actor_layers_input.set_text("32,32,64,64,64,32,32")
         y += row_height
 
-        # Actor Activation
         UILabel(
             relative_rect=pygame.Rect((x, y), (label_width, 25)),
             text="Actor Activation:",
@@ -252,11 +241,11 @@ class UIModelCreator(UIElement):
         )
         self.actor_activation_dropdown = UIDropDownMenu(
             options_list=[
-                'elu',  # Good default
-                'relu',  # Common choice
-                'tanh',  # Good for bounded outputs
-                'linear',  # No activation
-                'Custom'  # For custom pattern
+                'elu',
+                'relu',
+                'tanh',
+                'linear',
+                'Custom'
             ],
             starting_option='elu',
             relative_rect=pygame.Rect((x + label_width, y), (text_input_width, 30)),
@@ -285,8 +274,6 @@ class UIModelCreator(UIElement):
 
         # MCAC-specific fields
         if self.model_type == "Monte Carlo Actor Critic (MCAC)":
-
-            # Init Log Std
             UILabel(
                 relative_rect=pygame.Rect((x, y), (label_width, 25)),
                 text="Init Critic Log Std:",
@@ -302,7 +289,6 @@ class UIModelCreator(UIElement):
             self.critic_init_log_std_input.set_text("0.3")
             y += row_height
 
-            # Learning Rate
             UILabel(
                 relative_rect=pygame.Rect((x, y), (label_width, 25)),
                 text="Critic learning Rate:",
@@ -318,7 +304,6 @@ class UIModelCreator(UIElement):
             self.critic_learning_rate_input.set_text("0.003")
             y += row_height
 
-            # Adam Beta1
             UILabel(
                 relative_rect=pygame.Rect((x, y), (label_width, 25)),
                 text="Critic adam Beta1:",
@@ -334,7 +319,6 @@ class UIModelCreator(UIElement):
             self.critic_adam_beta1_input.set_text("0.9")
             y += row_height
 
-            # Adam Beta2
             UILabel(
                 relative_rect=pygame.Rect((x, y), (label_width, 25)),
                 text="Critic adam Beta2:",
@@ -350,7 +334,6 @@ class UIModelCreator(UIElement):
             self.critic_adam_beta2_input.set_text("0.999")
             y += row_height
 
-            # Critic Hidden Layers
             UILabel(
                 relative_rect=pygame.Rect((x, y), (label_width, 25)),
                 text="Critic Layers:",
@@ -365,7 +348,6 @@ class UIModelCreator(UIElement):
             )
             self.critic_layers_input.set_text("16,16")
             y += row_height
-            # Critic Activation
             UILabel(
                 relative_rect=pygame.Rect((x, y), (label_width, 25)),
                 text="Critic Activation:",
@@ -375,7 +357,7 @@ class UIModelCreator(UIElement):
             )
             self.critic_activation_dropdown = UIDropDownMenu(
                 options_list=[
-                    'tanh',  # Good default for critic
+                    'tanh',
                     'relu',
                     'elu',
                     'linear',
@@ -388,7 +370,6 @@ class UIModelCreator(UIElement):
             )
             y += row_height
 
-            # Custom Critic Activation Input
             self. critic_activation_custom_label = UILabel(
                 relative_rect=pygame.Rect((x, y), (label_width + 30, 25)),
                 text="Custom Critic Activations:",
@@ -406,8 +387,6 @@ class UIModelCreator(UIElement):
             self.critic_activation_custom_input.hide()
             y += row_height
 
-
-        # Create and Cancel buttons
         self.create_button = UIButton(
             relative_rect=pygame.Rect((panel_w / 4 - 75, panel_h - 60), (150, 50)),
             text="Create Model",
@@ -424,7 +403,6 @@ class UIModelCreator(UIElement):
             object_id='#cancel_button'
         )
 
-        # Error label
         self.error_label = UILabel(
             relative_rect=pygame.Rect((50, panel_h - 100), (panel_w - 100, 30)),
             text="",
@@ -562,12 +540,11 @@ class UIModelCreator(UIElement):
             return config
 
         except ValueError as e:
-            # Catch and display error for unparsable input
+            # Catch and display error
             self.error_label.set_text(f"Error: {e}")
             return None
 
     def process_event(self, event):
-        """Handle UI events for configuration inputs and buttons."""
         super().process_event(event)
 
         if event.type == pygame_gui.UI_TEXT_ENTRY_CHANGED:
@@ -605,7 +582,7 @@ class UIModelCreator(UIElement):
                     r.game_core.set_game_mode(self.return_mode)
 
     def kill(self):
-        """Clean up all UI elements and unpause game."""
+
         r.game_core.is_paused = False
 
         self.panel.kill()
@@ -669,7 +646,6 @@ class UIEndScreen(UIElement):
         """
         super().__init__(relative_rect,manager,container=None,starting_height=999,layer_thickness=1)
 
-        # Pause game
         r.game_core.is_paused = True
 
         self.callback = callback
@@ -783,7 +759,6 @@ class UIOptionSelector(UIElement):
         """
         super().__init__(relative_rect, manager, container=None, starting_height=999, layer_thickness=1)
 
-        # Pause game
         r.game_core.is_paused = True
 
         self.options = options
@@ -791,11 +766,9 @@ class UIOptionSelector(UIElement):
         self.return_mode = return_mode
         self.selected_option = options[0] if options else None
 
-        # Semi-transparent background
         self.image = pygame.Surface(relative_rect.size, pygame.SRCALPHA)
         self.image.fill((30, 30, 30, 120))
 
-        # Panel
         panel_w, panel_h = 400, 250
         self.panel = UIPanel(
             relative_rect=pygame.Rect(
@@ -808,7 +781,6 @@ class UIOptionSelector(UIElement):
             object_id="#selector_panel"
         )
 
-        # Title label
         self.title_label = UILabel(
             relative_rect=pygame.Rect((0, 10), (panel_w, 30)),
             text=title,
@@ -817,7 +789,6 @@ class UIOptionSelector(UIElement):
             object_id="#selector_title"
         )
 
-        # Dropdown list (similar to file_list in FileSelector)
         self.option_list = UIDropDownMenu(
             options_list=options,
             starting_option=self.selected_option,
@@ -827,7 +798,6 @@ class UIOptionSelector(UIElement):
             object_id="#selector_list"
         )
 
-        # OK button
         self.ok_button = UIButton(
             relative_rect=pygame.Rect((40, 150), (140, 50)),
             text="OK",
@@ -836,7 +806,6 @@ class UIOptionSelector(UIElement):
             object_id="#confirm_button"
         )
 
-        # Cancel button
         self.cancel_button = UIButton(
             relative_rect=pygame.Rect((220, 150), (140, 50)),
             text="Cancel",
@@ -989,6 +958,14 @@ class UIFileBrowser(UIElement):
 
 
     def get_file_list(self):
+        """
+        Get list of valid files based on mode
+        for loading model: list only selected model type
+        for track: list only raceable tracks if mode is "load raceable".
+
+        Returns:
+            list: List of valid file names
+        """
         extension = '.json' if self.directory == 'Tracks' else '.npy'
         files = [f[:-len(extension)] for f in os.listdir(self.directory)]
         cleaned_files = []
@@ -1016,6 +993,15 @@ class UIFileBrowser(UIElement):
         return cleaned_files if cleaned_files else [f'No {self.directory}']
 
     def validated_save_filename(self, filename):
+        """
+        Use regex to validate save filename. If file exists, confirm overwrite.
+
+        Args:
+            filename (str): Filename to validate
+
+        Returns:
+            str: Validated filename
+        """
         filename = filename.strip()
         extension = '.json' if self.directory == 'Tracks' else '.npy'
         filepath = f"{self.directory}/{filename}{extension}"
@@ -1042,6 +1028,13 @@ class UIFileBrowser(UIElement):
 
 
     def get_load_file_path(self, filename):
+        """
+        Get filepath to load model/track.
+        Args:
+            filename (str): Filename to load
+        Returns:
+            str: filepath to load model
+        """
         extension = '.json' if self.directory == 'Tracks' else '.npy'
         filepath = f"{self.directory}/{filename}{extension}"
         valid_files = []
@@ -1143,7 +1136,7 @@ class UIGaugeMeter(UIElement):
             [styling attributes] (str/int): Parameters for styling the meter.
             container (UIElement): Parent container
         """
-        super().__init__(relative_rect, manager, container=container, starting_height=0, layer_thickness=1)
+        super().__init__(relative_rect, manager, container = container, starting_height=0, layer_thickness=1)
 
         self.min_value = min_value
         self.max_value = max_value
@@ -1158,7 +1151,6 @@ class UIGaugeMeter(UIElement):
                                      relative_rect.height + border_width), pygame.SRCALPHA)
         self.rebuild()
 
-    # Redraws updated version of meter
     def rebuild(self):
         self.image.fill(self.fill_colour)
         width, height = self.relative_rect.size
@@ -1170,22 +1162,32 @@ class UIGaugeMeter(UIElement):
         pygame.draw.arc(self.image, self.border_colour, arc_rect, math.pi, 2* math.pi , self.border_width)
         self.image = pygame.transform.flip(self.image, False, True)
 
-        angle = self._get_angle()
+        angle = self.get_angle()
         end_pos = (
             center[0] + (radius - self.border_width*2) * math.cos(angle),
             center[1] + (radius - self.border_width*2) * math.sin(angle)
         )
         pygame.draw.line(self.image, self.dial_colour, center, end_pos, self.dial_thickness)
 
-    # Returns angle value based on relative value (pi is added to make dial go from left to right)
-      
-    def _get_angle(self):
+
+    def get_angle(self):
+        """
+        Get dial angle from relative value
+
+        Returns:
+            float: Dial angle
+        """
         relative_value = (self.value - self.min_value) / (self.max_value - self.min_value)
         return math.pi + relative_value * math.pi
 
-    # Clamps value within the min and max range and calls rebuild
-      
+
     def update_value(self, value):
+        """
+        Clamps value within range
+
+        Args:
+            value (float): Value to clamp
+        """
         self.value = r.clamp_value(value, self.min_value, self.max_value)
         self.rebuild()
 
@@ -1248,85 +1250,81 @@ class UITrackCanvas(UIElement):
             if (self.rect.collidepoint(event.pos) and
                 self.border_width <= relative_x <= self.rect.width - self.border_width  and
                 self.border_width  <= relative_y <= self.rect.height - self.border_width):
-
                 relative_mouse_pos = Vector2(event.pos[0] - self.rect.x, event.pos[1] - self.rect.y)
 
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    self.is_click_buffer = True
-
-                    is_point_selected = self.point_selection_handling(relative_mouse_pos)
-
-                    if is_point_selected:
-                        if self.selected_point:
-                            self.is_dragging = True
-                    else:
-                        if self.mode == "anchor":
-                            insertion_index = self.check_anchor_insertion(relative_mouse_pos)
-                            if insertion_index is not None:
-                                insertion_index += 1
-                                self.insert_anchor(relative_mouse_pos, insertion_index)
-                            else:
-                                self.create_new_anchor(relative_mouse_pos)
-                            self.check_track_completion()
-                        if self.mode == "width":
-                           self.create_width_point(relative_mouse_pos)
+                    self.process_mouse_down(relative_mouse_pos)
 
                 if event.type == pygame.MOUSEMOTION:
-                    if self.is_dragging:
-                        point_index = self.selected_point[1]
-                        if self.selected_point[0] == 'a':
-                            self.handle_anchor_point_movement(relative_mouse_pos, point_index)
-                            self.check_track_completion(point_index)
-                        elif self.selected_point[0] == 'c':
-                            self.handle_control_point_movement(relative_mouse_pos, point_index)
-                        # else:
-                        #     self.handle_width_point_movement(relative_mouse_pos, point_index)
+                    self.process_mouse_motion(relative_mouse_pos)
+
                 if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
-                    self.is_click_buffer = False
-                    self.is_dragging = False
+                    self.process_mouse_up()
 
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_BACKSPACE:
             if not self.selected_point or self.selected_point[0] == 'c' or len(self.anchor_points) <= 2:
                 return
+            self.handle_point_delete()
 
-            i = self.selected_point[1]
-
-            if self.selected_point[0] == 'a':
-
-                self.anchor_points.pop(i)
-                self.selected_point = None
-
-                if not self.is_handles_enabled:
-                    return
-                if 0 < i < len(self.anchor_points)-1:
-                    self.control_points.pop(2*i)
-                    self.control_points.pop(2*i-1)
-                else:
-                    if i == 0:
-                        self.control_points.pop(0)
-                        self.control_points.pop(0)
-                    else:
-                        self.control_points.pop(-1)
-                        self.control_points.pop(-1)
-
-            else:
-                self.widths_dict.pop(i)
-
-        if self.track_spine and not self.widths_dict.__contains__(1.0):
-            self.widths_dict[1.0] = self.widths_dict[0.0]
-
-        outer_wall_points, inner_wall_points = r.generate_track_walls(self.track_spine, self.widths_dict)
-        if self.is_track_complete and outer_wall_points and inner_wall_points:
-            outer_wall_points.append(outer_wall_points[0])
-            inner_wall_points.append(inner_wall_points[0])
-            self.widths_dict.pop(1.0)
-        if self.is_handles_enabled:
-            self.track_spine = r.generate_bezier_track_spine(self.anchor_points, self.control_points)
-        else:
-            self.track_spine = r.generate_catmull_rom_track_spine(self.anchor_points, self.is_track_complete)
+        outer_wall_points, inner_wall_points = self.generate_track()
         self.rebuild(outer_wall_points, inner_wall_points)
 
+    def process_mouse_down(self, relative_mouse_pos):
+        """
+        Handle mouse left clicks:
+        if point selected, start dragging
+        else insert/ create anchor/ width point (depending on click location and mode)
+
+        Args:
+            relative_mouse_pos (Vector2): Relative mouse position
+        """
+        self.is_click_buffer = True
+        is_point_selected = self.point_selection_handling(relative_mouse_pos)
+
+        if is_point_selected:
+            if self.selected_point:
+                self.is_dragging = True
+        else:
+            if self.mode == "anchor":
+                insertion_index = self.handle_anchor_insertion(relative_mouse_pos)
+                if insertion_index is not None:
+                    insertion_index += 1
+                    self.insert_anchor(relative_mouse_pos, insertion_index)
+                else:
+                    self.create_new_anchor(relative_mouse_pos)
+                self.check_track_completion()
+            if self.mode == "width":
+                self.create_width_point(relative_mouse_pos)
+
+    def process_mouse_motion(self, relative_mouse_pos):
+        """
+        Handle mouse movement (drag points if a point is selected)
+
+        Args:
+            relative_mouse_pos (Vector2): Relative mouse position
+        """
+        if self.is_dragging:
+            point_index = self.selected_point[1]
+            if self.selected_point[0] == 'a':
+                self.handle_anchor_point_movement(relative_mouse_pos, point_index)
+                self.check_track_completion()
+            elif self.selected_point[0] == 'c':
+                self.handle_control_point_movement(relative_mouse_pos, point_index)
+
+    def process_mouse_up(self):
+        """
+        Reset flags when mouse button is released
+        """
+        self.is_click_buffer = False
+        self.is_dragging = False
+
     def point_selection_handling(self, mouse_pos):
+        """
+        Select anchor/width point if clicked
+
+        Args:
+            mouse_pos (Vector2): Relative mouse position
+        """
         if self.mode == "anchor":
             for i, point in enumerate(self.anchor_points):
                 if (mouse_pos - point).length() <= self.point_size:
@@ -1357,7 +1355,36 @@ class UITrackCanvas(UIElement):
             return True
         return False
 
-    def check_anchor_insertion(self, mouse_pos):
+    def handle_point_delete(self):
+        """
+        Delete selected point
+        If anchor point deleted, delete corresponding control points
+        """
+        i = self.selected_point[1]
+        if self.selected_point[0] == 'a':
+
+            self.anchor_points.pop(i)
+            self.selected_point = None
+
+            if not self.is_handles_enabled:
+                return
+            if 0 < i < len(self.anchor_points) - 1:
+                self.control_points.pop(2 * i)
+                self.control_points.pop(2 * i - 1)
+            else:
+                if i == 0:
+                    self.control_points.pop(0)
+                    self.control_points.pop(0)
+                else:
+                    self.control_points.pop(-1)
+                    self.control_points.pop(-1)
+
+        else:
+            self.widths_dict.pop(i)
+
+        self.selected_point = None
+
+    def handle_anchor_insertion(self, mouse_pos):
         for i in range(len(self.anchor_points) - 1):
             a1, a2 = self.anchor_points[i], self.anchor_points[i + 1]
             if self.is_handles_enabled:
@@ -1412,12 +1439,11 @@ class UITrackCanvas(UIElement):
 
     def create_width_point(self, mouse_pos):
         if len(self.track_spine) > 1:
-            # Minimum 2 anchors
             for i in range(len(self.track_spine) - 1):
-                # Iterate through all spine segments
                 segment = (self.track_spine[i], self.track_spine[i+1])
                 dist = r.point_segment_distance(mouse_pos, segment)
                 if dist <= 2:
+
                     # Create points if the track spine point is close enough
                     track_proportion = i/(len(self.track_spine)-1)
                     self.widths_dict[track_proportion] = 60
@@ -1425,6 +1451,13 @@ class UITrackCanvas(UIElement):
                     break
 
     def handle_anchor_point_movement(self, mouse_pos, point_index):
+        """
+        Move anchor point and associated control points
+
+        Args:
+            mouse_pos(Vector2): (x, y) coordinate
+            point_index(int): point index in anchors list
+        """
         if self.anchor_points[0] != self.anchor_points[-1]:
             self.is_track_complete = False
         translate_vector = mouse_pos - self.anchor_points[point_index]
@@ -1437,6 +1470,13 @@ class UITrackCanvas(UIElement):
             self.control_points[point_index * 2 - 1] += translate_vector
 
     def handle_control_point_movement(self, mouse_pos, point_index):
+        """
+        Move control point and paired handle point
+
+        Args:
+            mouse_pos(Vector2): (x, y) coordinate
+            point_index(int): point index in controls list
+        """
         if not self.is_handles_enabled:
             return
         corresponding_anchor_index = point_index // 2 if point_index % 2 == 0 else point_index // 2 + 1
@@ -1461,14 +1501,16 @@ class UITrackCanvas(UIElement):
         if mirror_point_index:
             self.control_points[mirror_point_index] = anchor_point - clamped_translation
 
-    def check_track_completion(self, moving_anchor_index = -1):
-
+    def check_track_completion(self):
+        """
+        Check if first anchor is close to last anchor for track completion
+        """
         if len(self.anchor_points) < 3:
             return False
 
         first_point = self.anchor_points[0]
         last_point = self.anchor_points[-1]
-        moving_anchor = self.anchor_points[moving_anchor_index]
+        moving_anchor = self.anchor_points[-1]
 
         if (moving_anchor != last_point and moving_anchor != first_point
             or (last_point - first_point).length() > self.point_size * 5):
@@ -1482,44 +1524,86 @@ class UITrackCanvas(UIElement):
 
         return True
 
+    def generate_track(self):
+        """
+        Generate track spine and track walls from anchors and control points data
+        Generate track using de casteljau's algorithm or catmull-rom interpolation depending on if handles is enabled
+
+        Returns:
+             tuple(list[Vector2], list[Vector2]): outer_wall_points, inner_wall_points
+        """
+        if self.track_spine and not self.widths_dict.__contains__(1.0):
+            self.widths_dict[1.0] = self.widths_dict[0.0]
+        outer_wall_points, inner_wall_points = r.generate_track_walls(self.track_spine, self.widths_dict)
+        if self.is_track_complete and outer_wall_points and inner_wall_points:
+            outer_wall_points.append(outer_wall_points[0])
+            inner_wall_points.append(inner_wall_points[0])
+            self.widths_dict.pop(1.0)
+        if self.is_handles_enabled:
+            self.track_spine = r.generate_bezier_track_spine(self.anchor_points, self.control_points)
+        else:
+            self.track_spine = r.generate_catmull_rom_track_spine(self.anchor_points, self.is_track_complete)
+        return outer_wall_points, inner_wall_points
+
     def rebuild(self, outer_wall_points, inner_wall_points):
-        width_point_positions = list(self.widths_dict.keys())
         self.image.fill((152, 152, 152))
+        self.draw_track(outer_wall_points, inner_wall_points)
+        if len(self.anchor_points) != 0:
+            if self.mode == "anchor":
+                self.draw_anchors_and_handles()
+            else:
+                self.draw_width_points()
+
+        validity_overlay = self.generate_validity_overlay(outer_wall_points, inner_wall_points)
+        self.image.blit(validity_overlay, (0, 0))
+
+        pygame.draw.rect(self.image, "black", pygame.Rect((0, 0), (
+        self.image.get_width() - self.border_width/2, self.image.get_height())), width=self.border_width)
+
+    def draw_track(self, outer_wall_points, inner_wall_points):
         r.draw_alternating_line_segments(self.image, self.track_spine)
-
-
         for i in range(len(outer_wall_points)-1):
             r.draw_line(self.image, "purple", outer_wall_points[i], outer_wall_points[i+1])
         for i in range(len(inner_wall_points)-1):
             r.draw_line(self.image, "purple", inner_wall_points[i], inner_wall_points[i+1])
 
-        if len(self.anchor_points) != 0:
-            if self.mode == "anchor":
-                for anchor in self.anchor_points:
-                    if anchor == self.anchor_points[0]:
-                        pygame.draw.circle(self.image, color="Red", center=anchor, radius=self.point_size + 1)
-                    elif anchor == self.anchor_points[-1]:
-                        pygame.draw.circle(self.image, color="black", center=anchor, radius=self.point_size + 1)
-                    else:
-                        pygame.draw.circle(self.image, color= "green", center = anchor, radius = self.point_size)
-
-                for i, handle in enumerate(self.control_points):
-                    if i%2 == 0 and i != 0:
-                        pygame.draw.line(self.image, "dark grey", handle, self.control_points[i-1], 2)
-                    if i == 0:
-                        pygame.draw.line(self.image, "dark grey", handle, self.anchor_points[0], 2)
-                    if i == len(self.control_points) - 1:
-                        pygame.draw.line(self.image, "dark grey", handle, self.anchor_points[-1], 2)
-
-                    pygame.draw.circle(self.image, color="orange", center=handle, radius=self.point_size)
+    def draw_anchors_and_handles(self):
+        for anchor in self.anchor_points:
+            if anchor == self.anchor_points[0]:
+                pygame.draw.circle(self.image, color="Red", center=anchor, radius=self.point_size + 1)
+            elif anchor == self.anchor_points[-1]:
+                pygame.draw.circle(self.image, color="black", center=anchor, radius=self.point_size + 1)
             else:
-                for width_point_position in width_point_positions:
-                    width_point_index = math.floor(max(min(width_point_position * len(self.track_spine), len(self.track_spine) - 1), 0))
-                    pygame.draw.circle(self.image, color="pink", center=self.track_spine[int(width_point_index)], radius=self.point_size)
+                pygame.draw.circle(self.image, color="green", center=anchor, radius=self.point_size)
 
+        for i, handle in enumerate(self.control_points):
+            if i % 2 == 0 and i != 0:
+                pygame.draw.line(self.image, "dark grey", handle, self.control_points[i - 1], 2)
+            if i == 0:
+                pygame.draw.line(self.image, "dark grey", handle, self.anchor_points[0], 2)
+            if i == len(self.control_points) - 1:
+                pygame.draw.line(self.image, "dark grey", handle, self.anchor_points[-1], 2)
 
+            pygame.draw.circle(self.image, color="orange", center=handle, radius=self.point_size)
 
-        overlay = pygame.Surface(self.image.get_size(), pygame.SRCALPHA)
+    def draw_width_points(self):
+        width_point_positions = list(self.widths_dict.keys())
+        for width_point_position in width_point_positions:
+            width_point_index = math.floor(
+                max(min(width_point_position * len(self.track_spine), len(self.track_spine) - 1), 0))
+            pygame.draw.circle(self.image, color="pink", center=self.track_spine[int(width_point_index)],
+                               radius=self.point_size)
+
+    def generate_validity_overlay(self, outer_wall_points, inner_wall_points):
+        """
+        Create an overlay to highlight selected point blue and highlight invalid regions red
+
+        Args:
+            outer_wall_points, inner_wall_points (list(Vector2)): wall points
+        Returns:
+            validity_overlay (pygame.Surface): overlay with highlight
+        """
+        validity_overlay = pygame.Surface(self.image.get_size(), pygame.SRCALPHA)
         if self.selected_point:
             point_index = self.selected_point[1]
             point_type = self.selected_point[0]
@@ -1528,19 +1612,23 @@ class UITrackCanvas(UIElement):
             elif point_type == 'c':
                 point = self.control_points[point_index]
             else:
-                width_point_index = math.floor(max(min(point_index * len(self.track_spine), len(self.track_spine) - 1), 0))
+                width_point_index = math.floor(
+                    max(min(point_index * len(self.track_spine), len(self.track_spine) - 1), 0))
                 point = self.track_spine[int(width_point_index)]
-            pygame.draw.circle(overlay, color=(137, 207, 240, 200), center=point, radius= self.point_size + 2)
+            pygame.draw.circle(validity_overlay, color=(137, 207, 240, 200), center=point, radius=self.point_size + 2)
 
         invalid_walls = self.get_validity_issues(outer_wall_points, inner_wall_points)
         for wall in invalid_walls:
-            r.draw_line(overlay, (255, 0, 0, 150), wall[0], wall[1], 15)
-        self.image.blit(overlay, (0, 0))
-
-        pygame.draw.rect(self.image, "black", pygame.Rect((0, 0), (
-        self.image.get_width() - self.border_width/2, self.image.get_height())), width=self.border_width)
+            r.draw_line(validity_overlay, (255, 0, 0, 150), wall[0], wall[1], 15)
+        return validity_overlay
 
     def hash_grid(self, outer_wall_points, inner_wall_points):
+        """
+        Rehash walls to grid data structure
+
+        Args:
+            outer_wall_points, inner_wall_points (list(Vector2)): wall points
+        """
         self.shg_grid.clear_grid()
         hash_points = outer_wall_points + inner_wall_points
         for i in range(len(hash_points) - 1):
@@ -1548,6 +1636,9 @@ class UITrackCanvas(UIElement):
                 self.shg_grid.hash_segment((hash_points[i], hash_points[i + 1]), i)
 
     def generate_all_controls(self):
+        """
+        Generate all controls from catmull rom anchors using catmull rom to bezier conversion
+        """
         self.control_points.clear()
         if len(self.anchor_points) < 2:
             return
@@ -1577,11 +1668,25 @@ class UITrackCanvas(UIElement):
 
     @staticmethod
     def get_bezier_points(p0, p1, p2, p3):
+        """
+        Catmull rom to bezier conversion
+
+        Args:
+            p0, p1, p2, p3 (Vector2): Catmull rom anchor points
+        Returns:
+            b1, b2 (Vector2): Bezier control points
+        """
         b1 = p1 + (p2 - p0) / 6
         b2 = p2 - (p3 - p1) / 6
         return b1, b2
 
     def get_validity_issues(self, outer_wall_points, inner_wall_points):
+        """
+        Set appropriate error type by checking reason for invalidity
+
+        Args:
+            outer_wall_points, inner_wall_points (list(Vector2)): wall points
+        """
         self.hash_grid(outer_wall_points, inner_wall_points)
 
         def check_wall_validity(wall_points, hashed_grid_start_index):

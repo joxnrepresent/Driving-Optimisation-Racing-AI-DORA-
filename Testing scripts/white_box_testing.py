@@ -22,7 +22,7 @@ print("-" * 80)
 
 def test_6_1_1_wall_segment_hashing():
     """Test 6.1.1: Test wall segment hashing"""
-    from track import SpatialHashGrid
+    from nea.track import SpatialHashGrid
 
     grid = SpatialHashGrid(cell_size=10)
     segment = ((0, 0), (50, 50))
@@ -40,7 +40,7 @@ def test_6_1_1_wall_segment_hashing():
 
 def test_6_1_2_parallel_segments():
     """Test 6.1.2: Collision between parallel segments"""
-    import resources as r
+    from nea import resources as r
 
     seg1 = ((0, 0), (100, 0))
     seg2 = ((0, 20), (100, 20))
@@ -57,7 +57,7 @@ def test_6_1_2_parallel_segments():
 
 def test_6_1_3_intersecting_segments():
     """Test 6.1.3: Collision between intersecting segments"""
-    import resources as r
+    from nea import resources as r
 
     seg1 = ((0, 0), (100, 100))
     seg2 = ((0, 100), (100, 0))
@@ -204,7 +204,7 @@ print("-" * 80)
 
 def test_8_1_1_layer_initialization():
     """Test 8.1.1: Layer initialization"""
-    from neural_network import Layer
+    from nea.neural_network import Layer
 
     layer = Layer(input_size=10, output_size=5, activation='relu')
 
@@ -219,7 +219,7 @@ def test_8_1_1_layer_initialization():
 
 def test_8_1_2_relu_activation():
     """Test 8.1.2: ReLU activation"""
-    from neural_network import Layer
+    from nea.neural_network import Layer
 
     layer = Layer(1, 1, 'relu')
     input_arr = np.array([-2, -1, 0, 1, 2])
@@ -236,7 +236,7 @@ def test_8_1_2_relu_activation():
 
 def test_8_1_3_elu_activation():
     """Test 8.1.3: ELU activation on negative"""
-    from neural_network import Layer
+    from nea.neural_network import Layer
 
     layer = Layer(1, 1, 'elu')
     input_val = np.array([-1.0])
@@ -253,7 +253,7 @@ def test_8_1_3_elu_activation():
 
 def test_8_1_4_tanh_activation():
     """Test 8.1.4: Tanh activation"""
-    from neural_network import Layer
+    from nea.neural_network import Layer
 
     layer = Layer(1, 1, 'tanh')
     input_arr = np.array([-2, 0, 2])
@@ -270,7 +270,7 @@ def test_8_1_4_tanh_activation():
 
 def test_8_1_5_forward_propagation_shape():
     """Test 8.1.5: Forward propagation shape"""
-    from neural_network import NeuralNetwork
+    from nea.neural_network import NeuralNetwork
 
     nn = NeuralNetwork([10, 20, 2], ['relu', 'linear'])
     input_batch = np.random.randn(5, 10)
@@ -331,7 +331,7 @@ def test_9_1_1_return_calculation():
 
 def test_9_1_2_stochastic_actions():
     """Test 9.1.2: Stochastic action sampling"""
-    from rl_model import REINFORCEModel
+    from nea.rl_model import REINFORCEModel
 
     model = REINFORCEModel(15, )
     state = np.array([0.5] * 15)
@@ -389,7 +389,7 @@ def test_9_1_4_action_clipping():
 
 def test_9_1_5_trajectory_storage():
     """Test 9.1.5: Trajectory storage"""
-    from rl_model import REINFORCEModel
+    from nea.rl_model import REINFORCEModel
 
     model = REINFORCEModel(15, )
 

@@ -18,9 +18,9 @@ import pygame
 from pygame import Vector2
 from pygame_gui.elements import UIPanel, UIProgressBar, UIHorizontalSlider
 
-import resources as r
-from resources import game_core
-from gui_custom_elements import UIGaugeMeter
+import nea.resources as r
+from nea.resources import game_core
+from nea.gui_custom_elements import UIGaugeMeter
 
 class Car(pygame.sprite.Sprite, ABC):
     """
@@ -88,6 +88,7 @@ class Car(pygame.sprite.Sprite, ABC):
         self.velocity = pygame.Vector2(0, 0)
         self.acceleration = pygame.Vector2(0, 0)
         self.progress = 0
+
         self.hitbox = []
 
         # Control inputs
@@ -224,14 +225,15 @@ class Car(pygame.sprite.Sprite, ABC):
         center_x, center_y = self.rect.center
         width, length = self.car_proportions / 2
         width -= 5
-        corners = [(-width, length), (width, length), (width, -length), (-width, -length)]
+        corners = np.array([(-width, length), (width, length), (width, -length), (-width, -length)])
+        angle = math.radians(self.direction)
 
-        for i in range(4):
-            x, y = corners[i]
-            angle = math.radians(self.direction)
-            corners[i] = (center_x + x * math.cos(angle) - y * math.sin(angle),
-                          center_y + x * math.sin(angle) + y * math.cos(angle))
-        self.hitbox[:] = corners
+        rotation_matrix = np.array([(math.cos(angle), -math.sin(angle)), (math.sin(angle), math.cos(angle))])
+        rotated_corners = corners @ rotation_matrix.T
+        rotated_corners[:, 0] += center_x
+        rotated_corners[:, 1] += center_y
+
+        self.hitbox[:] = rotated_corners.tolist()
 
     def update_and_get_progress(self, track_spine):
         """
@@ -324,6 +326,7 @@ class PlayerCar(Car):
         steering_slider (UIHorizontalSlider): Optional slider to control steering
         is_slider_enabled (bool): Indicates whether user steers with keyboard or slider.
     """
+
     def __init__(self,
                  starting_position = None,
                  starting_orientation = 270,
@@ -402,6 +405,7 @@ class PlayerCar(Car):
         self.drive_car(self._handle_steering(), self._handle_throttle())
         self.throttle_and_braking_meter.set_current_progress((self.current_throttle_input+1)*50)
         self.speedometer.update_value(self.velocity.magnitude())
+        # print(self.velocity.magnitude())
 
     def _handle_steering(self):
         """
@@ -475,8 +479,6 @@ class PlayerCar(Car):
             manager=game_core.gui_manager,
             container= self.hud_panel
         )
-
-
 
 class AICar(Car):
     """

@@ -1,10 +1,19 @@
 import numpy as np
-import resources as r
-from neural_network import NeuralNetwork
+from nea.neural_network import NeuralNetwork
 from abc import ABC, abstractmethod
-from resources import game_core
 
+"""
+Reinforcement Learning Models that implement stochastic policy gradient. Models by default are configured for the
+agentic cars, with input vector the size of sensor input and the output vector size 2 (steer and throttle).
+Base RLModel class includes trajectory caching, stochastic action sampling and monte carlo return computation logic.
+REINFORCEModel and MCACModel implement their specific parameter update logic
 
+Classes:
+    RLModel: Base model abstract class with stochastic action sampling and reward computation
+    REINFORCEModel: Model that implements REINFORCE algorithm and updates parameters using policy gradient
+    MCACModel: Model that implements Monte Carlo Actor-Critic algorithm for updating parameters. Includes actor and 
+                critic neural networks
+"""
 class RLModel(ABC):
     def __init__(self, l2_lambda, layer_sizes, activations, gamma, entropy,init_log_std, learning_rate, beta1, beta2):
        # Recording Trajectory
@@ -34,7 +43,6 @@ class RLModel(ABC):
         self.states.append(state)
         self.pre_squash_actions.append(action)
         self.rewards.append(reward)
-
 
     def compute_monte_carlo_return(self):
         rewards = np.array(self.rewards, np.float32)
@@ -150,3 +158,4 @@ class MCACModel(RLModel):
                 f"Value: {avg_value:.3f} \n"
                 f"Critic Loss: {avg_critic_loss:.3f} \n"
                 f"Exploration (Std): {avg_std:.3f} \n")
+

@@ -1,6 +1,5 @@
-from neural_network import  NeuralNetwork
+from nea.neural_network import  NeuralNetwork
 import numpy as np
-from numpy import e
 import matplotlib
 matplotlib.use("TkAgg")
 

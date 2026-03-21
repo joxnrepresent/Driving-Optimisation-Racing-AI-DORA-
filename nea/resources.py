@@ -86,7 +86,9 @@ class GameCore:
         self.game_mode = new_mode()
 
     def render(self):
-        """Render sprites, GUI and debug overlays to screen."""
+        """
+        Render sprites, GUI and debug overlays to screen.
+        """
         self.main_screen.fill(self.SCREEN_FILL)
         self.game_sprites.draw(self.main_screen)
         # Debug graphics
@@ -127,7 +129,9 @@ class GameCore:
             self.pressed_buttons.add(event.ui_element)
 
     def process_frame(self):
-        """Process single frame of game logic."""
+        """
+        Process single frame of game logic.
+        """
         if self.game_mode:
             self.game_mode.event_handle()
             self.game_mode.update()
@@ -169,7 +173,6 @@ class RaceTimeManager:
         self.num_of_laps = 0
 
     def initialise_manager(self, num_of_cars):
-        """Initialise race time manager."""
         self.start_time = game_core.sim_time_ms
         self.is_all_laps_finished  = [False] * num_of_cars
         self.lap_times = [
@@ -352,8 +355,6 @@ def load_bezier_track(filename, enforce_centering = False):
 def draw_line(surface, colour, p1, p2, width = 3):
     pygame.draw.line(surface, colour, p1, p2, width)
 
-
-
 def draw_alternating_line_segments(surface, points):
     """
     Draw alternating black and red segments.
@@ -461,11 +462,9 @@ def point_segment_distance(point, segment):
     """
     a, b = segment
     ap = point - a
-    ab = a - b
+    ab =  b - a
 
-    seg_len_sq = ab.length_squared()
-
-    t = max(0, min(1, ap.dot(ab) / (seg_len_sq + 1e-10)))
+    t = max(0, min(1, ap.dot(ab) / (ab.length_squared()+ 1e-10)))
     closest_point = a + ab * t
     return (point - closest_point).length()
 

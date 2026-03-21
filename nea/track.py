@@ -1,9 +1,9 @@
-import resources as r
+from nea import resources as r
 from math import floor,sqrt
 from pygame.sprite import Sprite
 from pygame import Surface, Rect, SRCALPHA, Vector2
 from collections import defaultdict
-from resources import game_core
+from nea.resources import game_core
 import pygame
 """
 Track class and Spacial Hash Grid data structure 
@@ -20,7 +20,7 @@ class Track(Sprite):
     """
     Track sprite with collision detection methods.
 
-    Generates track spine from bezier curve data. Generates track walls from the generated track spine and the width
+    Generates track spine from Bézier curve data. Generates track walls from the generated track spine and the width
     point data. Renders track with finish line and walls.
 
     Attributes:
@@ -39,7 +39,6 @@ class Track(Sprite):
 
 
         self.track_spine = r.generate_bezier_track_spine(anchors, controls)
-        print(f"Spine length {len(self.track_spine)}")
         if 1.0 not in widths:
             widths[1.0] = widths[0.0]
         outer_wall_points, inner_wall_points = r.generate_track_walls(self.track_spine, widths)
@@ -63,9 +62,16 @@ class Track(Sprite):
         self.image = Surface((self.rect.width, self.rect.height), SRCALPHA)
         self.draw_track()
 
-    # Cast ray and return shortened ray up till nearest point of intersection
-    # Returns normalised distance which is the percentage of max length
     def ray_cast(self, ray):
+        """
+        Get intersection point of ray with track wall, and normalised distance to wall for sensor data.
+
+        Args:
+            ray (Vector2): Start and end point for ray cast
+        Returns:
+            Vector2: Intersection point with wall (end of ray if no intersection point)
+            float: Normalised distance to wall
+        """
         ray_start = Vector2(ray[0])
         ray_end = Vector2(ray[1])
         hit_point = self.grid.return_collision_point(ray, self.wall_segments)
@@ -75,8 +81,15 @@ class Track(Sprite):
         pygame.draw.line(self.image, (0, 255, 255), ray_start, hit_point)
         return hit_point, sqrt(normalised_distance)
 
-    # Checks each border of the hitbox for collision with track segments in the cells it passes through
     def hitbox_collision_detection(self, hitbox):
+        """
+        Detects collision between hitbox and wall segment.
+
+        Args:
+            hitbox (list(Vector2)): Corners of hitbox
+        Returns:
+            bool: True if collision detected, False otherwise
+        """
         for i in range(len(hitbox)):
             hitbox_border_line = (hitbox[i], hitbox[(i + 1) % len(hitbox)] )
             collision = self.grid.return_collision_point(hitbox_border_line, self.wall_segments)
@@ -86,7 +99,9 @@ class Track(Sprite):
 
 
     def draw_track(self):
-        """Draw track graphics with walls, road and finish line."""
+        """
+        Draw track sprite with walls, road and finish line.
+        """
         self.image.fill((0, 0, 0, 0))
 
         # Draw road in grey
@@ -99,7 +114,7 @@ class Track(Sprite):
 
     def draw_alternating_wall(self,width=10):
         """
-        Draw walls with alternating colours.
+        Draw walls with alternating red and white strips.
 
         Args:
             width (int): Wall line width
@@ -146,6 +161,12 @@ class Track(Sprite):
             pygame.draw.polygon(self.image, color, [p1, p2, p3, p4])
 
     def get_starting_orientation(self):
+        """
+        Get starting heading direction of car on track
+
+        Returns:
+            float: Starting heading direction
+        """
         start_line = Vector2(self.outer_wall_points[0] - self.inner_wall_points[0])
         unit_vector = start_line.normalize()
         normal_vector = Vector2(-unit_vector.y, unit_vector.x)
@@ -157,7 +178,7 @@ class Track(Sprite):
 class SpatialHashGrid:
     """
     Segments the set of wall segments into a hash set of cells, with each cell coordinate as the key, and a list of
-    wall segments in that cell as the value. Also includes dda travelsal method and helper methods to hash and query
+    wall segments in that cell as the value. Also includes dda traversal method and helper methods to hash and query
     cells.
     """
     def __init__(self, cell_size = 10):
@@ -173,6 +194,16 @@ class SpatialHashGrid:
         self.cells[(ix, iy)].append(segment_index)
 
     def _check_cell_for_collision(self, ix, iy, ray, wall_segments):
+        """
+        Check single cell for any collision of track wall segment with ray.
+
+        Args:
+            ix, iy (int): Wall segment (x,y) index
+            ray (Vector2): Ray start and end point
+            wall_segments (list(Vector2)): List of track wall segments
+        Returns:
+            Vector2: coordinates of collision point (None if no collision)
+        """
         if (ix, iy) in self.cells:
             for seg_index in self.cells[(ix, iy)]:
                 seg = wall_segments[seg_index]
@@ -181,11 +212,19 @@ class SpatialHashGrid:
                     return hit_point
         return None
 
-    def get_all_collision_indices(self, ix, iy, check_segment, points_list):
+    def get_all_collision_indices(self, ix, iy, check_segment, wall_points_list):
+        """
+        Get indices of all collisions of walls with a check segment (used for validity check in track maker)
+
+        Args:
+            ix, iy (int): Wall segment (x,y) index
+            check_segment (Vector2): line segment to be checked
+            wall_points_list (list(Vector2)): List of track wall segments
+        """
         collisions = []
         if (ix, iy) in self.cells:
             for seg_index in self.cells[(ix, iy)]:
-                seg = (points_list[seg_index], points_list[seg_index+1])
+                seg = (wall_points_list[seg_index], wall_points_list[seg_index + 1])
                 hit_point = r.get_line_segments_intersection(check_segment, seg)
                 if hit_point:
                    collisions.append(seg_index)
@@ -193,6 +232,16 @@ class SpatialHashGrid:
 
 
     def dda_grid_traverse(self, segment, on_visit):
+        """
+        Digital differential analyser (DDA) algorithm for traversing grid.
+
+        Args:
+            segment (Vector2): Line segment end points
+            on_visit (lamda function): Function to be called when collision detected.
+
+        Returns:
+            result of lambda function
+        """
         (x1, y1), (x2, y2) = segment
 
         # Change in x and change in y
