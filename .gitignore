@@ -215,3 +215,9 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 /.idea
+
+# macOS
+.DS_Store
+
+# Plots written by tests/nn_function_fitting.py
+Neural Network Tests/

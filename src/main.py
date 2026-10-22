@@ -2,6 +2,7 @@ from pygame_gui import UIManager
 from nea.game_modes import MainMenu
 from nea.resources import game_core
 import pygame
+import os
 
 """
 Main module for running the program.
@@ -10,6 +11,9 @@ Initialises pygame and GUI manager, then runs the main game loop with frame proc
 and rendering at the specified frame rate.
 """
 #---------------------------------------------------------------------------------------------------------------------#
+
+# Run relative to this file so Tracks, Models, Images and the theme are found wherever the program is launched from
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # pygame and GUI initialisation
 pygame.init()
